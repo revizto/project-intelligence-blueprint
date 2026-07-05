@@ -85,14 +85,14 @@ One `CONFIG` object at the top of the dashboard script:
 | Constant | This build | Meaning |
 |---|---|---|
 | `server` | per-install connector prefix | the MCP tool-name prefix (see Known open item) |
-| `readOnly` | `true` | the 06 Action write surface is disabled; enabling it is a deliberate deploy-time edit, not a runtime toggle |
+| `readOnly` | `true` | the 06 Action write surface is disabled AND the header Read-only pill is locked (checked, immutable, with an explainer tooltip). Enabling writes is a deploy-time decision: set `readOnly:false` and declare `update_issues` on the artifact. In write-enabled builds the pill becomes a live toggle the user controls. |
 | `wsHost` | `ws.revizto.com` | host for issue deep-links into the Revizto workspace |
 
 ## Trust posture (the product is the trust)
 
 - **Count-first exact layer.** Headline totals come from exact counts; anything sampled is labelled "sample of N of M" on the card itself.
 - **Live, never cached.** Cache-busted reads, per-call timeouts, honest failure states ("Couldn't load — Reload to retry"), full state reset on every licence/project switch.
-- **Read-only by default.** The tool allowlist is nine read tools plus `update_issues`; with `readOnly:true` the write path is inert. When enabled per engagement, every write is count-first-targeted, previewed with a diff, approval-gated and reversible.
+- **Read-only by default, in two independent layers.** The inner layer is `CONFIG.readOnly:true`, which disables the write surface and locks the header pill. The outer layer is the artifact's declared tool list — this build declares only the nine read tools, so even a tampered page cannot write: the Cowork host refuses any undeclared tool. Enabling writes per engagement means deliberately changing both (set `readOnly:false`, declare `update_issues`). When enabled, every write is count-first-targeted, previewed with a diff and sample, approval-gated, audit-noted and reversible.
 - **Your session, your permissions.** All calls run through the user's own authenticated MCP session. No escalation is possible.
 - **AI answers** (05 Ask) send only the derived figures needed for the question to the model; project data is not stored server-side.
 

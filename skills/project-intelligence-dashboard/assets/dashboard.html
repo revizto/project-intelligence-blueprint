@@ -3201,7 +3201,7 @@ const Tour=(function(){
 
 buildFilters();initTabs();renderHeader();renderPicker();showTab("coffee");(function(){const _rb=document.getElementById("refreshBtn");if(_rb)_rb.onclick=()=>{_rb.classList.add("spinning");setSrc("Refreshing…","#0097A7");refresh();};})();
 (function(){const ro=document.getElementById("roToggle"),pill=document.getElementById("roPill");function syncRO(){if(pill)pill.classList.toggle("on",READONLY);}
-  if(ro){ro.checked=READONLY;syncRO();ro.onchange=()=>{READONLY=ro.checked;localStorage.setItem("rvz_readonly",READONLY?"1":"");if(READONLY&&JOB&&JOB.status==="running")pauseJob();syncRO();if(typeof syncActionTab==="function")syncActionTab();renderTab(current);};}})();
+  if(ro){if(CONFIG.readOnly){/* read-only DEPLOY: the pill is a visible, immutable statement — writes are a deploy-time decision (CONFIG.readOnly + the artifact tool allowlist), never a runtime toggle */ro.checked=true;ro.disabled=true;const _rl=ro.closest("label")||ro.parentElement;if(_rl){_rl.title="Read-only build — writes are disabled in this deployment. Enabling them is a deploy-time decision, not a switch.";_rl.style.opacity="0.75";_rl.style.cursor="default";}syncRO();}else{ro.checked=READONLY;syncRO();ro.onchange=()=>{READONLY=ro.checked;localStorage.setItem("rvz_readonly",READONLY?"1":"");if(READONLY&&JOB&&JOB.status==="running")pauseJob();syncRO();if(typeof syncActionTab==="function")syncActionTab();renderTab(current);};}}})();
 /* issue-sample scale controller: a % stepper (primary) + an Advanced fixed-count override.
    Totals stay exact; this only sizes the representative detail sample. Heavy loads (>=WARN_AT) confirm first. */
 function fmtCap(n){return n>=SAMPLE_CEILING?(fmt(SAMPLE_CEILING)+"+"):fmt(n);}
