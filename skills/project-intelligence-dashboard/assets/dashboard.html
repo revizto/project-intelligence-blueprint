@@ -1282,6 +1282,7 @@ function sampleBadge(){const s=DATA.sample;if(!s)return "";
 
 let reqSeq=0;let sampling=false;
 async function refresh(){
+  if(!(window.cowork&&window.cowork.callMcpTool)){if(window.demoBoot)window.demoBoot(PRJ);return;}/* demo/standalone: re-seed, never attempt a live load */
   const my=++reqSeq;bumpCB();
   try{
     await discoverLicenses();if(my!==reqSeq)return;const lic=LIC;
@@ -3252,7 +3253,42 @@ async function changeScale(mutate){
   function close(){pop.hidden=true;btn.setAttribute("aria-expanded","false");document.removeEventListener("mousedown",outside,true);document.removeEventListener("keydown",esc,true);}
   btn.addEventListener("click",()=>{pop.hidden?open():close();});
 })();
-if(window.cowork&&window.cowork.callMcpTool){refresh();}else{setSrc("Snapshot · "+SNAPDATE,"#0097A7");/* demo/standalone mode: seed the licence + single demo project so the picker and portfolio render honestly (in-memory only — never written to localStorage; live discovery overwrites all of this inside Cowork) */LICENSES=[{uuid:"demo-lic",name:"Demo licence"}];LIC="demo-lic";PROJECTS=[{uuid:"demo-prj",id:0,title:DATA.meta.name,lastActive:DATA.meta.lastActive}];PRJ="demo-prj";const _dt=Object.values(DATA.status).reduce((a,b)=>a+b,0);PORTM["demo-prj"]={active:DATA.status.Open+DATA.status["In progress"],rate:_dt?Math.round(100*(DATA.status.Solved+DATA.status.Closed)/_dt):0,tot:_dt};snapshotStore();renderHeader();renderPicker();renderTab(current);}
+if(window.cowork&&window.cowork.callMcpTool){refresh();}else{
+/* ---- demo/standalone mode (no window.cowork) ----
+   Synthetic, clearly-labelled dataset so every view demonstrates honestly offline.
+   In-memory only — nothing written to localStorage; live discovery replaces all of it inside Cowork. */
+const DEMO_PEOPLE=[["Alex Rivera","a.rivera@example.com","BIM Manager","Riverside Health Trust","Digital Delivery"],["Sarah Okafor","s.okafor@example.com","MEP Coordinator","Okafor Building Services","MEP"],["Mia Lindqvist","m.lindqvist@example.com","Structural Lead","Lindqvist Structural",""],["Jun Tanaka","j.tanaka@example.com","Architectural Coordinator","Atelier Tanaka","Architecture"],["Dara Walsh","d.walsh@example.com","Site Engineer","Walsh Construct","Site"],["Kris Novak","k.novak@example.com","Quantity Surveyor","Novak QS",""],["Priya Mercier","p.mercier@example.com","Services Engineer","Okafor Building Services","MEP"],["Luis Fernandez","l.fernandez@example.com","Document Controller","Riverside Health Trust","Information Management"]];
+const DEMO={
+ "demo-prj":{title:"Riverside Medical Centre — demo",created:"2026-03-02",lastActive:"2026-05-18 09:12:44",revNum:4,revBy:"Alex Rivera",revDate:"2026-05-15",
+  status:{Open:412,"In progress":186,Solved:97,Closed:143},priority:{blocker:2,critical:41,major:388,minor:167,trivial:8,none:232},
+  sheets:12,clashTests:6,clashRun:0,stamps:24,stampDisc:5,stampLeaf:19,has3d:true,deptFull:false,
+  trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[18,26,11,29,17,22,9,31,14,7],resolved:[2,5,3,8,6,9,11,14,17,21]}},
+ "demo-prj2":{title:"Hillcrest Aquatic Centre — demo",created:"2026-02-09",lastActive:"2026-05-17 15:40:10",revNum:7,revBy:"Sarah Okafor",revDate:"2026-05-14",
+  status:{Open:118,"In progress":54,Solved:203,Closed:167},priority:{blocker:0,critical:12,major:210,minor:196,trivial:14,none:110},
+  sheets:9,clashTests:11,clashRun:9,stamps:31,stampDisc:6,stampLeaf:25,has3d:true,deptFull:true,
+  trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[21,17,14,12,15,9,11,8,7,5],resolved:[6,9,14,17,19,21,18,22,20,17]}}};
+function demoTl(u,st){const rows=[];const day=864e5;const t0=+new Date("2026-03-02T08:00:00");
+ const em=DEMO_PEOPLE.map(x=>x[1]);const sk=["CLH","ARC","STR","MEP","RFI","QAQ"];const ty=["Clash","Design review","RFI","Site query"];const pr=["major","minor","critical","major","none"];
+ const mk=(n,stt,cl,rs)=>{for(let i=0;i<n;i++){const o=t0+((i*37)%77)*day+((i*13)%9)*36e5;const c=rs?o+(3+((i*17)%28))*day:0;rows.push({u:u+"-"+stt+"-"+i,o:o,c:c,cl:cl,rs:rs,pr:pr[i%5],au:em[i%8],sk:sk[i%6],sc:"",st:stt,ty:ty[i%4]});}};
+ mk(st.Open,"open",false,false);mk(st["In progress"],"in_progress",false,false);mk(st.Solved,"solved",false,true);mk(st.Closed,"closed",true,true);return rows;}
+window.demoBoot=function(u){const d=DEMO[u]||DEMO["demo-prj"];PRJ=DEMO[u]?u:"demo-prj";
+ const tot=Object.values(d.status).reduce((a,b)=>a+b,0);const f=n=>Math.max(1,Math.round(n));
+ DATA.meta={name:d.title,region:"demo",created:d.created,lastActive:d.lastActive,revNum:d.revNum,revBy:d.revBy,revDate:d.revDate,has3d:d.has3d};
+ DATA.status=Object.assign({},d.status);DATA.priority=Object.assign({},d.priority);DATA.trend={labels:d.trend.labels.slice(),opened:d.trend.opened.slice(),resolved:d.trend.resolved.slice()};
+ DATA.sheets=d.sheets;DATA.clashTests=d.clashTests;DATA.clashRun=d.clashRun;DATA.stamps=d.stamps;DATA.stampDisc=d.stampDisc;DATA.stampLeaf=d.stampLeaf;
+ DATA.workflow={name:"Standard issue workflow",std:true,statuses:4,cats:["To do","Tracking","Completed"],wfCount:1};
+ DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};
+ DATA.reporters=DEMO_PEOPLE.map((x,i)=>[x[1],f(tot*(0.22-i*0.024)),f(tot*0.03)]);
+ DATA.assignees=DEMO_PEOPLE.map((x,i)=>[x[1],f((d.status.Open+d.status["In progress"])*(0.24-i*0.026)),f((d.status.Open+d.status["In progress"])*(0.18-i*0.02))]);
+ DATA.team=DEMO_PEOPLE.map((x,i)=>[x[0],x[1],x[2],i===5?"":d.lastActive,i!==5]);
+ DATA.reporterCount=8;DATA.assigneeCount=8;DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;
+ PMEMBERS=DEMO_PEOPLE.map((x,i)=>({email:x[1],name:x[0],company:x[3],department:(d.deptFull&&!x[4])?"General":x[4],active:i!==5}));
+ DATA.tl=demoTl(PRJ,d.status);DATA.tl_anomalies=0;DATA._projectId=0;DATA._sheetUuid="";DATA._issueUuid="";
+ snapshotStore();setSrc("Snapshot · "+SNAPDATE,"#0097A7");renderHeader();renderPicker();renderTab(current);};
+LICENSES=[{uuid:"demo-lic",name:"Demo licence"}];LIC="demo-lic";
+PROJECTS=[{uuid:"demo-prj",id:0,title:DEMO["demo-prj"].title,lastActive:DEMO["demo-prj"].lastActive},{uuid:"demo-prj2",id:0,title:DEMO["demo-prj2"].title,lastActive:DEMO["demo-prj2"].lastActive}];
+Object.keys(DEMO).forEach(k=>{const st=DEMO[k].status;const t=Object.values(st).reduce((a,b)=>a+b,0);PORTM[k]={active:st.Open+st["In progress"],rate:t?Math.round(100*(st.Solved+st.Closed)/t):0,tot:t};});
+window.demoBoot("demo-prj");}
 offerResume();
 Tour.maybeAutoStart();/* first-run only: starts when rvz_tour_done is unset, after first render */
 </script>
