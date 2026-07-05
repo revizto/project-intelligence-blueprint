@@ -24,11 +24,59 @@ SKILLS-MANIFEST.md                                  what ships, what never ships
 CHANGELOG.md
 ```
 
-## Install
+## Getting started — exact steps
 
-1. Connect the **Revizto MCP** connector for your region in Claude (OAuth 2.1 PKCE — you sign in with your own Revizto account; the dashboard holds no credentials).
-2. Install this plugin. The `project-intelligence-dashboard` skill creates the dashboard as a Cowork artifact on first run, or on "open the Revizto dashboard".
-3. The dashboard discovers your licence and lands on your most-recently-active project. Every tool call inherits your own Revizto role and project membership — it cannot see or do anything you can't.
+### Before you start (prerequisites)
+
+1. **Claude desktop app with Cowork.** The dashboard runs as a Cowork artifact — it does not work in a plain Claude chat or on claude.ai. Opened outside Cowork it shows a clearly-labelled synthetic demo, not your data.
+2. **A Revizto licence the MCP Server accepts.** Confirm with your Revizto contact that the Revizto MCP is available for your licence and region *before* installing. A licence can authenticate successfully and still be refused by the MCP ("direct API access is forbidden") — this is a Revizto-side entitlement, not a bug in the dashboard.
+3. **Your own Revizto account** with membership of the projects you want to see. The dashboard can only ever show what your Revizto role already allows.
+4. **(Claude Team/Enterprise only) Admin network allowlist.** Your Claude admin must allow the Revizto MCP connector domain(s) and `cdn.jsdelivr.net` (charts library) under Admin settings → Capabilities. If this is missed the dashboard fails silently — see Troubleshooting.
+
+### Step 1 — Connect the Revizto MCP
+
+1. In Claude, add the **Revizto MCP** connector for your region (Settings → Connectors, or via the connector directory).
+2. When prompted, sign in with your own Revizto account (OAuth 2.1 PKCE). The dashboard itself holds no credentials, tokens or URLs — all authentication lives in this connector.
+3. Approve **read** access to the tools when asked.
+
+### Step 2 — Get this package
+
+Either install it as a plugin (when distributed as one), or clone this repository and open the folder in a Cowork session:
+
+```
+git clone <this-repo-url>
+```
+
+In Cowork, select the cloned folder as your working folder so Claude can read the files.
+
+### Step 3 — Create the dashboard
+
+Say to Claude in Cowork:
+
+> Open the Revizto dashboard — follow skills/project-intelligence-dashboard/SKILL.md
+
+Claude will then, per that skill: confirm the connector is connected, **detect your connector's tool prefix and rewrite `CONFIG.server` in the dashboard HTML to match** (the prefix is unique per install — this step is required, not optional), and create the Cowork artifact declaring only the nine read tools.
+
+### Step 4 — Verify (60 seconds)
+
+- The source line (top right) reads **live**, not "Snapshot · demo data". Snapshot means no connector was reachable.
+- The project picker shows **your** projects, and the dashboard landed on your most-recently-active one.
+- Switching projects re-scores every view.
+- **06 Action anything shows disabled with a padlock.** Correct — this build ships read-only by design.
+- Figures reconcile: headline totals are exact; any sampled panel says "sample of N of M" on the card.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| "Snapshot · demo data" + fictional "Riverside Medical Centre" | Not running inside Cowork, or the connector isn't connected | Open as a Cowork artifact (Step 3); connect the Revizto MCP (Step 1) |
+| Loads, then "Couldn't load — Reload to retry" on every view | Tool calls failing: usually the `CONFIG.server` prefix doesn't match your connector | Re-run Step 3 so the install skill rewrites the prefix; confirm the nine read tools were declared on the artifact |
+| "This licence isn't accessible via the MCP Server" | The MCP refuses your licence/region ("direct API access is forbidden") | Entitlement issue — contact Revizto; no dashboard-side fix |
+| Blank charts, no error, on Team/Enterprise | `cdn.jsdelivr.net` or the connector domain not allowlisted | Claude admin: Admin settings → Capabilities → network allowlist |
+| A project you expect is missing | Your Revizto account isn't a member of it, or it's on another licence | Fix membership in Revizto; switch licence in the dashboard header |
+| "Open in Revizto" links don't resolve | Deep-links point at `ws.revizto.com` (production); your tenant is elsewhere | Expected on non-production tenants; edit `CONFIG.wsHost` for your environment |
+
+Every tool call inherits your own Revizto role and project membership — the dashboard cannot see or do anything you can't do in Revizto itself.
 
 ## Configuration (deploy-time constants)
 
