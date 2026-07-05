@@ -3252,7 +3252,7 @@ async function changeScale(mutate){
   function close(){pop.hidden=true;btn.setAttribute("aria-expanded","false");document.removeEventListener("mousedown",outside,true);document.removeEventListener("keydown",esc,true);}
   btn.addEventListener("click",()=>{pop.hidden?open():close();});
 })();
-if(window.cowork&&window.cowork.callMcpTool){refresh();}else{setSrc("Snapshot · "+SNAPDATE,"#0097A7");snapshotStore();renderTab(current);}
+if(window.cowork&&window.cowork.callMcpTool){refresh();}else{setSrc("Snapshot · "+SNAPDATE,"#0097A7");/* demo/standalone mode: seed the licence + single demo project so the picker and portfolio render honestly (in-memory only — never written to localStorage; live discovery overwrites all of this inside Cowork) */LICENSES=[{uuid:"demo-lic",name:"Demo licence"}];LIC="demo-lic";PROJECTS=[{uuid:"demo-prj",id:0,title:DATA.meta.name,lastActive:DATA.meta.lastActive}];PRJ="demo-prj";const _dt=Object.values(DATA.status).reduce((a,b)=>a+b,0);PORTM["demo-prj"]={active:DATA.status.Open+DATA.status["In progress"],rate:_dt?Math.round(100*(DATA.status.Solved+DATA.status.Closed)/_dt):0,tot:_dt};snapshotStore();renderHeader();renderPicker();renderTab(current);}
 offerResume();
 Tour.maybeAutoStart();/* first-run only: starts when rvz_tour_done is unset, after first render */
 </script>
