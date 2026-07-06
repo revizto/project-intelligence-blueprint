@@ -119,6 +119,29 @@ h1{font-weight:500;font-size:27px;letter-spacing:-.01em;margin:2px 0 0}
 .ac-chk{display:flex;align-items:center;gap:6px;font-family:var(--sans);font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;white-space:nowrap}
 .ac-chk input{margin:0;flex:none}
 .ac-chks-empty{font-family:var(--sans);font-size:12px;color:var(--muted);padding:2px}
+.asteps-head{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.asteps-head .asteps-hint{text-transform:none;letter-spacing:0;color:var(--muted);font-family:var(--sans);font-size:12px;margin-left:8px}
+.astep{background:var(--white,#fff);border:1px solid var(--line);border-radius:10px;margin:0 0 10px;overflow:hidden}
+.astep-h{display:flex;align-items:center;gap:10px;padding:11px 13px;cursor:pointer}
+.astep-n{font-family:var(--mono);font-size:10px;background:var(--concrete,#1E2E2E);color:#fff;border-radius:5px;padding:3px 7px;flex:none}
+.astep-sent{flex:1;font-size:13px}
+.astep-sent b{color:var(--red,#E40001)}
+.astep .caret{color:var(--muted);transition:transform .15s;flex:none}
+.astep.open .caret{transform:rotate(180deg)}
+.astep-body{padding:2px 13px 13px;border-top:1px solid var(--paper,#eef2f2)}
+.icbtn{border:1px solid var(--line);background:var(--white,#fff);border-radius:6px;width:26px;height:26px;cursor:pointer;color:var(--muted);font-size:13px;line-height:1;flex:none}
+.icbtn:hover{border-color:var(--red,#E40001);color:var(--red,#E40001)}
+.addstep{display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--teal-deep,#009999);background:#eefafa;color:var(--teal-ink,#0b6b6b);border-radius:9px;padding:9px 13px;cursor:pointer;font:inherit;font-weight:600;font-size:13px;margin:0 0 4px}
+.addstep:hover{background:#e2f5f5}
+.apx-list{display:flex;flex-direction:column;gap:9px;margin:6px 0 0}
+.apx-grp{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--white,#fff)}
+.apx-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.apx-n{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.03em}
+.apx-c{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--teal-ink,#0b6b6b)}
+.apx-ch{font-size:13px;color:var(--red,#E40001);font-weight:600;margin-top:3px}
+.apx-sc{font-size:12px;color:var(--muted);margin-top:2px}
+.apx-sc.est{color:#8a5a12}
+.apx-ov{font-size:12px;color:var(--muted);margin-top:10px;padding-top:9px;border-top:1px solid var(--paper,#eef2f2)}
 .ac-field{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:10px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
 .ac-field select,.ac-field input{min-height:34px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--white)}
 .ac-sub{font-family:var(--mono);font-size:10px;letter-spacing:.03em;text-transform:uppercase;color:var(--teal-ink);margin:14px 0 8px;display:flex;align-items:center;gap:8px}
@@ -2467,7 +2490,7 @@ function renderShowcase(){}
    server-resolvable filters (assignee/status) yield an EXACT count + real uuids;
    priority/type/text filters are sample-scoped and labelled as such, never as exact.
    ============================================================================ */
-const ACT={intent:null,target:null,busy:false};
+const ACT={intent:null,target:null,busy:false,steps:null,active:-1,compiled:null,fixed:false};
 /* reduced-motion-safe scroll (the CSS scroll-behavior override doesn't reliably govern JS smooth-scroll cross-browser) */
 function _actScroll(el){if(!el)return;try{const rm=(window.matchMedia&&window.matchMedia("(prefers-reduced-motion:reduce)").matches);el.scrollIntoView({behavior:rm?"auto":"smooth",block:"nearest"});}catch(e){}}
 const PRIO_ENUM=["blocker","critical","major","minor","trivial","none"];
@@ -2653,10 +2676,10 @@ function actRenderHandoff(){const h=document.getElementById("actHandoff");if(!h)
   h.hidden=false;h.innerHTML=`<span class="ah-txt"><b>${fmt(n)} issue${n>1?"s":""}</b> selected in Coordination analytics. Action just those, or describe a change below to target the wider project.</span><button class="btn" id="ahUse">Action the ${fmt(n)} selected &rarr;</button>`;
   const b=document.getElementById("ahUse");if(b)b.onclick=actFromSelection;}
 async function actParseIntent(q){const v=actVocab();
-  const sys="You translate a plain-language project-change request into a STRICT JSON object and NOTHING else. You do not perform the change; you only describe it for a human to confirm. Schema: {\"filter\":{\"assignee\":email-name-or-array|null,\"reporter\":email-name-or-array|null,\"watcher\":email-name-or-array|null,\"status\":array of any of [open,in_progress,solved,closed]|null,\"priority\":array of any of [blocker,critical,major,minor,trivial,none]|null,\"type\":array-of-type-names|null,\"stamp\":array-of-strings|null,\"tag\":array-of-strings|null,\"olderThanDays\":integer|null,\"text\":string|null},\"change\":{\"assignee\":email-or-name|null,\"status\":status-name|null,\"priority\":one of the priority values|null,\"type\":type-name|null,\"deadline\":\"YYYY-MM-DD\"|null,\"tags\":[strings]|null,\"comment\":string|null},\"note\":\"one short plain-language restatement of the change\"}. IMPORTANT: \"change\" may set SEVERAL fields at once — include EVERY change requested (e.g. \"change priority and set a deadline\" -> set BOTH change.priority AND change.deadline). Every filter field EXCEPT olderThanDays and text may be an ARRAY to match ANY of the listed values (e.g. \"open or in progress\" -> filter.status:[\"open\",\"in_progress\"]; \"critical and blocker\" -> filter.priority:[\"blocker\",\"critical\"]; \"Ana or Ben\" -> filter.assignee:[\"Ana\",\"Ben\"]). Use ONLY these known values where relevant — statuses:"+JSON.stringify(v.statusList.map(s=>s.name))+", types:"+JSON.stringify(v.typeList.map(t=>t.name))+", assignees:"+JSON.stringify(v.assignees)+". CRITICAL — filters vs changes: \"stamp\" (a stamp code like HYD/EK/W54), \"tag\", \"reporter\" and \"watcher\" are FILTERS that pick WHICH issues — never put them in \"change\". The change.tags field is ONLY for when the user explicitly says to ADD or SET a tag. e.g. \"...with the stamp of HYD\" → filter.stamp=\"HYD\" (NOT a tag change). \"reported by Ana\" → filter.reporter=\"Ana\". \"issues I'm watching\" → filter.watcher=\"me\". There is no stamp/reporter/watcher CHANGE field — those are read-only here. A descriptive phrase about the issue's subject or title — clash names like \"Ductwork vs Structure\", disciplines, systems, rooms, levels, locations — goes in \"text\" (a forgiving free-text search of the title and tags), NOT in \"stamp\" or \"tag\". Use \"stamp\" or \"tag\" ONLY when the user literally says \"stamp\", \"tag\" or \"label\". e.g. \"my open Ductwork vs Structure issues\" → filter.text=\"Ductwork vs Structure\". If the user refers to themselves (\"my\", \"me\", \"mine\", \"I\", \"reported by me\", \"I'm watching\", \"assigned to me\"), put the literal word \"me\" in the relevant person field (assignee/reporter/watcher) — do NOT guess an email; the dashboard resolves \"me\" to the signed-in user. If something named isn't in those lists, put your best guess in the field and let the human correct it. Respond with JSON only — no prose, no markdown fences.";
+  const sys="You translate a plain-language project-change request into a STRICT JSON object and NOTHING else. You do not perform the change; you only describe it for a human to confirm. Schema: {\"filter\":{\"assignee\":email-name-or-array|null,\"reporter\":email-name-or-array|null,\"watcher\":email-name-or-array|null,\"status\":array of any of [open,in_progress,solved,closed]|null,\"priority\":array of any of [blocker,critical,major,minor,trivial,none]|null,\"type\":array-of-type-names|null,\"stamp\":array-of-strings|null,\"tag\":array-of-strings|null,\"olderThanDays\":integer|null,\"text\":string|null},\"change\":{\"assignee\":email-or-name|null,\"status\":status-name|null,\"priority\":one of the priority values|null,\"type\":type-name|null,\"deadline\":\"YYYY-MM-DD\"|null,\"tags\":[strings]|null,\"comment\":string|null},\"note\":\"one short plain-language restatement of the change\"}. IMPORTANT: \"change\" may set SEVERAL fields at once — include EVERY change requested (e.g. \"change priority and set a deadline\" -> set BOTH change.priority AND change.deadline). Every filter field EXCEPT olderThanDays and text may be an ARRAY to match ANY of the listed values (e.g. \"open or in progress\" -> filter.status:[\"open\",\"in_progress\"]; \"critical and blocker\" -> filter.priority:[\"blocker\",\"critical\"]; \"Ana or Ben\" -> filter.assignee:[\"Ana\",\"Ben\"]). If DIFFERENT issues need DIFFERENT changes, return a JSON ARRAY where each element is a full {filter,change} object — e.g. \"open issues to critical, in-progress to major\" -> [{filter:{status:[\"open\"]},change:{priority:\"critical\"}},{filter:{status:[\"in_progress\"]},change:{priority:\"major\"}}]. Repeat any SHARED change (e.g. a common deadline) in EVERY element. Issues needing the SAME change should be ONE element with array filters, not several. Use ONLY these known values where relevant — statuses:"+JSON.stringify(v.statusList.map(s=>s.name))+", types:"+JSON.stringify(v.typeList.map(t=>t.name))+", assignees:"+JSON.stringify(v.assignees)+". CRITICAL — filters vs changes: \"stamp\" (a stamp code like HYD/EK/W54), \"tag\", \"reporter\" and \"watcher\" are FILTERS that pick WHICH issues — never put them in \"change\". The change.tags field is ONLY for when the user explicitly says to ADD or SET a tag. e.g. \"...with the stamp of HYD\" → filter.stamp=\"HYD\" (NOT a tag change). \"reported by Ana\" → filter.reporter=\"Ana\". \"issues I'm watching\" → filter.watcher=\"me\". There is no stamp/reporter/watcher CHANGE field — those are read-only here. A descriptive phrase about the issue's subject or title — clash names like \"Ductwork vs Structure\", disciplines, systems, rooms, levels, locations — goes in \"text\" (a forgiving free-text search of the title and tags), NOT in \"stamp\" or \"tag\". Use \"stamp\" or \"tag\" ONLY when the user literally says \"stamp\", \"tag\" or \"label\". e.g. \"my open Ductwork vs Structure issues\" → filter.text=\"Ductwork vs Structure\". If the user refers to themselves (\"my\", \"me\", \"mine\", \"I\", \"reported by me\", \"I'm watching\", \"assigned to me\"), put the literal word \"me\" in the relevant person field (assignee/reporter/watcher) — do NOT guess an email; the dashboard resolves \"me\" to the signed-in user. If something named isn't in those lists, put your best guess in the field and let the human correct it. Respond with JSON only — no prose, no markdown fences.";
   const out=await window.cowork.askClaude(sys,[{request:q}]);
   const text=typeof out==="string"?out:(out&&(out.text||out.answer||JSON.stringify(out)));
-  const parsed=actExtractJson(text);return Array.isArray(parsed)?actMergeIntents(parsed):parsed;}
+  return actExtractJson(text);/* raw object OR array — actBuildSteps groups it into steps */}
 function actExtractJson(text){if(text&&typeof text==="object")return text;let s=String(text||"").trim();s=s.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"").trim();try{return JSON.parse(s);}catch(e){}const la=s.indexOf("["),lb=s.lastIndexOf("]");if(la>=0&&lb>la){try{return JSON.parse(s.slice(la,lb+1));}catch(e){}}const a=s.indexOf("{"),b=s.lastIndexOf("}");if(a<0||b<a)throw new Error("no json in response");return JSON.parse(s.slice(a,b+1));}
 /* The model sometimes splits one request into an ARRAY of intents (per status, per change field). Merge them into a single multi-value / multi-change intent so nothing is dropped. PURE. */
 function actMergeIntents(list){const out={action:"",filter:{},change:{},note:""};const notes=[];
@@ -2675,31 +2698,34 @@ async function actInterpret(){if(writesOff()||ACT.busy)return;
   if(!q){if(msg)msg.textContent="Describe the change you want to make.";return;}
   if(!(window.cowork&&window.cowork.askClaude)){if(msg)msg.textContent="Plain-language planning needs the live assistant. Use Coordination analytics to select issues and action them here instead.";return;}
   ACT.busy=true;if(msg)msg.textContent="";const go=document.getElementById("actGo");if(go){go.disabled=true;go.textContent="Planning…";}
-  try{const raw=await actParseIntent(q);raw.note=raw.note||q;ACT.rawIntent=raw;ACT.query=q;ACT._allowAllAssignees=false;
-    const norm=actNormalizeIntent(raw,actVocab());ACT.intent=norm;ACT.target=null;
-    if(norm.needsIdentity){/* first-person but we don't know who "me" is → resolve identity FIRST, then re-plan (never silently target everyone) */
-      actChooseIdentity(()=>{const n2=actNormalizeIntent(ACT.rawIntent,actVocab());ACT.intent=n2;ACT.target=null;actRenderChips(n2,false);});}
-    else actRenderChips(norm,false);
+  try{const raw=await actParseIntent(q);ACT.rawIntent=raw;ACT.query=q;ACT._allowAllAssignees=false;
+    const build=()=>{ACT.steps=actBuildSteps(ACT.rawIntent,actVocab());ACT.active=0;ACT.fixed=false;ACT.target=null;ACT.compiled=null;ACT.intent=ACT.steps[0];};
+    build();
+    if((ACT.steps||[]).some(s=>s.needsIdentity)){actChooseIdentity(()=>{build();actRenderSteps();});}
+    else actRenderSteps();
   } catch(e){if(msg)msg.textContent="Couldn't plan that. Try naming the change and which issues — e.g. “reassign Marco's open issues to Aisha”.";}
   ACT.busy=false;if(go){go.disabled=false;go.textContent="Plan";}}
+/* group an intent (object OR array) into steps: same change → one step (union filters); different change → separate steps. */
+function actChangeSig(c){c=c||{};const o={};["assignee","status","priority","type","deadline","comment"].forEach(k=>{if(c[k]!=null&&String(c[k]).trim()!=="")o[k]=String(c[k]).toLowerCase().trim();});if(Array.isArray(c.tags)&&c.tags.length)o.tags=c.tags.map(x=>String(x).toLowerCase().trim()).sort();return JSON.stringify(o);}
+function actBuildSteps(parsed,vocab){const list=Array.isArray(parsed)?parsed:[parsed];const order=[],by={};
+  list.forEach(it=>{it=it||{};const sig=actChangeSig(it.change||{});if(by[sig]==null){by[sig]=[];order.push(sig);}by[sig].push(it);});
+  const steps=order.map(sig=>actNormalizeIntent(actMergeIntents(by[sig]),vocab));
+  return steps.length?steps:[actNormalizeIntent({},vocab)];}
 function _selOpts(list,cur){return list.map(o=>`<option value="${_esc(o.v)}"${String(o.v)===String(cur)?" selected":""}>${_esc(o.t)}</option>`).join("");}
 function _chkGroup(name,opts,sel,scroll){sel=sel||new Set();const inner=(opts||[]).map(o=>`<label class="ac-chk"><input type="checkbox" data-cg="${_esc(name)}" value="${_esc(o.v)}"${sel.has(String(o.v))?" checked":""}><span>${_esc(o.t)}</span></label>`).join("");return `<div class="ac-chks${scroll?" ac-chks-scroll":""}" role="group">${inner||'<span class="ac-chks-empty">none available</span>'}</div>`;}
-function actRenderChips(norm,fixedTarget){const stage=document.getElementById("actStage");if(!stage)return;norm=norm||{filter:{},change:{}};
+/* one step's editing form (filter + change), no CTA — the container adds the CTA. */
+function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const v=actVocab();const f=norm.filter||{},c=norm.change||{};
   const asgEmails=[...new Set((ME.email?[ME.email]:[]).concat(v.assignees))];
   const asgLbl=e=>e===ME.email?e+"  —  me":e;
-  const statusF=[{v:"",t:"Any status"},{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];
-  const prioF=[{v:"",t:"Any priority"}].concat(PRIO_ENUM.map(p=>({v:p,t:p})));
-  const personOpts=(any)=>[{v:"",t:any}].concat(asgEmails.map(e=>({v:e,t:asgLbl(e)})));
   const asgC=[{v:"",t:"— no change —"}].concat(asgEmails.map(e=>({v:e,t:asgLbl(e)})));
   const wfC=[{v:"",t:"— no change —"}].concat(v.statusList.map(s=>({v:s.uuid,t:s.name})));
-  const tyF=[{v:"",t:"Any type"}].concat(v.typeList.map(t=>({v:t.name,t:t.name})));
   const tyC=[{v:"",t:"— no change —"}].concat(v.typeList.map(t=>({v:t.uuid,t:t.name})));
   const prioC=[{v:"",t:"— no change —"}].concat(PRIO_ENUM.map(p=>({v:p,t:p})));
   const curTypeUuid=c.customType||"";const curStatusUuid=c.customStatus||"";const curDeadline=(c.deadline||"").slice(0,10);
   const _cgPeople=actCandidateEmails().map(e=>({v:e,t:(e===ME.email?e+"  —  me":e)}));const _cgStatus=[{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];const _cgPrio=PRIO_ENUM.map(p=>({v:p,t:p}));const _cgType=v.typeList.map(t=>({v:t.name,t:t.name}));const _setOf=x=>new Set((x||[]).map(String));
   const filterBlock=fixedTarget?`<div class="ac-h">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>`
-    :`<div class="ac-h">Which issues <b>(edit to correct the plan · tick several to match any)</b></div>
+    :`<div class="ac-h">Which issues <b>(tick several to match any)</b></div>
       <div class="ac-fgrid">
         <div class="ac-fcell"><div class="ac-flab">Assignee</div>${_chkGroup("afAssignee",_cgPeople,_setOf(f.assigneeEmails),true)}</div>
         <div class="ac-fcell"><div class="ac-flab">Reporter</div>${_chkGroup("afReporter",_cgPeople,_setOf(f.reporterEmails),true)}</div>
@@ -2716,13 +2742,13 @@ function actRenderChips(norm,fixedTarget){const stage=document.getElementById("a
         <label class="ac-field">Match<select id="afTextMode">${_selOpts([{v:"contains",t:"Contains"},{v:"words",t:"All words"},{v:"exact",t:"Exact"}],f.textMode||"contains")}</select></label>
         <label class="ac-field">In<select id="afTextScope">${_selOpts([{v:"titletags",t:"Title + tags"},{v:"title",t:"Title only"},{v:"tags",t:"Tags only"}],f.textScope||"titletags")}</select></label>
       </div>
-      <p class="ac-note">Tick several boxes to match <b>any</b> of them (e.g. Open + In progress). Status is filtered exactly at the server; Priority, Type, Stamp, Tag, Reporter, Watcher and multiple Assignees are matched by scanning a representative sample. Stamp, Tag, Reporter and Watcher are <b>filters only</b> — read-only via the connector.</p>`;
+      <p class="ac-note">Tick several boxes to match <b>any</b> of them. Status is filtered exactly at the server; other multi-value filters (and multiple assignees) are matched by scanning a representative sample. Stamp, Tag, Reporter and Watcher are <b>filters only</b> — read-only via the connector.</p>`;
   const exprPerson=!fixedTarget&&!!(norm.expressedAssignee||norm.expressedReporter||norm.expressedWatcher);
   const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden>
-      <b>This was a request about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:
+      <b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:
       <label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label>
     </div>`:"";
-  stage.innerHTML=`<div class="act-chips">
+  return `<div class="act-chips">
     ${filterBlock}
     <div class="ac-sub"><span>Change to apply</span></div>
     <div class="ac-grid">
@@ -2736,37 +2762,78 @@ function actRenderChips(norm,fixedTarget){const stage=document.getElementById("a
     <label class="ac-field" style="margin-top:10px">Or just add a comment (used only when no field above is changed)<input type="text" id="acComment" value="${_esc(norm.commentText||"")}" placeholder="e.g. Pending RFI response"></label>
     ${(norm.warnings&&norm.warnings.length)?`<div class="ac-warn">${norm.warnings.map(_esc).join("<br>")}</div>`:""}
     ${blockHtml}
-    <div class="act-cta"><button class="btn primary" id="acPreview">Preview change &rarr;</button><button class="btn" id="acReset">Start over</button><span class="act-msg" id="acMsg" role="status" aria-live="polite"></span><span class="act-rescue" id="acRescue" role="status" aria-live="polite"></span></div>
-  </div>`;
-  document.getElementById("acPreview").onclick=()=>actPreviewFromForm(fixedTarget);
-  document.getElementById("acReset").onclick=actReset;
+  </div>`;}
+function actFormCta(multi){const n=(ACT.steps||[]).length;const label=multi?`Preview ${fmt(n)} step${n===1?"":"s"} &rarr;`:"Preview change &rarr;";
+  return `<div class="act-cta"><button class="btn primary" id="acPreview">${label}</button><button class="btn" id="acReset">Start over</button><span class="act-msg" id="acMsg" role="status" aria-live="polite"></span><span class="act-rescue" id="acRescue" role="status" aria-live="polite"></span></div>`;}
+/* SELECTION mode (from 04) and any single-target path — one form, no steps chrome. */
+function actRenderChips(norm,fixedTarget){const stage=document.getElementById("actStage");if(!stage)return;norm=norm||{filter:{},change:{}};
+  ACT.fixed=!!fixedTarget;ACT.intent=norm;
+  stage.innerHTML=actStepFormHtml(norm,fixedTarget)+actFormCta(false);
+  const prev=document.getElementById("acPreview");if(prev)prev.onclick=()=>actPreviewFromForm(fixedTarget);
+  const rs=document.getElementById("acReset");if(rs)rs.onclick=actReset;
   stage.querySelectorAll('[data-cg]').forEach(cb=>{cb.onchange=actSyncBlock;});
   const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;
-  actSyncBlock();
-  _actScroll(stage);
-  /* focus the first control so keyboard/SR users land in the form after the stage re-renders */
+  actSyncBlock();_actScroll(stage);
   const ff=stage.querySelector("select,input");if(ff){try{ff.focus({preventScroll:true});}catch(e){}}}
-/* never broaden a personal request to everyone: if a person was expressed but none is selected, block Preview until resolved or explicitly allowed */
+/* plain-language one-liner for a step header */
+function actStepSentence(s){s=s||{};const f=s.filter||{};const nm=e=>e?String(e).split("@")[0]:e;const scope=[];
+  if(f.assigneeEmails&&f.assigneeEmails.length)scope.push("assignee "+f.assigneeEmails.map(nm).join(" / "));
+  if(f.reporterEmails&&f.reporterEmails.length)scope.push("reporter "+f.reporterEmails.map(nm).join(" / "));
+  if(f.watcherEmails&&f.watcherEmails.length)scope.push("watcher "+f.watcherEmails.map(nm).join(" / "));
+  if(f.statuses&&f.statuses.length)scope.push(f.statuses.map(x=>STATUS_NAME[x]||x).join(" / "));
+  if(f.priorities&&f.priorities.length)scope.push(f.priorities.join(" / ")+" priority");
+  if(f.typeNames&&f.typeNames.length)scope.push(f.typeNames.join(" / "));
+  if(f.stamps&&f.stamps.length)scope.push("stamp "+f.stamps.join(" / "));
+  if(f.tags&&f.tags.length)scope.push("tag "+f.tags.join(" / "));
+  if(f.text)scope.push("“"+f.text+"”");
+  if(f.olderThanDays)scope.push(">"+f.olderThanDays+"d old");
+  return {scope:scope.length?scope.join(", "):"all issues",change:s.commentOnly?("comment: “"+(s.commentText||"")+"”"):(s.changeLabel||"(no change yet)")};}
+/* NL mode — stacked step cards, the active one expands into the editing form. */
+function actRenderSteps(){const stage=document.getElementById("actStage");if(!stage)return;ACT.fixed=false;
+  const steps=ACT.steps||[];
+  const card=(s,i)=>{const sent=actStepSentence(s);const active=(i===ACT.active);
+    const tools=steps.length>1?`<button class="icbtn" data-dup="${i}" title="Duplicate step">⧉</button><button class="icbtn" data-rm="${i}" title="Remove step">×</button>`:"";
+    const head=`<div class="astep-h" data-si="${i}"><span class="astep-n">STEP ${i+1}</span><span class="astep-sent"><b>${_esc(sent.change)}</b> · ${_esc(sent.scope)}</span>${tools}<span class="caret" aria-hidden="true">▾</span></div>`;
+    return `<div class="astep${active?" open":""}">${head}${active?`<div class="astep-body">${actStepFormHtml(s,false)}</div>`:""}</div>`;};
+  stage.innerHTML=`<div class="asteps-head">Plan — ${fmt(steps.length)} step${steps.length===1?"":"s"}<span class="asteps-hint">each step applies its own changes to its own issues</span></div>`+
+    steps.map(card).join("")+`<button class="addstep" id="acAddStep">＋ Add step</button>`+actFormCta(true);
+  actBindSteps();}
+function actStoreActive(){if(ACT.active==null||ACT.active<0||!ACT.steps)return;if(!document.getElementById("acPriority")&&!document.querySelector('[data-cg="afStatus"]'))return;
+  const cur=actReadForm();const st=Object.assign({},ACT.steps[ACT.active],cur);st._allowAll=!!((document.getElementById("abAllow")||{}).checked);ACT.steps[ACT.active]=st;ACT.intent=st;}
+function actSetActive(i){actStoreActive();ACT.active=i;ACT.intent=(i>=0&&ACT.steps)?ACT.steps[i]:ACT.intent;actRenderSteps();}
+function actRefreshActiveSentence(){if(ACT.active<0||!ACT.steps)return;const s=ACT.steps[ACT.active];const el=document.querySelector(".astep.open .astep-sent");if(el&&s){const sent=actStepSentence(s);el.innerHTML="<b>"+_esc(sent.change)+"</b> · "+_esc(sent.scope);}}
+function actBindSteps(){const stage=document.getElementById("actStage");if(!stage)return;
+  stage.querySelectorAll(".astep-h").forEach(h=>{h.onclick=e=>{if(e.target.closest("[data-dup]")||e.target.closest("[data-rm]"))return;const i=+h.dataset.si;actSetActive(i===ACT.active?-1:i);};});
+  stage.querySelectorAll("[data-dup]").forEach(b=>{b.onclick=e=>{e.stopPropagation();actStoreActive();const i=+b.dataset.dup;const c=JSON.parse(JSON.stringify(ACT.steps[i]));ACT.steps.splice(i+1,0,c);ACT.active=i+1;ACT.intent=ACT.steps[ACT.active];actRenderSteps();};});
+  stage.querySelectorAll("[data-rm]").forEach(b=>{b.onclick=e=>{e.stopPropagation();actStoreActive();const i=+b.dataset.rm;if(ACT.steps.length<=1)return;ACT.steps.splice(i,1);ACT.active=Math.max(0,Math.min(ACT.active,ACT.steps.length-1));ACT.intent=ACT.steps[ACT.active];actRenderSteps();};});
+  const add=document.getElementById("acAddStep");if(add)add.onclick=()=>{actStoreActive();ACT.steps.push({filter:{},change:{},changeLabel:"",commentText:"",commentOnly:false,note:ACT.query||"",warnings:[]});ACT.active=ACT.steps.length-1;ACT.intent=ACT.steps[ACT.active];actRenderSteps();};
+  if(ACT.active>=0){
+    stage.querySelectorAll('[data-cg]').forEach(cb=>{cb.onchange=()=>{actStoreActive();actSyncBlock();actRefreshActiveSentence();};});
+    ["acAssignee","acStatus","acPriority","acType","acDeadline","acTags","acComment","afStamp","afTag","afText","afOlder","afTextMode","afTextScope"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=()=>{actStoreActive();actRefreshActiveSentence();};});
+    const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;}
+  const prev=document.getElementById("acPreview");if(prev)prev.onclick=()=>actPreviewSteps();
+  const rs=document.getElementById("acReset");if(rs)rs.onclick=actReset;
+  actSyncBlock();_actScroll(stage);}
+/* never broaden a personal request to everyone: if a person was expressed but none is selected, block until resolved or explicitly allowed */
 function actUnresolvedPersons(){const out=[];const I=ACT.intent||{};
   const anyChecked=name=>!!document.querySelector('[data-cg="'+name+'"]:checked');
   const chk=(flag,name,label)=>{if(I[flag]&&!anyChecked(name))out.push(label);};
   chk("expressedAssignee","afAssignee","assignee");chk("expressedReporter","afReporter","reporter");chk("expressedWatcher","afWatcher","watcher");
   return out;}
-/* 0-result rescue — offer to re-run the literal term as a forgiving all-words search across title + tags */
 function actOfferRescue(){const r=document.getElementById("acRescue");if(!r)return;r.innerHTML="";
   const tx=((document.getElementById("afText")||{}).value||"").trim();
   const tg=((document.getElementById("afTag")||{}).value||"").trim();
   const st=((document.getElementById("afStamp")||{}).value||"").trim();
   const term=tx||tg||st;if(!term)return;
   const mode=((document.getElementById("afTextMode")||{}).value||"contains");
-  if(tx&&mode==="words")return;/* already the broadest text search on this term */
+  if(tx&&mode==="words")return;
   r.innerHTML=`<button type="button" class="act-link" id="acBroaden">Broaden: match the words of “${_esc(term)}” across title + tags &rarr;</button>`;
   const b=document.getElementById("acBroaden");if(b)b.onclick=()=>{
     const t=document.getElementById("afText");if(t)t.value=term;
     const m=document.getElementById("afTextMode");if(m)m.value="words";
     const s=document.getElementById("afTextScope");if(s)s.value="titletags";
-    if(!tx){const tgEl=document.getElementById("afTag");if(tgEl)tgEl.value="";const stEl=document.getElementById("afStamp");if(stEl)stEl.value="";}/* the term came from an exact stamp/tag — move it into the forgiving text search */
-    actPreviewFromForm(false);
+    if(!tx){const tgEl=document.getElementById("afTag");if(tgEl)tgEl.value="";const stEl=document.getElementById("afStamp");if(stEl)stEl.value="";}
+    if(ACT.fixed)actPreviewFromForm(false);else{actStoreActive();actPreviewSteps();}
   };}
 function actSyncBlock(){const prev=document.getElementById("acPreview");if(!prev)return;
   const un=actUnresolvedPersons();const allow=!!((document.getElementById("abAllow")||{}).checked);
@@ -2777,7 +2844,6 @@ function actReadForm(){const g=id=>{const e=document.getElementById(id);return e
   const readCg=name=>[...document.querySelectorAll('[data-cg="'+name+'"]:checked')].map(e=>e.value);
   const splitCsv=s=>s.split(",").map(x=>x.trim()).filter(Boolean);
   const v=actVocab();const filt={},change={},labels=[];
-  /* filter (only present in NL mode; selection mode has no filter inputs) */
   if(document.getElementById("afStamp")||document.querySelector('[data-cg="afStatus"]')){
     const fa=readCg("afAssignee");if(fa.length)filt.assigneeEmails=fa;
     const frp=readCg("afReporter");if(frp.length)filt.reporterEmails=frp;
@@ -2798,22 +2864,42 @@ function actReadForm(){const g=id=>{const e=document.getElementById(id);return e
   const cd=g("acDeadline");if(cd){change.deadline=cd+" 00:00:00";labels.push("deadline → "+cd);}
   const cg=g("acTags");if(cg){change.tags=cg.split(",").map(s=>s.trim()).filter(Boolean);if(change.tags.length)labels.push("tags → "+change.tags.join(", "));}
   const cc=g("acComment");const commentOnly=!!cc&&!labels.length;if(commentOnly)labels.push("add comment");
-  return {filter:filt,change,changeLabel:labels.join("; "),commentText:cc,commentOnly,note:(ACT.intent&&ACT.intent.note)||"",warnings:[]};}
+  return {filter:filt,change,changeLabel:labels.join("; "),commentText:cc,commentOnly,note:(ACT.intent&&ACT.intent.note)||"",warnings:(ACT.intent&&ACT.intent.warnings)||[]};}
 async function actPreviewFromForm(fixedTarget){const norm=actReadForm();const msg=document.getElementById("acMsg");
   const rsc=document.getElementById("acRescue");if(rsc)rsc.innerHTML="";
   if(!norm.changeLabel){if(msg)msg.textContent="Choose at least one change to apply (or add a comment).";return;}
   ACT.intent=Object.assign({},ACT.intent,norm);
-  /* HARD RULE — never broaden a personal request to everyone. If a person was expressed but no assignee is resolved, block unless explicitly allowed. */
   if(!fixedTarget){const un=actUnresolvedPersons();const allow=!!((document.getElementById("abAllow")||{}).checked);
     if(un.length&&!allow){actSyncBlock();if(msg)msg.textContent="Pick the "+un.join(" / ")+", or tick “run on all” — I won't broaden a request about specific people to everyone.";return;}}
   if(fixedTarget){if(!ACT.target||!ACT.target.uuids.length){if(msg)msg.textContent="The selection was cleared — start over.";return;}actShowPreview(ACT.target,norm);return;}
-  /* resolve target live */
   const btn=document.getElementById("acPreview");if(btn){btn.disabled=true;btn.textContent="Finding matching issues…";}
   try{const target=await actResolveTarget(norm);ACT.target=target;
     if(!target.uuids.length){if(msg)msg.textContent="No issues matched that filter in this project.";actOfferRescue();if(btn){btn.disabled=false;btn.innerHTML="Preview change &rarr;";}return;}
     actShowPreview(target,norm);}
   catch(e){if(msg)msg.textContent="Couldn't load the matching issues just now — check the connection and try again.";}
   if(btn){btn.disabled=false;btn.innerHTML="Preview change &rarr;";}}
+/* NL mode — compile ALL steps: resolve each, dedupe first-step-wins, then preview. */
+async function actPreviewSteps(){actStoreActive();const msg=document.getElementById("acMsg");if(msg)msg.textContent="";
+  const rsc=document.getElementById("acRescue");if(rsc)rsc.innerHTML="";
+  const steps=ACT.steps||[];const withChange=steps.filter(s=>s.changeLabel);
+  if(!withChange.length){if(msg)msg.textContent="Add at least one change to a step (open a step and pick a field).";return;}
+  for(let i=0;i<steps.length;i++){const s=steps[i];if(!s.changeLabel)continue;const f=s.filter||{};const bad=[];
+    if(s.expressedAssignee&&!(f.assigneeEmails&&f.assigneeEmails.length))bad.push("assignee");
+    if(s.expressedReporter&&!(f.reporterEmails&&f.reporterEmails.length))bad.push("reporter");
+    if(s.expressedWatcher&&!(f.watcherEmails&&f.watcherEmails.length))bad.push("watcher");
+    if(bad.length&&!s._allowAll){actSetActive(i);const m2=document.getElementById("acMsg");if(m2)m2.textContent="Step "+(i+1)+": pick the "+bad.join(" / ")+" (or tick “run on all”) — I won't broaden a request about specific people to everyone.";return;}}
+  const btn=document.getElementById("acPreview");if(btn){btn.disabled=true;btn.textContent="Finding matching issues…";}
+  try{const resolved=[];const claimed=new Set();let overlap=0;
+    for(let i=0;i<steps.length;i++){const s=steps[i];if(!s.changeLabel)continue;
+      const t=await actResolveTarget(s);const kept=[];
+      for(const u of t.uuids){if(claimed.has(u)){overlap++;continue;}claimed.add(u);kept.push(u);}
+      resolved.push({step:s,idx:i,target:t,uuids:kept});}
+    ACT.compiled={groups:resolved,overlap};
+    if(!resolved.some(r=>r.uuids.length)){if(msg)msg.textContent="No issues matched any step in this project.";
+      if(btn){btn.disabled=false;btn.innerHTML=`Preview ${fmt(steps.length)} step${steps.length===1?"":"s"} &rarr;`;}return;}
+    actShowStepsPreview();}
+  catch(e){if(msg)msg.textContent="Couldn't load the matching issues just now — check the connection and try again.";}
+  if(btn){btn.disabled=false;btn.innerHTML=`Preview ${fmt(steps.length)} step${steps.length===1?"":"s"} &rarr;`;}}
 async function actPageList(serverArgs,cap){const uuids=[],prior={};let scanned=0;
   const total=await issueCount(PRJ,serverArgs);const hard=(total!=null)?total:cap;
   const lastPage=Math.ceil(Math.min(cap,hard)/REB_PAGE)+1;
@@ -2847,6 +2933,7 @@ async function actResolveTarget(norm){const f=norm.filter||{};
   return {mode:"scanned",count:uuids.length,scanned:sc.scanned,scanTotal:sc.total,capped:sc.capped,uuids,prior,sample:sc.items.slice(0,10)};}
 function actFromSelection(){if(writesOff())return;const uuids=[...(workSel||[])];if(!uuids.length)return;
   const prior={};uuids.forEach(u=>{const w=(WORK||[]).find(x=>x.uuid===u);if(w)prior[u]={assignee:w.assignee,priority:w.priority,status:w.status,_lite:w};});
+  ACT.steps=null;ACT.active=-1;ACT.compiled=null;
   ACT.intent={action:"",filter:{},change:{},changeLabel:"",commentText:"",commentOnly:false,warnings:[],note:"the issues you selected in Coordination analytics"};
   ACT.target={mode:"selection",count:uuids.length,uuids,prior,capped:false,sample:uuids.slice(0,10).map(u=>prior[u]&&prior[u]._lite).filter(Boolean)};
   if(current!=="action")showTab("action");
@@ -2855,11 +2942,9 @@ function actScopeLine(target){
   if(target.mode==="selection")return {est:false,txt:`Acting on the ${fmt(target.count)} issue(s) you selected in Coordination analytics — exact set, real issues.`};
   if(target.mode==="exact"){
     if(target.capped)return {est:false,txt:`${fmt(target.exactTotal)} issue(s) match (exact count from the connector). This run actions the first ${fmt(target.count)}; re-run to continue the rest.`};
-    return {est:false,txt:`All ${fmt(target.count)} issue(s) matching your filter — exact count from the connector (assignee/status are server-filterable).`};}
-  /* scanned */
-  return {est:true,txt:`Matched ${fmt(target.count)} of ${fmt(target.scanned)} issue(s) scanned${target.capped?` (scan capped at the detail-sample size)`:""}. Priority, type, stamp, tags, reporter, watcher, title and age aren't server-filterable, so this is scoped to what was scanned — not guaranteed to be every matching issue project-wide. Narrow with assignee or status (the only server-side filters), or refine in Coordination analytics, for full coverage.`};}
+    return {est:false,txt:`All ${fmt(target.count)} issue(s) matching this filter — exact count from the connector (assignee/status are server-filterable).`};}
+  return {est:true,txt:`Matched ${fmt(target.count)} of ${fmt(target.scanned)} issue(s) scanned${target.capped?` (scan capped at the detail-sample size)`:""}. Priority, type, stamp, tags, reporter, watcher, title and age aren't server-filterable, so this is scoped to what was scanned — not guaranteed to be every matching issue project-wide.`};}
 function actDiffHtml(norm,target){const labels=(norm.changeLabel||"").split("; ").filter(Boolean);
-  /* show a from→to when the changed field has a single shared prior value across the sample */
   return `<div class="ap-diff">`+labels.map(l=>{const m=l.split(" → ");return `<span><span class="arr">${_esc(m[0])}</span> &rarr; <span class="to">${_esc(m[1]||"")}</span></span>`;}).join('<span style="color:var(--line)">·</span>')+`</div>`;}
 function actShowPreview(target,norm){const stage=document.getElementById("actStage");if(!stage)return;
   const vb=planVerb(actToPlan(target,norm));const scope=actScopeLine(target);
@@ -2876,10 +2961,27 @@ function actShowPreview(target,norm){const stage=document.getElementById("actSta
   const sure=document.getElementById("apSure"),goB=document.getElementById("apGo");
   sure.onchange=()=>{goB.disabled=!sure.checked;};
   goB.onclick=()=>{if(!sure.checked)return;actToApproval(target,norm);};
-  document.getElementById("apBack").onclick=()=>actRenderChips(ACT.intent,target.mode==="selection");
+  document.getElementById("apBack").onclick=()=>actRenderChips(ACT.intent,true);
   _actScroll(stage);
-  /* land focus on the count so the new preview context is announced and keyboard flow continues here */
   const cEl=stage.querySelector(".ap-count");if(cEl){try{cEl.focus({preventScroll:true});}catch(e){}}}
+/* multi-step preview — one row per step, deduped counts, overlap note */
+function actShowStepsPreview(){const stage=document.getElementById("actStage");if(!stage)return;
+  const c=ACT.compiled;if(!c)return;const groups=c.groups.filter(g=>g.uuids.length);
+  const total=groups.reduce((a,g)=>a+g.uuids.length,0);
+  const rows=groups.map(g=>{const sent=actStepSentence(g.step);const scope=actScopeLine(g.target);
+    return `<div class="apx-grp"><div class="apx-h"><span class="apx-n">STEP ${g.idx+1}</span><span class="apx-c">${fmt(g.uuids.length)}</span></div><div class="apx-ch">${_esc(sent.change)}</div><div class="apx-sc ${scope.est?"est":""}">${_esc(sent.scope)} — ${scope.est?"scanned estimate":"exact count"}</div></div>`;}).join("");
+  const ov=c.overlap?`<div class="apx-ov">↳ ${fmt(c.overlap)} issue${c.overlap===1?"":"s"} matched more than one step — assigned to the first matching step (no issue is written twice).</div>`:"";
+  stage.innerHTML=`<div class="act-prev">
+    <div class="ap-count" tabindex="-1">${fmt(total)} <span class="un">issue${total===1?"":"s"} across ${fmt(groups.length)} step${groups.length===1?"":"s"} will change</span></div>
+    <div class="apx-list">${rows}</div>${ov}
+    <div class="ap-sure"><input type="checkbox" id="apSure"><label for="apSure">Yes — apply these ${fmt(groups.length)} grouped change${groups.length===1?"":"s"} to ${fmt(total)} issue${total===1?"":"s"} in Revizto. Each one gets a dated, attributed note recording who changed it and why.</label></div>
+    <div class="act-cta"><button class="btn primary" id="apGo" disabled>Continue to approval &rarr;</button><button class="btn" id="apBack">Back</button><span class="act-msg" id="apMsg" role="status" aria-live="polite"></span></div>
+  </div>`;
+  const sure=document.getElementById("apSure"),goB=document.getElementById("apGo");
+  sure.onchange=()=>{goB.disabled=!sure.checked;};
+  goB.onclick=()=>{if(!sure.checked)return;actStepsToApproval();};
+  document.getElementById("apBack").onclick=()=>actRenderSteps();
+  _actScroll(stage);const cEl=stage.querySelector(".ap-count");if(cEl){try{cEl.focus({preventScroll:true});}catch(e){}}}
 function actToPlan(target,norm){const change=norm.change||{};const uuids=(target.uuids||[]).slice();
   const grp={issueUuids:uuids,change:change,label:(norm.commentOnly?"add comment":norm.changeLabel)};
   if(norm.commentOnly)grp.commentOnly=true;
@@ -2889,6 +2991,18 @@ function actToPlan(target,norm){const change=norm.change||{};const uuids=(target
   return {summary:head,reason,groups:[grp],prior:target.prior||{},fields,srcPrompt:(ACT.query||"")};}
 function actToApproval(target,norm){if(writesOff())return;const plan=actToPlan(target,norm);
   if(!plan.groups[0].issueUuids.length){const m=document.getElementById("apMsg");if(m)m.textContent="No issues to action.";return;}
+  showConfirm(plan);}
+/* build a multi-group plan from the compiled steps (one group per step, deduped uuids) */
+function actStepsToApproval(){if(writesOff())return;const c=ACT.compiled;if(!c)return;
+  const groups=[],prior={},fields=new Set(),labels=[];
+  c.groups.forEach(g=>{if(!g.uuids.length)return;const s=g.step;
+    const grp={issueUuids:g.uuids.slice(),change:s.change||{},label:(s.commentOnly?"add comment":s.changeLabel)};
+    if(s.commentOnly)grp.commentOnly=true;groups.push(grp);
+    (s.commentOnly?["comment"]:Object.keys(s.change||{})).forEach(k=>fields.add(k));
+    Object.assign(prior,g.target.prior||{});labels.push("Step "+(g.idx+1)+": "+grp.label);});
+  if(!groups.length){const m=document.getElementById("apMsg");if(m)m.textContent="No issues to action.";return;}
+  const total=groups.reduce((a,g)=>a+g.issueUuids.length,0);
+  const plan={summary:`Update ${fmt(total)} issue(s) across ${groups.length} step(s): ${labels.join(" · ")}`,reason:(ACT.query||labels.join("; ")),groups,prior,fields:[...fields],srcPrompt:(ACT.query||"")};
   showConfirm(plan);/* hand to the canonical approval gate → executePlan → staged job dock */}
 function actReset(){const stage=document.getElementById("actStage");if(stage)stage.innerHTML="";const inp=document.getElementById("actInput");if(inp)inp.value="";ACT.intent=null;ACT.target=null;ACT.query="";const msg=document.getElementById("actMsg");if(msg)msg.textContent="";const rsc=document.getElementById("acRescue");if(rsc)rsc.innerHTML="";if(inp&&current==="action"){try{inp.focus({preventScroll:true});}catch(e){}}}
 /* ===== Issue timeline — burn-up + projection + milestones ===== */
