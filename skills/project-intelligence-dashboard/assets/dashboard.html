@@ -1463,13 +1463,13 @@ async function loadWork(){if(!(window.cowork&&window.cowork.callMcpTool)){docume
     WORK=d.map(i=>({uuid:i.uuid,id:(i.id&&i.id.value)||i.id,title:val(i,"title"),status:val(i,"status"),priority:val(i,"priority"),assignee:val(i,"assignee")}));
     workSel=new Set();renderWork();document.getElementById("workStatus").textContent=`${WORK.length} loaded${(typeof r.count==="number")?` of ${fmt(r.count)} matching`:""}.`;
   }catch(e){document.getElementById("workStatus").textContent="Couldn't load issues.";}}
-function rowHtml(w){const on=workSel.has(w.uuid);return `<tr data-w="${w.uuid}" class="${on?"sel":""}" tabindex="0" role="button" aria-pressed="${on}"><td><span class="selbox ${on?"on":""}">${on?"✓":""}</span></td><td class="em">${w.id}</td><td>${(w.title||"").replace(/</g,"&lt;")}</td><td class="em">${STAT_LEGACY[w.status]||w.status||""}</td><td class="em">${w.priority||""}</td><td class="em">${w.assignee||"—"}</td></tr>`;}
+function rowHtml(w){const on=workSel.has(w.uuid);const _iu=curIssueUrl(w.id);const _idCell=_iu?`<a href="${_iu}" target="_blank" rel="noopener" class="sg-issuelink" title="Open issue #${w.id} in Revizto">${w.id}</a>`:String(w.id);return `<tr data-w="${w.uuid}" class="${on?"sel":""}" tabindex="0" role="button" aria-pressed="${on}"><td><span class="selbox ${on?"on":""}">${on?"✓":""}</span></td><td class="em">${_idCell}</td><td>${(w.title||"").replace(/</g,"&lt;")}</td><td class="em">${STAT_LEGACY[w.status]||w.status||""}</td><td class="em">${w.priority||""}</td><td class="em">${w.assignee||"—"}</td></tr>`;}
 function renderWork(){const t=document.getElementById("workTable");if(!t)return;
   if(!WORK.length){t.innerHTML='<div class="empty">No issues loaded. Filter above or pick an AI recommendation, then Load issues.</div>';const st=document.getElementById("selToolbar");if(st)st.style.display="none";renderBulkBar();return;}
   t.innerHTML=`<table class="wtbl"><thead><tr><th style="width:34px"></th><th>#</th><th>Title</th><th>Status</th><th>Priority</th><th>Assignee</th></tr></thead><tbody id="workBody">`+WORK.map(rowHtml).join("")+`</tbody></table>`;
   const body=document.getElementById("workBody");
-  body.addEventListener("click",e=>{const tr=e.target.closest("tr[data-w]");if(tr)toggleSel(tr.dataset.w);});
-  body.addEventListener("keydown",e=>{if(e.key===" "||e.key==="Enter"){const tr=e.target.closest("tr[data-w]");if(tr){e.preventDefault();toggleSel(tr.dataset.w);}}});
+  body.addEventListener("click",e=>{if(e.target.closest("a"))return;const tr=e.target.closest("tr[data-w]");if(tr)toggleSel(tr.dataset.w);});
+  body.addEventListener("keydown",e=>{if(e.target.closest("a"))return;if(e.key===" "||e.key==="Enter"){const tr=e.target.closest("tr[data-w]");if(tr){e.preventDefault();toggleSel(tr.dataset.w);}}});
   updateSelToolbar();renderBulkBar();}
 function toggleSel(u){if(workSel.has(u))workSel.delete(u);else workSel.add(u);
   const tr=document.querySelector(`tr[data-w="${u}"]`);if(tr){const on=workSel.has(u);tr.classList.toggle("sel",on);tr.setAttribute("aria-pressed",on);const c=tr.querySelector(".selbox");if(c){c.classList.toggle("on",on);c.textContent=on?"✓":"";}}
@@ -2002,6 +2002,8 @@ function renderCompare(){cmpInit();cmpPivotShell();cmpPickerShell();refreshCmpCo
 /* Deep-link an issue back to the Revizto web workspace (format from live app "Copy link").
    Host from CONFIG.wsHost (production ws.revizto.com); fallback = public. */
 function cmpIssueUrl(m,issueId){if(!m||!m.id||!m.lic||issueId==null)return null;return `https://${CONFIG.wsHost||"ws.revizto.com"}/redirect-app?url=revizto5://viewer/${m.id}/issue_tracker/${issueId}/0&licenseId=${m.lic}`;}
+/* Deep-link an issue in the CURRENTLY selected project back to Revizto (same builder + host as cross-project). Returns null (→ plain text) when the project/licence numeric ids are unavailable, e.g. demo mode. */
+function curIssueUrl(issueId){const p=(PROJECTS||[]).find(x=>x.uuid===PRJ)||{};const pid=p.id||DATA._projectId||0;const lic=p.license_id||(LICENSES.find(l=>l.uuid===LIC)||{}).id;return cmpIssueUrl({id:pid,lic:lic},issueId);}
 function cmpSignals(m){
   const rows=m._rows||[];const openRows=rows.filter(r=>!r.rs);const now=+TODAY;
   let conc=null;if(openRows.length){const by={};openRows.forEach(r=>by[r.au]=(by[r.au]||0)+1);let top=null,tn=0;Object.entries(by).forEach(([k,v])=>{if(v>tn){tn=v;top=k;}});conc={owner:top,n:tn,total:openRows.length,share:Math.round(100*tn/openRows.length)};}
@@ -2837,7 +2839,7 @@ function actDiffHtml(norm,target){const labels=(norm.changeLabel||"").split("; "
 function actShowPreview(target,norm){const stage=document.getElementById("actStage");if(!stage)return;
   const vb=planVerb(actToPlan(target,norm));const scope=actScopeLine(target);
   const n=target.count;
-  const sampleRows=(target.sample||[]).map(it=>`<li><span class="sid">${_esc(String(it.id||"—"))}</span><span class="stt">${_esc(it.title||"(untitled)")}</span><span class="sas">${_esc(it.assignee||"—")}</span></li>`).join("");
+  const sampleRows=(target.sample||[]).map(it=>{const _iu=it.id!=null?curIssueUrl(it.id):null;const _sid=_iu?`<a href="${_iu}" target="_blank" rel="noopener" class="sg-issuelink" title="Open issue #${it.id} in Revizto">${_esc(String(it.id))}</a>`:_esc(String(it.id||"—"));return `<li><span class="sid">${_sid}</span><span class="stt">${_esc(it.title||"(untitled)")}</span><span class="sas">${_esc(it.assignee||"—")}</span></li>`;}).join("");
   stage.innerHTML=`<div class="act-prev">
     <div class="ap-count" tabindex="-1">${fmt(n)} <span class="un">issue${n===1?"":"s"} will ${vb.inf==="comment on"?"be commented on":"change"}</span></div>
     ${actDiffHtml(norm,target)}
