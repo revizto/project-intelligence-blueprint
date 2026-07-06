@@ -111,6 +111,14 @@ h1{font-weight:500;font-size:27px;letter-spacing:-.01em;margin:2px 0 0}
 .act-chips .ac-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
 .act-chips .ac-h b{color:var(--ink)}
 .ac-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.ac-fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.ac-fcell{display:flex;flex-direction:column;gap:4px}
+.ac-flab{font-family:var(--mono);font-size:10px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+.ac-chks{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--white)}
+.ac-chks-scroll{max-height:120px;overflow:auto;flex-direction:column;flex-wrap:nowrap;gap:5px}
+.ac-chk{display:flex;align-items:center;gap:6px;font-family:var(--sans);font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;white-space:nowrap}
+.ac-chk input{margin:0;flex:none}
+.ac-chks-empty{font-family:var(--sans);font-size:12px;color:var(--muted);padding:2px}
 .ac-field{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:10px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
 .ac-field select,.ac-field input{min-height:34px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--white)}
 .ac-sub{font-family:var(--mono);font-size:10px;letter-spacing:.03em;text-transform:uppercase;color:var(--teal-ink);margin:14px 0 8px;display:flex;align-items:center;gap:8px}
@@ -177,7 +185,7 @@ h1{font-weight:500;font-size:27px;letter-spacing:-.01em;margin:2px 0 0}
 .act-block{margin-top:12px;background:var(--red-tint);border:1px solid #f1cccc;border-radius:10px;padding:12px 13px;font-size:12.5px;color:var(--ink);line-height:1.55}
 .act-block .ab-allow{display:flex;align-items:center;gap:9px;margin-top:10px;font-size:13px;cursor:pointer}
 .act-block .ab-allow input{width:18px;height:18px;flex:none;accent-color:var(--red);cursor:pointer}
-@media(max-width:700px){.ac-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.ac-grid{grid-template-columns:1fr}.ac-fgrid{grid-template-columns:1fr}}
 .tab{font-family:var(--sans);font-size:13.5px;font-weight:500;min-height:40px;padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--white);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.12s}
 .tab:hover{border-color:var(--teal-deep)}
 .tab[aria-selected="true"]{background:var(--concrete);color:#fff;border-color:var(--concrete)}
@@ -2505,33 +2513,30 @@ function actNormalizeIntent(raw,vocab){raw=raw||{};vocab=vocab||{};
   const f=raw.filter||{},c=raw.change||{},warn=[];
   const statusList=vocab.statusList||[],typeList=vocab.typeList||[],assignees=vocab.assignees||[];
   const me=(vocab.me||"").trim();
-  const legalStatus=v=>["open","in_progress","solved","closed"].indexOf(v)>=0?v:null;
-  const filt={};
-  /* ---- person filters (assignee / reporter / watcher): first-person → the current user; expressed-but-unresolved is a BLOCKER (never broaden). Same guard for ALL person fields. ---- */
-  let needsIdentity=false;
-  const person=(label,raw,setEmail)=>{
-    if(raw==null||String(raw).trim()==="")return {expressed:false,unresolved:false};
-    if(actIsFirstPerson(raw)){
-      if(me){setEmail(me);return {expressed:true,unresolved:false};}
-      needsIdentity=true;warn.push("You referred to yourself for the "+label+", but I don't yet know who you are — set that first so this targets only your issues, not everyone's.");
-      return {expressed:true,unresolved:false};
-    }
-    const em=actResolveAssignee(raw,assignees);
-    if(em){setEmail(em);return {expressed:true,unresolved:false};}
-    warn.push("Couldn't match the "+label+" “"+raw+"” to a project member — pick the right person below (this will NOT run against everyone until you do).");
-    return {expressed:true,unresolved:true};
+  const arr=v=>v==null?[]:(Array.isArray(v)?v:[v]).filter(x=>x!=null&&String(x).trim()!=="");
+  const uniq=a=>[...new Set(a)];
+  const filt={};let needsIdentity=false;
+  /* ---- person filters (assignee / reporter / watcher): each may list SEVERAL people. first-person → the current user; expressed-but-none-resolved is a BLOCKER (never broaden). ---- */
+  const persons=(label,rawv)=>{
+    const items=arr(rawv);if(!items.length)return {expressed:false,unresolved:false,emails:[]};
+    const emails=[];let unresolved=false;
+    items.forEach(it=>{
+      if(actIsFirstPerson(it)){if(me){if(emails.indexOf(me)<0)emails.push(me);}else{needsIdentity=true;warn.push("You referred to yourself for the "+label+", but I don't yet know who you are — set that first so this targets only your issues, not everyone's.");}return;}
+      const em=actResolveAssignee(it,assignees);
+      if(em){if(emails.indexOf(em)<0)emails.push(em);}
+      else{unresolved=true;warn.push("Couldn't match the "+label+" “"+it+"” to a project member — pick the right people below (this will NOT run against everyone until you do).");}
+    });
+    return {expressed:true,unresolved:unresolved,emails:emails};
   };
-  const pa=person("assignee",f.assignee,em=>filt.assigneeEmail=em);
-  const pr=person("reporter",f.reporter,em=>filt.reporterEmail=em);
-  const pw=person("watcher",f.watcher,em=>filt.watcherEmail=em);
-  const expressedAssignee=pa.expressed,unresolvedAssignee=pa.unresolved;
-  const expressedReporter=pr.expressed,unresolvedReporter=pr.unresolved;
-  const expressedWatcher=pw.expressed,unresolvedWatcher=pw.unresolved;
-  if(legalStatus(f.status))filt.status=legalStatus(f.status);
-  if(f.priority&&PRIO_ENUM.indexOf(String(f.priority).toLowerCase())>=0)filt.priority=String(f.priority).toLowerCase();
-  if(f.type){const t=actCiFind(typeList,f.type);if(t)filt.typeName=t.name;else warn.push("Couldn't match the filter type “"+f.type+"”.");}
-  if(f.stamp!=null&&String(f.stamp).trim()!=="")filt.stamp=String(f.stamp).trim();
-  if(f.tag!=null&&String(f.tag).trim()!=="")filt.tag=String(f.tag).trim();
+  const pa=persons("assignee",f.assignee);if(pa.emails.length)filt.assigneeEmails=pa.emails;
+  const pr=persons("reporter",f.reporter);if(pr.emails.length)filt.reporterEmails=pr.emails;
+  const pw=persons("watcher",f.watcher);if(pw.emails.length)filt.watcherEmails=pw.emails;
+  const legalStatus=v=>["open","in_progress","solved","closed"].indexOf(v)>=0?v:null;
+  const statuses=arr(f.status).map(s=>legalStatus(String(s).toLowerCase().trim())).filter(Boolean);if(statuses.length)filt.statuses=uniq(statuses);
+  const prios=arr(f.priority).map(p=>String(p).toLowerCase().trim()).filter(p=>PRIO_ENUM.indexOf(p)>=0);if(prios.length)filt.priorities=uniq(prios);
+  const types=[];arr(f.type).forEach(t=>{const m=actCiFind(typeList,t);if(m)types.push(m.name);else warn.push("Couldn't match the filter type “"+t+"”.");});if(types.length)filt.typeNames=uniq(types);
+  const stamps=arr(f.stamp).map(s=>String(s).trim()).filter(Boolean);if(stamps.length)filt.stamps=uniq(stamps);
+  const ftags=arr(f.tag).map(s=>String(s).trim()).filter(Boolean);if(ftags.length)filt.tags=uniq(ftags);
   if(isFinite(+f.olderThanDays)&&+f.olderThanDays>0)filt.olderThanDays=Math.round(+f.olderThanDays);
   if(f.text)filt.text=String(f.text).trim();
   const change={},labels=[];let action=raw.action||"";
@@ -2558,7 +2563,7 @@ function actNormalizeIntent(raw,vocab){raw=raw||{};vocab=vocab||{};
   const commentText=(c.comment||"").trim();const commentOnly=!!commentText&&!labels.length;
   if(commentOnly)labels.push("add comment");
   return {action,filter:filt,change,changeLabel:labels.join("; "),commentText,commentOnly,warnings:warn,note:raw.note||"",
-    expressedAssignee,unresolvedAssignee,expressedReporter,unresolvedReporter,expressedWatcher,unresolvedWatcher,expressedChangeAssignee,unresolvedChangeAssignee,needsIdentity};}
+    expressedAssignee:pa.expressed,unresolvedAssignee:pa.unresolved,expressedReporter:pr.expressed,unresolvedReporter:pr.unresolved,expressedWatcher:pw.expressed,unresolvedWatcher:pw.unresolved,expressedChangeAssignee,unresolvedChangeAssignee,needsIdentity};}
 /* client-side match for filters the connector can't apply server-side (priority/type/text/age). PURE. */
 /* forgiving free-text search over title (+tags) — Contains (default) / All-words (token, order-free, drops noise words) / Exact. PURE. */
 const ACT_STOP=["vs","the","of","to","a","an","in","on","and","or","is","at","by","for","with"];
@@ -2571,16 +2576,18 @@ function actTextMatch(it,cf){if(!cf||!cf.text)return true;const q=String(cf.text
   if(mode==="words"){const toks=q.split(/\s+/).filter(w=>w.length>=3&&ACT_STOP.indexOf(w)<0);if(!toks.length)return hay.indexOf(q)>=0;return toks.every(w=>hay.indexOf(w)>=0);}
   return hay.indexOf(q)>=0;}
 function actMatchLite(it,cf){if(!cf)return true;it=it||{};
-  if(cf.priority&&String(it.priority||"").toLowerCase()!==cf.priority)return false;
-  if(cf.typeName&&String(it.type||"").toLowerCase()!==String(cf.typeName).toLowerCase())return false;
-  if(cf.stamp&&String(it.stamp||"").toLowerCase()!==String(cf.stamp).toLowerCase())return false;
-  if(cf.tag){const tags=(it.tags||[]).map(t=>String(t).toLowerCase());if(tags.indexOf(String(cf.tag).toLowerCase())<0)return false;}
-  if(cf.reporter&&String(it.reporter||"").toLowerCase()!==String(cf.reporter).toLowerCase())return false;
-  if(cf.watcher){const w=(it.watchers||[]).map(x=>String(x).toLowerCase());if(w.indexOf(String(cf.watcher).toLowerCase())<0)return false;}
+  const has=a=>Array.isArray(a)&&a.length;const lc=x=>String(x).toLowerCase();
+  if(has(cf.priorities)&&cf.priorities.map(lc).indexOf(lc(it.priority||""))<0)return false;
+  if(has(cf.typeNames)&&cf.typeNames.map(lc).indexOf(lc(it.type||""))<0)return false;
+  if(has(cf.stamps)&&cf.stamps.map(lc).indexOf(lc(it.stamp||""))<0)return false;
+  if(has(cf.tags)){const tags=(it.tags||[]).map(lc);if(!cf.tags.some(t=>tags.indexOf(lc(t))>=0))return false;}
+  if(has(cf.reporterEmails)&&cf.reporterEmails.map(lc).indexOf(lc(it.reporter||""))<0)return false;
+  if(has(cf.watcherEmails)){const w=(it.watchers||[]).map(lc);if(!cf.watcherEmails.some(e=>w.indexOf(lc(e))>=0))return false;}
+  if(has(cf.assigneeEmails)&&cf.assigneeEmails.map(lc).indexOf(lc(it.assignee||""))<0)return false;
   if(cf.text&&!actTextMatch(it,cf))return false;
   if(cf.olderThanDays){if(!it.openedMs)return false;if((cf.nowMs-it.openedMs)/86400000<cf.olderThanDays)return false;}
   return true;}
-function actClientKeys(filt){return ["priority","typeName","stamp","tag","reporterEmail","watcherEmail","text","olderThanDays"].filter(k=>filt&&filt[k]!=null&&filt[k]!=="");}
+function actClientKeys(filt){if(!filt)return [];const out=[];["priorities","typeNames","stamps","tags","reporterEmails","watcherEmails","text","olderThanDays"].forEach(k=>{const v=filt[k];if(v!=null&&v!==""&&!(Array.isArray(v)&&!v.length))out.push(k);});if(filt.assigneeEmails&&filt.assigneeEmails.length>1)out.push("assigneeEmails");return out;}
 /* ---- runtime ---- */
 function _actMs(v){if(!v)return 0;let s=String(v);if(/^\d{4}-\d{2}-\d{2} \d{2}:/.test(s))s=s.replace(" ","T");/* Revizto sends "YYYY-MM-DD HH:MM:SS"; normalise to ISO so Date.parse is reliable */const t=Date.parse(s);return isNaN(t)?0:t;}
 /* issues return customType as a UUID, not a name → resolve via TYPES so client-side type filtering works */
@@ -2646,11 +2653,23 @@ function actRenderHandoff(){const h=document.getElementById("actHandoff");if(!h)
   h.hidden=false;h.innerHTML=`<span class="ah-txt"><b>${fmt(n)} issue${n>1?"s":""}</b> selected in Coordination analytics. Action just those, or describe a change below to target the wider project.</span><button class="btn" id="ahUse">Action the ${fmt(n)} selected &rarr;</button>`;
   const b=document.getElementById("ahUse");if(b)b.onclick=actFromSelection;}
 async function actParseIntent(q){const v=actVocab();
-  const sys="You translate a plain-language project-change request into a STRICT JSON object and NOTHING else. You do not perform the change; you only describe it for a human to confirm. Schema: {\"action\":one of [reassign,status,close,priority,type,deadline,tags,comment],\"filter\":{\"assignee\":email-or-name|null,\"reporter\":email-or-name|null,\"watcher\":email-or-name|null,\"status\":one of [open,in_progress,solved,closed]|null,\"priority\":one of [blocker,critical,major,minor,trivial,none]|null,\"type\":string|null,\"stamp\":string|null,\"tag\":string|null,\"olderThanDays\":integer|null,\"text\":string|null},\"change\":{\"assignee\":email-or-name|null,\"status\":status-name|null,\"priority\":one of the priority values|null,\"type\":type-name|null,\"deadline\":\"YYYY-MM-DD\"|null,\"tags\":[strings]|null,\"comment\":string|null},\"note\":\"one short plain-language restatement of the change\"}. Use ONLY these known values where relevant — statuses:"+JSON.stringify(v.statusList.map(s=>s.name))+", types:"+JSON.stringify(v.typeList.map(t=>t.name))+", assignees:"+JSON.stringify(v.assignees)+". CRITICAL — filters vs changes: \"stamp\" (a stamp code like HYD/EK/W54), \"tag\", \"reporter\" and \"watcher\" are FILTERS that pick WHICH issues — never put them in \"change\". The change.tags field is ONLY for when the user explicitly says to ADD or SET a tag. e.g. \"...with the stamp of HYD\" → filter.stamp=\"HYD\" (NOT a tag change). \"reported by Ana\" → filter.reporter=\"Ana\". \"issues I'm watching\" → filter.watcher=\"me\". There is no stamp/reporter/watcher CHANGE field — those are read-only here. A descriptive phrase about the issue's subject or title — clash names like \"Ductwork vs Structure\", disciplines, systems, rooms, levels, locations — goes in \"text\" (a forgiving free-text search of the title and tags), NOT in \"stamp\" or \"tag\". Use \"stamp\" or \"tag\" ONLY when the user literally says \"stamp\", \"tag\" or \"label\". e.g. \"my open Ductwork vs Structure issues\" → filter.text=\"Ductwork vs Structure\". If the user refers to themselves (\"my\", \"me\", \"mine\", \"I\", \"reported by me\", \"I'm watching\", \"assigned to me\"), put the literal word \"me\" in the relevant person field (assignee/reporter/watcher) — do NOT guess an email; the dashboard resolves \"me\" to the signed-in user. If something named isn't in those lists, put your best guess in the field and let the human correct it. Respond with JSON only — no prose, no markdown fences.";
+  const sys="You translate a plain-language project-change request into a STRICT JSON object and NOTHING else. You do not perform the change; you only describe it for a human to confirm. Schema: {\"filter\":{\"assignee\":email-name-or-array|null,\"reporter\":email-name-or-array|null,\"watcher\":email-name-or-array|null,\"status\":array of any of [open,in_progress,solved,closed]|null,\"priority\":array of any of [blocker,critical,major,minor,trivial,none]|null,\"type\":array-of-type-names|null,\"stamp\":array-of-strings|null,\"tag\":array-of-strings|null,\"olderThanDays\":integer|null,\"text\":string|null},\"change\":{\"assignee\":email-or-name|null,\"status\":status-name|null,\"priority\":one of the priority values|null,\"type\":type-name|null,\"deadline\":\"YYYY-MM-DD\"|null,\"tags\":[strings]|null,\"comment\":string|null},\"note\":\"one short plain-language restatement of the change\"}. IMPORTANT: \"change\" may set SEVERAL fields at once — include EVERY change requested (e.g. \"change priority and set a deadline\" -> set BOTH change.priority AND change.deadline). Every filter field EXCEPT olderThanDays and text may be an ARRAY to match ANY of the listed values (e.g. \"open or in progress\" -> filter.status:[\"open\",\"in_progress\"]; \"critical and blocker\" -> filter.priority:[\"blocker\",\"critical\"]; \"Ana or Ben\" -> filter.assignee:[\"Ana\",\"Ben\"]). Use ONLY these known values where relevant — statuses:"+JSON.stringify(v.statusList.map(s=>s.name))+", types:"+JSON.stringify(v.typeList.map(t=>t.name))+", assignees:"+JSON.stringify(v.assignees)+". CRITICAL — filters vs changes: \"stamp\" (a stamp code like HYD/EK/W54), \"tag\", \"reporter\" and \"watcher\" are FILTERS that pick WHICH issues — never put them in \"change\". The change.tags field is ONLY for when the user explicitly says to ADD or SET a tag. e.g. \"...with the stamp of HYD\" → filter.stamp=\"HYD\" (NOT a tag change). \"reported by Ana\" → filter.reporter=\"Ana\". \"issues I'm watching\" → filter.watcher=\"me\". There is no stamp/reporter/watcher CHANGE field — those are read-only here. A descriptive phrase about the issue's subject or title — clash names like \"Ductwork vs Structure\", disciplines, systems, rooms, levels, locations — goes in \"text\" (a forgiving free-text search of the title and tags), NOT in \"stamp\" or \"tag\". Use \"stamp\" or \"tag\" ONLY when the user literally says \"stamp\", \"tag\" or \"label\". e.g. \"my open Ductwork vs Structure issues\" → filter.text=\"Ductwork vs Structure\". If the user refers to themselves (\"my\", \"me\", \"mine\", \"I\", \"reported by me\", \"I'm watching\", \"assigned to me\"), put the literal word \"me\" in the relevant person field (assignee/reporter/watcher) — do NOT guess an email; the dashboard resolves \"me\" to the signed-in user. If something named isn't in those lists, put your best guess in the field and let the human correct it. Respond with JSON only — no prose, no markdown fences.";
   const out=await window.cowork.askClaude(sys,[{request:q}]);
   const text=typeof out==="string"?out:(out&&(out.text||out.answer||JSON.stringify(out)));
-  return actExtractJson(text);}
-function actExtractJson(text){if(text&&typeof text==="object")return text;const s=String(text||"");const a=s.indexOf("{"),b=s.lastIndexOf("}");if(a<0||b<a)throw new Error("no json in response");return JSON.parse(s.slice(a,b+1));}
+  const parsed=actExtractJson(text);return Array.isArray(parsed)?actMergeIntents(parsed):parsed;}
+function actExtractJson(text){if(text&&typeof text==="object")return text;let s=String(text||"").trim();s=s.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"").trim();try{return JSON.parse(s);}catch(e){}const la=s.indexOf("["),lb=s.lastIndexOf("]");if(la>=0&&lb>la){try{return JSON.parse(s.slice(la,lb+1));}catch(e){}}const a=s.indexOf("{"),b=s.lastIndexOf("}");if(a<0||b<a)throw new Error("no json in response");return JSON.parse(s.slice(a,b+1));}
+/* The model sometimes splits one request into an ARRAY of intents (per status, per change field). Merge them into a single multi-value / multi-change intent so nothing is dropped. PURE. */
+function actMergeIntents(list){const out={action:"",filter:{},change:{},note:""};const notes=[];
+  const addArr=(o,k,v)=>{if(v==null||(typeof v==="string"&&!v.trim()))return;const a=Array.isArray(v)?v:[v];o[k]=(o[k]||[]).concat(a);};
+  (list||[]).forEach(it=>{it=it||{};const f=it.filter||{},c=it.change||{};
+    ["assignee","reporter","watcher","status","priority","type","stamp","tag"].forEach(k=>addArr(out.filter,k,f[k]));
+    if(f.olderThanDays!=null)out.filter.olderThanDays=f.olderThanDays;if(f.text!=null&&String(f.text).trim())out.filter.text=f.text;
+    ["assignee","status","priority","type","deadline","comment"].forEach(k=>{if(c[k]!=null&&String(c[k]).trim())out.change[k]=c[k];});
+    if(Array.isArray(c.tags)&&c.tags.length)out.change.tags=(out.change.tags||[]).concat(c.tags);
+    if(it.note)notes.push(it.note);});
+  Object.keys(out.filter).forEach(k=>{if(Array.isArray(out.filter[k]))out.filter[k]=[...new Set(out.filter[k].map(x=>String(x).trim()).filter(Boolean))];});
+  if(Array.isArray(out.change.tags))out.change.tags=[...new Set(out.change.tags)];
+  out.note=notes[0]||"";return out;}
 async function actInterpret(){if(writesOff()||ACT.busy)return;
   const inp=document.getElementById("actInput"),msg=document.getElementById("actMsg");const q=(inp&&inp.value||"").trim();
   if(!q){if(msg)msg.textContent="Describe the change you want to make.";return;}
@@ -2664,6 +2683,7 @@ async function actInterpret(){if(writesOff()||ACT.busy)return;
   } catch(e){if(msg)msg.textContent="Couldn't plan that. Try naming the change and which issues — e.g. “reassign Marco's open issues to Aisha”.";}
   ACT.busy=false;if(go){go.disabled=false;go.textContent="Plan";}}
 function _selOpts(list,cur){return list.map(o=>`<option value="${_esc(o.v)}"${String(o.v)===String(cur)?" selected":""}>${_esc(o.t)}</option>`).join("");}
+function _chkGroup(name,opts,sel,scroll){sel=sel||new Set();const inner=(opts||[]).map(o=>`<label class="ac-chk"><input type="checkbox" data-cg="${_esc(name)}" value="${_esc(o.v)}"${sel.has(String(o.v))?" checked":""}><span>${_esc(o.t)}</span></label>`).join("");return `<div class="ac-chks${scroll?" ac-chks-scroll":""}" role="group">${inner||'<span class="ac-chks-empty">none available</span>'}</div>`;}
 function actRenderChips(norm,fixedTarget){const stage=document.getElementById("actStage");if(!stage)return;norm=norm||{filter:{},change:{}};
   const v=actVocab();const f=norm.filter||{},c=norm.change||{};
   const asgEmails=[...new Set((ME.email?[ME.email]:[]).concat(v.assignees))];
@@ -2677,17 +2697,18 @@ function actRenderChips(norm,fixedTarget){const stage=document.getElementById("a
   const tyC=[{v:"",t:"— no change —"}].concat(v.typeList.map(t=>({v:t.uuid,t:t.name})));
   const prioC=[{v:"",t:"— no change —"}].concat(PRIO_ENUM.map(p=>({v:p,t:p})));
   const curTypeUuid=c.customType||"";const curStatusUuid=c.customStatus||"";const curDeadline=(c.deadline||"").slice(0,10);
+  const _cgPeople=actCandidateEmails().map(e=>({v:e,t:(e===ME.email?e+"  —  me":e)}));const _cgStatus=[{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];const _cgPrio=PRIO_ENUM.map(p=>({v:p,t:p}));const _cgType=v.typeList.map(t=>({v:t.name,t:t.name}));const _setOf=x=>new Set((x||[]).map(String));
   const filterBlock=fixedTarget?`<div class="ac-h">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>`
-    :`<div class="ac-h">Which issues <b>(edit to correct the plan)</b></div>
-      <div class="ac-grid">
-        <label class="ac-field">Assignee<select id="afAssignee">${_selOpts(personOpts("Any assignee"),f.assigneeEmail||"")}</select></label>
-        <label class="ac-field">Reporter<select id="afReporter">${_selOpts(personOpts("Any reporter"),f.reporterEmail||"")}</select></label>
-        <label class="ac-field">Watcher<select id="afWatcher">${_selOpts(personOpts("Any watcher"),f.watcherEmail||"")}</select></label>
-        <label class="ac-field">Status<select id="afStatus">${_selOpts(statusF,f.status||"")}</select></label>
-        <label class="ac-field">Priority<select id="afPriority">${_selOpts(prioF,f.priority||"")}</select></label>
-        <label class="ac-field">Type<select id="afType">${_selOpts(tyF,f.typeName||"")}</select></label>
-        <label class="ac-field">Has stamp (exact)<input type="text" id="afStamp" value="${_esc(f.stamp||"")}" placeholder="e.g. HYD"></label>
-        <label class="ac-field">Has tag (exact)<input type="text" id="afTag" value="${_esc(f.tag||"")}" placeholder="e.g. T54 Gas"></label>
+    :`<div class="ac-h">Which issues <b>(edit to correct the plan · tick several to match any)</b></div>
+      <div class="ac-fgrid">
+        <div class="ac-fcell"><div class="ac-flab">Assignee</div>${_chkGroup("afAssignee",_cgPeople,_setOf(f.assigneeEmails),true)}</div>
+        <div class="ac-fcell"><div class="ac-flab">Reporter</div>${_chkGroup("afReporter",_cgPeople,_setOf(f.reporterEmails),true)}</div>
+        <div class="ac-fcell"><div class="ac-flab">Watcher</div>${_chkGroup("afWatcher",_cgPeople,_setOf(f.watcherEmails),true)}</div>
+        <div class="ac-fcell"><div class="ac-flab">Status</div>${_chkGroup("afStatus",_cgStatus,_setOf(f.statuses),false)}</div>
+        <div class="ac-fcell"><div class="ac-flab">Priority</div>${_chkGroup("afPriority",_cgPrio,_setOf(f.priorities),false)}</div>
+        <div class="ac-fcell"><div class="ac-flab">Type</div>${_chkGroup("afType",_cgType,_setOf(f.typeNames),false)}</div>
+        <label class="ac-field">Has stamp (exact, comma-separated)<input type="text" id="afStamp" value="${_esc((f.stamps||[]).join(', '))}" placeholder="e.g. HYD, EK"></label>
+        <label class="ac-field">Has tag (exact, comma-separated)<input type="text" id="afTag" value="${_esc((f.tags||[]).join(', '))}" placeholder="e.g. T54 Gas"></label>
         <label class="ac-field">Opened more than (days) ago<input type="number" id="afOlder" min="0" value="${f.olderThanDays||""}"></label>
       </div>
       <div class="ac-find">
@@ -2695,7 +2716,7 @@ function actRenderChips(norm,fixedTarget){const stage=document.getElementById("a
         <label class="ac-field">Match<select id="afTextMode">${_selOpts([{v:"contains",t:"Contains"},{v:"words",t:"All words"},{v:"exact",t:"Exact"}],f.textMode||"contains")}</select></label>
         <label class="ac-field">In<select id="afTextScope">${_selOpts([{v:"titletags",t:"Title + tags"},{v:"title",t:"Title only"},{v:"tags",t:"Tags only"}],f.textScope||"titletags")}</select></label>
       </div>
-      <p class="ac-note"><b>Find text</b> is the forgiving free-text search (Contains by default — switch to <b>All words</b> to match e.g. “Ductwork vs Structure” against “…Ductwork vs ST: Structure…”). Has-stamp / Has-tag are exact-match power filters. Stamp, Tag, Reporter and Watcher are <b>filters only</b> — read-only via the connector, so they pick which issues to act on but can't be changed here.</p>`;
+      <p class="ac-note">Tick several boxes to match <b>any</b> of them (e.g. Open + In progress). Status is filtered exactly at the server; Priority, Type, Stamp, Tag, Reporter, Watcher and multiple Assignees are matched by scanning a representative sample. Stamp, Tag, Reporter and Watcher are <b>filters only</b> — read-only via the connector.</p>`;
   const exprPerson=!fixedTarget&&!!(norm.expressedAssignee||norm.expressedReporter||norm.expressedWatcher);
   const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden>
       <b>This was a request about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:
@@ -2719,7 +2740,7 @@ function actRenderChips(norm,fixedTarget){const stage=document.getElementById("a
   </div>`;
   document.getElementById("acPreview").onclick=()=>actPreviewFromForm(fixedTarget);
   document.getElementById("acReset").onclick=actReset;
-  ["afAssignee","afReporter","afWatcher"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=actSyncBlock;});
+  stage.querySelectorAll('[data-cg]').forEach(cb=>{cb.onchange=actSyncBlock;});
   const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;
   actSyncBlock();
   _actScroll(stage);
@@ -2727,7 +2748,8 @@ function actRenderChips(norm,fixedTarget){const stage=document.getElementById("a
   const ff=stage.querySelector("select,input");if(ff){try{ff.focus({preventScroll:true});}catch(e){}}}
 /* never broaden a personal request to everyone: if a person was expressed but none is selected, block Preview until resolved or explicitly allowed */
 function actUnresolvedPersons(){const out=[];const I=ACT.intent||{};
-  const chk=(flag,id,label)=>{if(I[flag]){const v=((document.getElementById(id)||{}).value||"");if(!v)out.push(label);}};
+  const anyChecked=name=>!!document.querySelector('[data-cg="'+name+'"]:checked');
+  const chk=(flag,name,label)=>{if(I[flag]&&!anyChecked(name))out.push(label);};
   chk("expressedAssignee","afAssignee","assignee");chk("expressedReporter","afReporter","reporter");chk("expressedWatcher","afWatcher","watcher");
   return out;}
 /* 0-result rescue — offer to re-run the literal term as a forgiving all-words search across title + tags */
@@ -2752,17 +2774,19 @@ function actSyncBlock(){const prev=document.getElementById("acPreview");if(!prev
   const blocked=un.length>0&&!allow;prev.disabled=blocked;
   const m=document.getElementById("acMsg");if(m)m.textContent=blocked?("Pick the "+un.join(" / ")+" above, or tick “run on all”."):"";}
 function actReadForm(){const g=id=>{const e=document.getElementById(id);return e?(e.value||"").trim():"";};
+  const readCg=name=>[...document.querySelectorAll('[data-cg="'+name+'"]:checked')].map(e=>e.value);
+  const splitCsv=s=>s.split(",").map(x=>x.trim()).filter(Boolean);
   const v=actVocab();const filt={},change={},labels=[];
   /* filter (only present in NL mode; selection mode has no filter inputs) */
-  if(document.getElementById("afAssignee")){
-    const fa=g("afAssignee");if(fa)filt.assigneeEmail=fa;
-    const frp=g("afReporter");if(frp)filt.reporterEmail=frp;
-    const fw=g("afWatcher");if(fw)filt.watcherEmail=fw;
-    const fs=g("afStatus");if(fs)filt.status=fs;
-    const fp=g("afPriority");if(fp)filt.priority=fp;
-    const ft=g("afType");if(ft)filt.typeName=ft;
-    const fst=g("afStamp");if(fst)filt.stamp=fst;
-    const ftg=g("afTag");if(ftg)filt.tag=ftg;
+  if(document.getElementById("afStamp")||document.querySelector('[data-cg="afStatus"]')){
+    const fa=readCg("afAssignee");if(fa.length)filt.assigneeEmails=fa;
+    const frp=readCg("afReporter");if(frp.length)filt.reporterEmails=frp;
+    const fw=readCg("afWatcher");if(fw.length)filt.watcherEmails=fw;
+    const fs=readCg("afStatus");if(fs.length)filt.statuses=fs;
+    const fp=readCg("afPriority");if(fp.length)filt.priorities=fp;
+    const ft=readCg("afType");if(ft.length)filt.typeNames=ft;
+    const fst=g("afStamp");if(fst)filt.stamps=splitCsv(fst);
+    const ftg=g("afTag");if(ftg)filt.tags=splitCsv(ftg);
     const fo=g("afOlder");if(fo&&+fo>0)filt.olderThanDays=Math.round(+fo);
     const fx=g("afText");if(fx)filt.text=fx;
     const fm=g("afTextMode");if(fm)filt.textMode=fm;
@@ -2809,14 +2833,15 @@ async function actScanList(serverArgs,scanBudget,cf){const items=[];let scanned=
     if(d.length<REB_PAGE)break;if(total!=null&&scanned>=total)break;if(scanned>=scanBudget){capped=true;break;}}
   return {items,scanned,capped,total};}
 async function actResolveTarget(norm){const f=norm.filter||{};
-  const serverArgs={};if(f.assigneeEmail)serverArgs.assigneeEmail=f.assigneeEmail;if(f.status)serverArgs.statuses=[f.status];
+  const singleAssignee=(f.assigneeEmails&&f.assigneeEmails.length===1)?f.assigneeEmails[0]:null;
+  const serverArgs={};if(singleAssignee)serverArgs.assigneeEmail=singleAssignee;if(f.statuses&&f.statuses.length)serverArgs.statuses=f.statuses.slice();
   const cap=Math.min(effectiveCap(),SAMPLE_CEILING);const clientKeys=actClientKeys(f);
   if(!clientKeys.length){
     const exact=await issueCount(PRJ,serverArgs);const pg=await actPageList(serverArgs,cap);
     const total=(exact!=null)?exact:pg.uuids.length;
     return {mode:"exact",count:pg.uuids.length,exactTotal:total,capped:total>pg.uuids.length,uuids:pg.uuids,prior:pg.prior,
       sample:pg.uuids.slice(0,10).map(u=>pg.prior[u]&&pg.prior[u]._lite).filter(Boolean)};}
-  const cf={priority:f.priority,typeName:f.typeName,stamp:f.stamp,tag:f.tag,reporter:f.reporterEmail,watcher:f.watcherEmail,text:f.text,textMode:f.textMode,textScope:f.textScope,olderThanDays:f.olderThanDays,nowMs:+TODAY};
+  const cf={priorities:f.priorities,typeNames:f.typeNames,stamps:f.stamps,tags:f.tags,reporterEmails:f.reporterEmails,watcherEmails:f.watcherEmails,assigneeEmails:(f.assigneeEmails&&f.assigneeEmails.length>1)?f.assigneeEmails:null,text:f.text,textMode:f.textMode,textScope:f.textScope,olderThanDays:f.olderThanDays,nowMs:+TODAY};
   const sc=await actScanList(serverArgs,cap,cf);const uuids=sc.items.map(i=>i.uuid),prior={};
   sc.items.forEach(i=>prior[i.uuid]={assignee:i.assignee,priority:i.priority,status:i.status,_lite:i});
   return {mode:"scanned",count:uuids.length,scanned:sc.scanned,scanTotal:sc.total,capped:sc.capped,uuids,prior,sample:sc.items.slice(0,10)};}
