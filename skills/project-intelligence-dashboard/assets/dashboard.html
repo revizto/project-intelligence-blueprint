@@ -124,15 +124,75 @@ h1{font-weight:500;font-size:27px;letter-spacing:-.01em;margin:2px 0 0}
 .astep{background:var(--white,#fff);border:1px solid var(--line);border-radius:10px;margin:0 0 10px;overflow:hidden}
 .astep-h{display:flex;align-items:center;gap:10px;padding:11px 13px;cursor:pointer}
 .astep-n{font-family:var(--mono);font-size:10px;background:var(--concrete,#1E2E2E);color:#fff;border-radius:5px;padding:3px 7px;flex:none}
-.astep-sent{flex:1;font-size:13px}
+.astep-sent{flex:1;font-size:13px;min-width:0}
 .astep-sent b{color:var(--red,#E40001)}
-.astep .caret{color:var(--muted);transition:transform .15s;flex:none}
+.asent-mt{color:var(--concrete,#1E2E2E);font-weight:600}
+.asent-ar{color:#b7c4c4;margin:0 7px;font-weight:600}
+.asent-do{color:var(--red,#E40001);font-weight:600}
+.astep .caret{color:#7c8c8c;transition:transform .15s;flex:none;display:inline-flex;align-items:center}
+.astep .caret svg{width:17px;height:17px;display:block}
 .astep.open .caret{transform:rotate(180deg)}
 .astep-body{padding:2px 13px 13px;border-top:1px solid var(--paper,#eef2f2)}
-.icbtn{border:1px solid var(--line);background:var(--white,#fff);border-radius:6px;width:26px;height:26px;cursor:pointer;color:var(--muted);font-size:13px;line-height:1;flex:none}
-.icbtn:hover{border-color:var(--red,#E40001);color:var(--red,#E40001)}
+.icbtn{border:1px solid var(--line);background:var(--white,#fff);border-radius:7px;width:30px;height:30px;cursor:pointer;color:#3a4c4d;line-height:0;flex:none;display:inline-flex;align-items:center;justify-content:center}
+.icbtn svg{width:16px;height:16px;display:block}
+.icbtn:hover{border-color:var(--red,#E40001);color:var(--red,#E40001);background:#fdeeed}
 .addstep{display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--teal-deep,#009999);background:#eefafa;color:var(--teal-ink,#0b6b6b);border-radius:9px;padding:9px 13px;cursor:pointer;font:inherit;font-weight:600;font-size:13px;margin:0 0 4px}
+.addstep svg{width:14px;height:14px;display:block}
 .addstep:hover{background:#e2f5f5}
+/* WS12 — two-column Match/Do workbench */
+.ac-cols{display:grid;grid-template-columns:1fr 38px 1fr;align-items:start}
+.ac-colmid{display:flex;align-items:center;justify-content:center;align-self:stretch;padding-top:22px}
+.ac-colmid .ac-ar{width:26px;height:26px;border-radius:50%;background:var(--white,#fff);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#9fb0b0;font-weight:700;font-size:14px}
+.ac-col{border:1px solid;border-radius:11px;padding:11px 12px 12px}
+.ac-col.match{background:#f4f8f8;border-color:#d3e2e2}
+.ac-col.do{background:#fff6f5;border-color:#f4cfcd}
+.ac-zhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ac-zico{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none}
+.ac-zico.match{background:var(--teal-deep,#009999)}
+.ac-zico.do{background:var(--red,#E40001)}
+.ac-zico svg{width:13px;height:13px;display:block}
+.ac-ztitle{font-family:var(--sans);font-size:12.5px;font-weight:700;letter-spacing:.01em;text-transform:none}
+.ac-col.match .ac-ztitle{color:#0a6d6d}
+.ac-col.do .ac-ztitle{color:#b81416}
+.ac-zcount{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--muted)}
+.ac-frow{background:var(--white,#fff);border:1px solid;border-radius:9px;margin-bottom:7px;overflow:hidden}
+.ac-col.match .ac-frow{border-color:#d3e2e2}
+.ac-col.do .ac-frow{border-color:#f4cfcd}
+.ac-frow .rsum{display:flex;align-items:center;gap:8px;padding:8px 9px 8px 11px;cursor:pointer}
+.ac-frow .rk{font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);flex:none}
+.ac-frow .rv{font-family:var(--sans);font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-col.match .rv{color:#204b4b}
+.ac-col.do .rv{color:var(--red,#E40001)}
+.ac-frow .rc{color:#7c8c8c;transition:transform .15s;flex:none;display:inline-flex}
+.ac-frow .rc svg{width:15px;height:15px;display:block}
+.ac-frow.open .rc{transform:rotate(180deg)}
+.ac-frow .rx{border:none;background:transparent;color:#93a3a3;cursor:pointer;flex:none;padding:3px;line-height:0;display:inline-flex;border-radius:6px}
+.ac-frow .rx svg{width:15px;height:15px;display:block}
+.ac-frow .rx:hover{color:var(--red,#E40001);background:#fdeeed}
+.ac-frow .red{display:none;border-top:1px solid var(--paper,#eef2f2);padding:10px 11px 11px;background:#fcfefe}
+.ac-frow.open .red{display:block}
+.ac-frow .red input,.ac-frow .red select{width:100%;min-height:36px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--white)}
+.ac-frow .fx2{display:flex;gap:7px;margin-top:6px}
+.ac-frow .rhint{font-size:10.5px;color:var(--muted);margin-top:7px;text-transform:none;letter-spacing:0}
+.ac-addf{display:inline-flex;align-items:center;gap:6px;border:1px dashed;background:transparent;border-radius:9px;padding:8px 12px;font:inherit;font-weight:600;font-size:12px;cursor:pointer;margin-top:2px}
+.ac-addf svg{width:14px;height:14px;display:block}
+.ac-col.match .ac-addf{border-color:#9fc7c7;color:#0a6d6d}
+.ac-col.match .ac-addf:hover{background:#e8f2f2}
+.ac-col.do .ac-addf{border-color:#e6a9a7;color:var(--red,#E40001)}
+.ac-col.do .ac-addf:hover{background:#fdeeed}
+.ac-cempty{font-family:var(--sans);font-size:11.5px;color:var(--muted);text-transform:none;letter-spacing:0;margin:2px 0 8px}
+.ac-menu{position:absolute;z-index:60;background:var(--white,#fff);border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 34px rgba(30,46,46,.18);padding:6px;min-width:214px;max-height:300px;overflow:auto}
+.ac-mi{display:block;width:100%;text-align:left;border:none;background:transparent;padding:9px 11px;border-radius:8px;font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer}
+.ac-mi:hover{background:var(--paper,#eef2f2)}
+.ac-mi[disabled]{opacity:.4;cursor:default}
+.ac-mi .mk{font-family:var(--mono);font-size:9px;color:#9aabab;float:right;margin-top:3px}
+.ac-mnote{font-size:10.5px;color:var(--muted);padding:7px 11px 3px;border-top:1px solid var(--paper,#eef2f2);margin-top:4px;line-height:1.45}
+.ac-tbanner{background:#eef6f6;border:1px solid #cfe3e3;border-radius:10px;padding:11px 13px;font-size:13px;color:var(--ink);margin-bottom:12px}
+.ac-tbanner b{color:#0a6d6d}
+.ac-foot{margin:11px 0 0;font-size:11px;color:var(--muted);line-height:1.5;padding-top:10px;border-top:1px solid var(--line)}
+.ac-foot b{color:#3a4c4d}
+@media(pointer:coarse){.ac-frow .red input,.ac-frow .red select,.ac-frow .rsum,.icbtn,.ac-addf{min-height:44px}}
+@media(max-width:700px){.ac-cols{grid-template-columns:1fr}.ac-colmid{padding:5px 0}.ac-colmid .ac-ar{transform:rotate(90deg)}}
 .apx-list{display:flex;flex-direction:column;gap:9px;margin:6px 0 0}
 .apx-grp{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--white,#fff)}
 .apx-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -2729,6 +2789,40 @@ function actBuildSteps(parsed,vocab){const list=Array.isArray(parsed)?parsed:[pa
 function _selOpts(list,cur){return list.map(o=>`<option value="${_esc(o.v)}"${String(o.v)===String(cur)?" selected":""}>${_esc(o.t)}</option>`).join("");}
 function _chkGroup(name,opts,sel,scroll){sel=sel||new Set();const inner=(opts||[]).map(o=>`<label class="ac-chk"><input type="checkbox" data-cg="${_esc(name)}" value="${_esc(o.v)}"${sel.has(String(o.v))?" checked":""}><span>${_esc(o.t)}</span></label>`).join("");return `<div class="ac-chks${scroll?" ac-chks-scroll":""}" role="group">${inner||'<span class="ac-chks-empty">none available</span>'}</div>`;}
 /* one step's editing form (filter + change), no CTA — the container adds the CTA. */
+/* WS12 — two-column Match/Do workbench: catalogues, crisp SVG icons, per-field summaries, progressive-disclosure rows. */
+const ACT_IC={caret:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',dup:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',find:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>',wand:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19l7-7"/><path d="M13 5l3 3-8 8-3.5.5.5-3.5z"/><path d="M15 3l1.6 1.6"/></svg>'};
+const ACT_MF=["assignee","reporter","watcher","status","priority","type","stamp","tag","older","text"];
+const ACT_DF=["assignee","status","priority","type","deadline","tags","comment"];
+const ACT_MFL={assignee:"Assignee",reporter:"Reporter",watcher:"Watcher",status:"Status",priority:"Priority",type:"Type",stamp:"Stamp",tag:"Tag",older:"Older than",text:"Find text"};
+const ACT_DFL={assignee:"Assignee",status:"Status",priority:"Priority",type:"Type",deadline:"Deadline",tags:"Tags",comment:"Comment"};
+const ACT_MFD={assignee:"who it’s assigned to",reporter:"who raised it — match-only",watcher:"who’s watching — match-only",status:"open / in progress / solved / closed",priority:"blocker … trivial",type:"Clash / Standard",stamp:"exact, comma-separated — match-only",tag:"exact, comma-separated",older:"opened more than N days ago",text:"words in the title or tags"};
+const ACT_DFD={assignee:"reassign",status:"move state",priority:"re-prioritise",type:"change type",deadline:"set a date",tags:"add tags",comment:"note only"};
+function actPresentM(f){f=f||{};const s=[];if(f.assigneeEmails&&f.assigneeEmails.length)s.push("assignee");if(f.reporterEmails&&f.reporterEmails.length)s.push("reporter");if(f.watcherEmails&&f.watcherEmails.length)s.push("watcher");if(f.statuses&&f.statuses.length)s.push("status");if(f.priorities&&f.priorities.length)s.push("priority");if(f.typeNames&&f.typeNames.length)s.push("type");if(f.stamps&&f.stamps.length)s.push("stamp");if(f.tags&&f.tags.length)s.push("tag");if(f.olderThanDays)s.push("older");if(f.text)s.push("text");return s;}
+function actPresentD(c,norm){c=c||{};const s=[];if(c.assignee)s.push("assignee");if(c.customStatus)s.push("status");if(c.priority)s.push("priority");if(c.customType)s.push("type");if(c.deadline)s.push("deadline");if(c.tags&&c.tags.length)s.push("tags");if(norm&&norm.commentText)s.push("comment");return s;}
+function actEnsureRows(s){if(!s)return;if(!s._mrows){let m=actPresentM(s.filter||{});["assignee","reporter","watcher"].forEach(k=>{const fl={assignee:"expressedAssignee",reporter:"expressedReporter",watcher:"expressedWatcher"}[k];if(s[fl]&&m.indexOf(k)<0)m.push(k);});s._mrows=ACT_MF.filter(k=>m.indexOf(k)>=0);}if(!s._drows){let d=actPresentD(s.change||{},s);s._drows=ACT_DF.filter(k=>d.indexOf(k)>=0);}}
+function actFieldSummary(side,key,s){s=s||{};const f=s.filter||{},c=s.change||{};const nm=e=>e?String(e).split("@")[0]:e;
+  if(side==="match"){if(key==="assignee")return (f.assigneeEmails||[]).map(nm).join(", ");if(key==="reporter")return (f.reporterEmails||[]).map(nm).join(", ");if(key==="watcher")return (f.watcherEmails||[]).map(nm).join(", ");if(key==="status")return (f.statuses||[]).map(x=>STATUS_NAME[x]||x).join(", ");if(key==="priority")return (f.priorities||[]).join(", ");if(key==="type")return (f.typeNames||[]).map(typeDisplay).join(", ");if(key==="stamp")return (f.stamps||[]).join(", ");if(key==="tag")return (f.tags||[]).join(", ");if(key==="older")return f.olderThanDays?(">"+f.olderThanDays+"d old"):"";if(key==="text")return f.text?("“"+f.text+"”"):"";return "";}
+  const v=actVocab();if(key==="assignee")return c.assignee?nm(c.assignee):"";if(key==="status")return c.customStatus?(((v.statusList.find(x=>x.uuid===c.customStatus))||{}).name||""):"";if(key==="priority")return c.priority||"";if(key==="type")return c.customType?typeDisplay(((v.typeList.find(x=>x.uuid===c.customType))||{}).name||""):"";if(key==="deadline")return c.deadline?String(c.deadline).slice(0,10):"";if(key==="tags")return (c.tags||[]).join(", ");if(key==="comment")return s.commentText?("“"+s.commentText+"”"):"";return "";}
+function actSentHtml(sent){return `<span class="asent-mt">${_esc(sent.scope)}</span><span class="asent-ar" aria-hidden="true">→</span><span class="asent-do">${_esc(sent.change)}</span>`;}
+function actCurStep(){return ACT.fixed?ACT.intent:((ACT.steps&&ACT.active>=0)?ACT.steps[ACT.active]:ACT.intent);}
+function actReRender(){if(ACT.fixed)actRenderChips(ACT.intent,true);else actRenderSteps();}
+function actLabelFromChange(s){const v=actVocab();const c=(s&&s.change)||{};const L=[];if(c.assignee)L.push("assignee → "+c.assignee);if(c.customStatus)L.push("status → "+(((v.statusList.find(x=>x.uuid===c.customStatus))||{}).name||""));if(c.priority)L.push("priority → "+c.priority);if(c.customType)L.push("type → "+(((v.typeList.find(x=>x.uuid===c.customType))||{}).name||""));if(c.deadline)L.push("deadline → "+String(c.deadline).slice(0,10));if(c.tags&&c.tags.length)L.push("tags → "+c.tags.join(", "));return L.join("; ");}
+function actCloseMenus(){document.querySelectorAll(".ac-menu").forEach(m=>m.remove());document.removeEventListener("click",actMenuDocClick,true);}
+function actMenuDocClick(e){if(!e.target.closest(".ac-menu")&&!e.target.closest("[data-addf]"))actCloseMenus();}
+function actAddMenu(btn,side){actCloseMenus();actStoreActive();const s=actCurStep();actEnsureRows(s);const used=((side==="match")?s._mrows:s._drows)||[];const cat=side==="match"?ACT_MF:ACT_DF;const lab=side==="match"?ACT_MFL:ACT_DFL;const desc=side==="match"?ACT_MFD:ACT_DFD;const m=document.createElement("div");m.className="ac-menu";m.innerHTML=cat.map(k=>`<button class="ac-mi" type="button" data-k="${k}" ${used.indexOf(k)>=0?"disabled":""}>${_esc(lab[k])}<span class="mk">${used.indexOf(k)>=0?"added":_esc(desc[k])}</span></button>`).join("")+`<div class="ac-mnote">Only unused fields show — no empty controls.</div>`;document.body.appendChild(m);const r=btn.getBoundingClientRect();m.style.top=(window.scrollY+r.bottom+6)+"px";m.style.left=(window.scrollX+Math.min(r.left,(window.innerWidth||900)-224))+"px";m.querySelectorAll(".ac-mi:not([disabled])").forEach(mi=>{mi.onclick=()=>{actCloseMenus();actAddField(side,mi.dataset.k);};});setTimeout(()=>document.addEventListener("click",actMenuDocClick,true),0);}
+function actAddField(side,key){actStoreActive();const s=actCurStep();actEnsureRows(s);const arr=side==="match"?s._mrows:s._drows;if(arr.indexOf(key)<0)arr.push(key);actReRender();const stage=document.getElementById("actStage");if(stage){const fr=stage.querySelector('.ac-frow[data-side="'+side+'"][data-key="'+key+'"]');if(fr){fr.classList.add("open");const rs=fr.querySelector(".rsum");if(rs)rs.setAttribute("aria-expanded","true");const ff=fr.querySelector("input,select");if(ff){try{ff.focus({preventScroll:true});}catch(e){}}try{fr.scrollIntoView({block:"nearest"});}catch(e){}}}}
+function actRemoveField(side,key){actStoreActive();const s=actCurStep();actEnsureRows(s);const arr=side==="match"?s._mrows:s._drows;const i=arr.indexOf(key);if(i>=0)arr.splice(i,1);
+  if(side==="match"){const f=s.filter||{};const map={assignee:"assigneeEmails",reporter:"reporterEmails",watcher:"watcherEmails",status:"statuses",priority:"priorities",type:"typeNames",stamp:"stamps",tag:"tags",older:"olderThanDays",text:"text"};delete f[map[key]];if(key==="text"){delete f.textMode;delete f.textScope;}if(key==="assignee")s.expressedAssignee=false;if(key==="reporter")s.expressedReporter=false;if(key==="watcher")s.expressedWatcher=false;s.filter=f;}
+  else{const c=s.change||{};if(key==="comment"){s.commentText="";s.commentOnly=false;}else{const map={assignee:"assignee",status:"customStatus",priority:"priority",type:"customType",deadline:"deadline",tags:"tags"};delete c[map[key]];}s.change=c;s.changeLabel=actLabelFromChange(s);s.commentOnly=(!s.changeLabel&&!!s.commentText);}
+  actReRender();}
+function actRowChanged(fr){actStoreActive();const s=actCurStep();const rv=fr.querySelector(".rv");if(rv&&s)rv.textContent=actFieldSummary(fr.dataset.side,fr.dataset.key,s)||"—";actRefreshActiveSentence();actSyncBlock();}
+function actBindForm(stage){if(!stage)return;
+  stage.querySelectorAll(".ac-frow .rsum").forEach(r=>{const tog=()=>{const op=r.closest(".ac-frow").classList.toggle("open");r.setAttribute("aria-expanded",op?"true":"false");};r.onclick=e=>{if(e.target.closest(".rx"))return;tog();};r.onkeydown=e=>{if((e.key==="Enter"||e.key===" ")&&!e.target.closest(".rx")){e.preventDefault();tog();}};});
+  stage.querySelectorAll(".ac-frow .rx").forEach(x=>{x.onclick=e=>{e.stopPropagation();const fr=x.closest(".ac-frow");actRemoveField(fr.dataset.side,fr.dataset.key);};});
+  stage.querySelectorAll("[data-addf]").forEach(b=>{b.onclick=e=>{e.stopPropagation();actAddMenu(b,b.dataset.addf);};});
+  stage.querySelectorAll(".ac-frow").forEach(fr=>{const upd=()=>actRowChanged(fr);fr.addEventListener("input",upd);fr.addEventListener("change",upd);});
+  const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;
+  actSyncBlock();}
 function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const v=actVocab();const f=norm.filter||{},c=norm.change||{};
   const asgEmails=[...new Set((ME.email?[ME.email]:[]).concat(v.assignees))];
@@ -2739,56 +2833,53 @@ function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const prioC=[{v:"",t:"— no change —"}].concat(PRIO_ENUM.map(p=>({v:p,t:p})));
   const curTypeUuid=c.customType||"";const curStatusUuid=c.customStatus||"";const curDeadline=(c.deadline||"").slice(0,10);
   const _cgPeople=actCandidateEmails().map(e=>({v:e,t:(e===ME.email?e+"  —  me":e)}));const _cgStatus=[{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];const _cgPrio=PRIO_ENUM.map(p=>({v:p,t:p}));const _cgType=v.typeList.map(t=>({v:t.name,t:typeDisplay(t.name)}));const _setOf=x=>new Set((x||[]).map(String));
-  const filterBlock=fixedTarget?`<div class="ac-h">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>`
-    :`<div class="ac-h">Which issues <b>(tick several to match any)</b></div>
-      <div class="ac-fgrid">
-        <div class="ac-fcell"><div class="ac-flab">Assignee</div>${_chkGroup("afAssignee",_cgPeople,_setOf(f.assigneeEmails),true)}</div>
-        <div class="ac-fcell"><div class="ac-flab">Reporter</div>${_chkGroup("afReporter",_cgPeople,_setOf(f.reporterEmails),true)}</div>
-        <div class="ac-fcell"><div class="ac-flab">Watcher</div>${_chkGroup("afWatcher",_cgPeople,_setOf(f.watcherEmails),true)}</div>
-        <div class="ac-fcell"><div class="ac-flab">Status</div>${_chkGroup("afStatus",_cgStatus,_setOf(f.statuses),false)}</div>
-        <div class="ac-fcell"><div class="ac-flab">Priority</div>${_chkGroup("afPriority",_cgPrio,_setOf(f.priorities),false)}</div>
-        <div class="ac-fcell"><div class="ac-flab">Type</div>${_chkGroup("afType",_cgType,_setOf(f.typeNames),false)}</div>
-        <label class="ac-field">Has stamp (exact, comma-separated)<input type="text" id="afStamp" value="${_esc((f.stamps||[]).join(', '))}" placeholder="e.g. HYD, EK"></label>
-        <label class="ac-field">Has tag (exact, comma-separated)<input type="text" id="afTag" value="${_esc((f.tags||[]).join(', '))}" placeholder="e.g. T54 Gas"></label>
-        <label class="ac-field">Opened more than (days) ago<input type="number" id="afOlder" min="0" value="${f.olderThanDays||""}"></label>
-      </div>
-      <div class="ac-find">
-        <label class="ac-field" style="flex:1;min-width:200px">Find text<input type="text" id="afText" value="${_esc(f.text||"")}" placeholder="words in the title or tags — e.g. Ductwork vs Structure"></label>
-        <label class="ac-field">Match<select id="afTextMode">${_selOpts([{v:"contains",t:"Contains"},{v:"words",t:"All words"},{v:"exact",t:"Exact"}],f.textMode||"contains")}</select></label>
-        <label class="ac-field">In<select id="afTextScope">${_selOpts([{v:"titletags",t:"Title + tags"},{v:"title",t:"Title only"},{v:"tags",t:"Tags only"}],f.textScope||"titletags")}</select></label>
-      </div>
-      <p class="ac-note">Tick several boxes to match <b>any</b> of them. Status is filtered exactly at the server; other multi-value filters (and multiple assignees) are matched by scanning a representative sample. Stamp, Tag, Reporter and Watcher are <b>filters only</b> — read-only via the connector.</p>`;
+  const hint=t=>`<div class="rhint">${t}</div>`;
+  const matchCtl=k=>{
+    if(k==="assignee")return _chkGroup("afAssignee",_cgPeople,_setOf(f.assigneeEmails),true)+hint(ACT_MFD.assignee);
+    if(k==="reporter")return _chkGroup("afReporter",_cgPeople,_setOf(f.reporterEmails),true)+hint(ACT_MFD.reporter);
+    if(k==="watcher")return _chkGroup("afWatcher",_cgPeople,_setOf(f.watcherEmails),true)+hint(ACT_MFD.watcher);
+    if(k==="status")return _chkGroup("afStatus",_cgStatus,_setOf(f.statuses),false)+hint(ACT_MFD.status);
+    if(k==="priority")return _chkGroup("afPriority",_cgPrio,_setOf(f.priorities),false)+hint(ACT_MFD.priority);
+    if(k==="type")return _chkGroup("afType",_cgType,_setOf(f.typeNames),false)+hint(ACT_MFD.type);
+    if(k==="stamp")return `<input type="text" id="afStamp" value="${_esc((f.stamps||[]).join(', '))}" placeholder="e.g. HYD, EK">`+hint(ACT_MFD.stamp);
+    if(k==="tag")return `<input type="text" id="afTag" value="${_esc((f.tags||[]).join(', '))}" placeholder="e.g. T54 Gas">`+hint(ACT_MFD.tag);
+    if(k==="older")return `<input type="number" id="afOlder" min="0" value="${f.olderThanDays||""}" placeholder="days">`+hint(ACT_MFD.older);
+    if(k==="text")return `<input type="text" id="afText" value="${_esc(f.text||"")}" placeholder="e.g. Ductwork vs Structure"><div class="fx2"><select id="afTextMode">${_selOpts([{v:"contains",t:"Contains"},{v:"words",t:"All words"},{v:"exact",t:"Exact"}],f.textMode||"contains")}</select><select id="afTextScope">${_selOpts([{v:"titletags",t:"Title + tags"},{v:"title",t:"Title only"},{v:"tags",t:"Tags only"}],f.textScope||"titletags")}</select></div>`+hint(ACT_MFD.text);
+    return "";};
+  const doCtl=k=>{
+    if(k==="assignee")return `<select id="acAssignee">${_selOpts(asgC,c.assignee||"")}</select>`;
+    if(k==="status")return `<select id="acStatus">${_selOpts(wfC,curStatusUuid)}</select>`;
+    if(k==="priority")return `<select id="acPriority">${_selOpts(prioC,c.priority||"")}</select>`;
+    if(k==="type")return `<select id="acType">${_selOpts(tyC,curTypeUuid)}</select>`;
+    if(k==="deadline")return `<input type="date" id="acDeadline" value="${_esc(curDeadline)}">`;
+    if(k==="tags")return `<input type="text" id="acTags" value="${_esc((c.tags||[]).join(', '))}" placeholder="comma-separated">`;
+    if(k==="comment")return `<input type="text" id="acComment" value="${_esc(norm.commentText||"")}" placeholder="e.g. Pending RFI response">`+hint("Used only when no other change is set.");
+    return "";};
+  const frow=(side,k)=>{const lab=(side==="match"?ACT_MFL:ACT_DFL)[k];const summ=actFieldSummary(side,k,norm);
+    return `<div class="ac-frow" data-side="${side}" data-key="${k}"><div class="rsum" role="button" tabindex="0" aria-expanded="false"><span class="rk">${_esc(lab)}</span><span class="rv">${_esc(summ||"—")}</span><span class="rc" aria-hidden="true">${ACT_IC.caret}</span><button class="rx" type="button" title="Remove" aria-label="Remove ${_esc(lab)} ${side==="match"?"filter":"change"}">${ACT_IC.close}</button></div><div class="red">${side==="match"?matchCtl(k):doCtl(k)}</div></div>`;};
+  let drows=(norm._drows?norm._drows.slice():actPresentD(c,norm));drows=ACT_DF.filter(k=>drows.indexOf(k)>=0);
+  const doCol=`<div class="ac-col do"><div class="ac-zhead"><span class="ac-zico do">${ACT_IC.wand}</span><span class="ac-ztitle">Then apply…</span><span class="ac-zcount">${drows.length} change${drows.length===1?"":"s"}</span></div>${drows.length?drows.map(k=>frow("do",k)).join(""):`<div class="ac-cempty">No change yet — add one.</div>`}<button class="ac-addf" type="button" data-addf="do">${ACT_IC.plus} Add change</button></div>`;
+  const warnHtml=(norm.warnings&&norm.warnings.length)?`<div class="ac-warn">${norm.warnings.map(_esc).join("<br>")}</div>`:"";
   const exprPerson=!fixedTarget&&!!(norm.expressedAssignee||norm.expressedReporter||norm.expressedWatcher);
-  const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden>
-      <b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:
-      <label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label>
-    </div>`:"";
-  return `<div class="act-chips">
-    ${filterBlock}
-    <div class="ac-sub"><span>Change to apply</span></div>
-    <div class="ac-grid">
-      <label class="ac-field">Assignee<select id="acAssignee">${_selOpts(asgC,c.assignee||"")}</select></label>
-      <label class="ac-field">Status<select id="acStatus">${_selOpts(wfC,curStatusUuid)}</select></label>
-      <label class="ac-field">Priority<select id="acPriority">${_selOpts(prioC,c.priority||"")}</select></label>
-      <label class="ac-field">Type<select id="acType">${_selOpts(tyC,curTypeUuid)}</select></label>
-      <label class="ac-field">Deadline<input type="date" id="acDeadline" value="${_esc(curDeadline)}"></label>
-      <label class="ac-field">Tags (comma-separated)<input type="text" id="acTags" value="${_esc((c.tags||[]).join(', '))}"></label>
-    </div>
-    <label class="ac-field" style="margin-top:10px">Or just add a comment (used only when no field above is changed)<input type="text" id="acComment" value="${_esc(norm.commentText||"")}" placeholder="e.g. Pending RFI response"></label>
-    ${(norm.warnings&&norm.warnings.length)?`<div class="ac-warn">${norm.warnings.map(_esc).join("<br>")}</div>`:""}
-    ${blockHtml}
-  </div>`;}
+  const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden><b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:<label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label></div>`:"";
+  if(fixedTarget){
+    return `<div class="act-chips"><div class="ac-tbanner">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>${doCol}${warnHtml}</div>`;
+  }
+  let mrows=(norm._mrows?norm._mrows.slice():actPresentM(f));
+  ["assignee","reporter","watcher"].forEach(k=>{const fl={assignee:"expressedAssignee",reporter:"expressedReporter",watcher:"expressedWatcher"}[k];if(norm[fl]&&mrows.indexOf(k)<0)mrows.push(k);});
+  mrows=ACT_MF.filter(k=>mrows.indexOf(k)>=0);
+  const matchCol=`<div class="ac-col match"><div class="ac-zhead"><span class="ac-zico match">${ACT_IC.find}</span><span class="ac-ztitle">Match issues where…</span><span class="ac-zcount">${mrows.length} filter${mrows.length===1?"":"s"}</span></div>${mrows.length?mrows.map(k=>frow("match",k)).join(""):`<div class="ac-cempty">No filters — this step matches every issue in the project.</div>`}<button class="ac-addf" type="button" data-addf="match">${ACT_IC.plus} Add filter</button></div>`;
+  return `<div class="act-chips"><div class="ac-cols">${matchCol}<div class="ac-colmid"><span class="ac-ar" aria-hidden="true">→</span></div>${doCol}</div><p class="ac-foot"><b>Status</b> filters exactly at the server; other filters scan a representative sample. Stamp, Tag, Reporter and Watcher are <b>match-only</b> — read-only via the connector.</p>${blockHtml}${warnHtml}</div>`;}
 function actFormCta(multi){const n=(ACT.steps||[]).length;const label=multi?`Preview ${fmt(n)} step${n===1?"":"s"} &rarr;`:"Preview change &rarr;";
   return `<div class="act-cta"><button class="btn primary" id="acPreview">${label}</button><button class="btn" id="acReset">Start over</button><span class="act-msg" id="acMsg" role="status" aria-live="polite"></span><span class="act-rescue" id="acRescue" role="status" aria-live="polite"></span></div>`;}
 /* SELECTION mode (from 04) and any single-target path — one form, no steps chrome. */
 function actRenderChips(norm,fixedTarget){const stage=document.getElementById("actStage");if(!stage)return;norm=norm||{filter:{},change:{}};
-  ACT.fixed=!!fixedTarget;ACT.intent=norm;
+  ACT.fixed=!!fixedTarget;ACT.intent=norm;actEnsureRows(norm);
   stage.innerHTML=actStepFormHtml(norm,fixedTarget)+actFormCta(false);
   const prev=document.getElementById("acPreview");if(prev)prev.onclick=()=>actPreviewFromForm(fixedTarget);
   const rs=document.getElementById("acReset");if(rs)rs.onclick=actReset;
-  stage.querySelectorAll('[data-cg]').forEach(cb=>{cb.onchange=actSyncBlock;});
-  const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;
-  actSyncBlock();_actScroll(stage);
+  actBindForm(stage);
+  _actScroll(stage);
   const ff=stage.querySelector("select,input");if(ff){try{ff.focus({preventScroll:true});}catch(e){}}}
 /* plain-language one-liner for a step header */
 function actStepSentence(s){s=s||{};const f=s.filter||{};const nm=e=>e?String(e).split("@")[0]:e;const scope=[];
@@ -2807,28 +2898,27 @@ function actStepSentence(s){s=s||{};const f=s.filter||{};const nm=e=>e?String(e)
 function actRenderSteps(){const stage=document.getElementById("actStage");if(!stage)return;ACT.fixed=false;
   const steps=ACT.steps||[];
   const card=(s,i)=>{const sent=actStepSentence(s);const active=(i===ACT.active);
-    const tools=steps.length>1?`<button class="icbtn" data-dup="${i}" title="Duplicate step">⧉</button><button class="icbtn" data-rm="${i}" title="Remove step">×</button>`:"";
-    const head=`<div class="astep-h" data-si="${i}"><span class="astep-n">STEP ${i+1}</span><span class="astep-sent"><b>${_esc(sent.change)}</b> · ${_esc(sent.scope)}</span>${tools}<span class="caret" aria-hidden="true">▾</span></div>`;
+    const tools=steps.length>1?`<button class="icbtn" data-dup="${i}" title="Duplicate step" aria-label="Duplicate step">${ACT_IC.dup}</button><button class="icbtn" data-rm="${i}" title="Remove step" aria-label="Remove step">${ACT_IC.close}</button>`:"";
+    const head=`<div class="astep-h" data-si="${i}"><span class="astep-n">STEP ${i+1}</span><span class="astep-sent">${actSentHtml(sent)}</span>${tools}<span class="caret" aria-hidden="true">${ACT_IC.caret}</span></div>`;
     return `<div class="astep${active?" open":""}">${head}${active?`<div class="astep-body">${actStepFormHtml(s,false)}</div>`:""}</div>`;};
-  stage.innerHTML=`<div class="asteps-head">Plan — ${fmt(steps.length)} step${steps.length===1?"":"s"}<span class="asteps-hint">each step applies its own changes to its own issues</span></div>`+
-    steps.map(card).join("")+`<button class="addstep" id="acAddStep">＋ Add step</button>`+actFormCta(true);
+  stage.innerHTML=`<div class="asteps-head">Plan — ${fmt(steps.length)} step${steps.length===1?"":"s"}<span class="asteps-hint">each step matches its own issues, then applies its own change</span></div>`+
+    steps.map(card).join("")+`<button class="addstep" id="acAddStep">${ACT_IC.plus} Add step</button>`+actFormCta(true);
   actBindSteps();}
-function actStoreActive(){if(ACT.active==null||ACT.active<0||!ACT.steps)return;if(!document.getElementById("acPriority")&&!document.querySelector('[data-cg="afStatus"]'))return;
+function actStoreActive(){
+  if(ACT.fixed){if(!document.querySelector("[data-addf]"))return;ACT.intent=Object.assign({},ACT.intent,actReadForm());ACT.intent._allowAll=!!((document.getElementById("abAllow")||{}).checked);return;}
+  if(ACT.active==null||ACT.active<0||!ACT.steps)return;if(!document.querySelector("[data-addf]"))return;
   const cur=actReadForm();const st=Object.assign({},ACT.steps[ACT.active],cur);st._allowAll=!!((document.getElementById("abAllow")||{}).checked);ACT.steps[ACT.active]=st;ACT.intent=st;}
 function actSetActive(i){actStoreActive();ACT.active=i;ACT.intent=(i>=0&&ACT.steps)?ACT.steps[i]:ACT.intent;actRenderSteps();}
-function actRefreshActiveSentence(){if(ACT.active<0||!ACT.steps)return;const s=ACT.steps[ACT.active];const el=document.querySelector(".astep.open .astep-sent");if(el&&s){const sent=actStepSentence(s);el.innerHTML="<b>"+_esc(sent.change)+"</b> · "+_esc(sent.scope);}}
+function actRefreshActiveSentence(){if(ACT.active<0||!ACT.steps)return;const s=ACT.steps[ACT.active];const el=document.querySelector(".astep.open .astep-sent");if(el&&s){el.innerHTML=actSentHtml(actStepSentence(s));}}
 function actBindSteps(){const stage=document.getElementById("actStage");if(!stage)return;
   stage.querySelectorAll(".astep-h").forEach(h=>{h.onclick=e=>{if(e.target.closest("[data-dup]")||e.target.closest("[data-rm]"))return;const i=+h.dataset.si;actSetActive(i===ACT.active?-1:i);};});
   stage.querySelectorAll("[data-dup]").forEach(b=>{b.onclick=e=>{e.stopPropagation();actStoreActive();const i=+b.dataset.dup;const c=JSON.parse(JSON.stringify(ACT.steps[i]));ACT.steps.splice(i+1,0,c);ACT.active=i+1;ACT.intent=ACT.steps[ACT.active];actRenderSteps();};});
   stage.querySelectorAll("[data-rm]").forEach(b=>{b.onclick=e=>{e.stopPropagation();actStoreActive();const i=+b.dataset.rm;if(ACT.steps.length<=1)return;ACT.steps.splice(i,1);ACT.active=Math.max(0,Math.min(ACT.active,ACT.steps.length-1));ACT.intent=ACT.steps[ACT.active];actRenderSteps();};});
-  const add=document.getElementById("acAddStep");if(add)add.onclick=()=>{actStoreActive();ACT.steps.push({filter:{},change:{},changeLabel:"",commentText:"",commentOnly:false,note:ACT.query||"",warnings:[]});ACT.active=ACT.steps.length-1;ACT.intent=ACT.steps[ACT.active];actRenderSteps();};
-  if(ACT.active>=0){
-    stage.querySelectorAll('[data-cg]').forEach(cb=>{cb.onchange=()=>{actStoreActive();actSyncBlock();actRefreshActiveSentence();};});
-    ["acAssignee","acStatus","acPriority","acType","acDeadline","acTags","acComment","afStamp","afTag","afText","afOlder","afTextMode","afTextScope"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=()=>{actStoreActive();actRefreshActiveSentence();};});
-    const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;}
+  const add=document.getElementById("acAddStep");if(add)add.onclick=()=>{actStoreActive();ACT.steps.push({filter:{},change:{},changeLabel:"",commentText:"",commentOnly:false,note:ACT.query||"",warnings:[],_mrows:[],_drows:[]});ACT.active=ACT.steps.length-1;ACT.intent=ACT.steps[ACT.active];actRenderSteps();};
+  if(ACT.active>=0)actBindForm(stage);
   const prev=document.getElementById("acPreview");if(prev)prev.onclick=()=>actPreviewSteps();
   const rs=document.getElementById("acReset");if(rs)rs.onclick=actReset;
-  actSyncBlock();_actScroll(stage);}
+  _actScroll(stage);}
 /* never broaden a personal request to everyone: if a person was expressed but none is selected, block until resolved or explicitly allowed */
 function actUnresolvedPersons(){const out=[];const I=ACT.intent||{};
   const anyChecked=name=>!!document.querySelector('[data-cg="'+name+'"]:checked');
