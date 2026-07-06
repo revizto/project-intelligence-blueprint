@@ -1144,7 +1144,21 @@ document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;
   const body=e.target.closest&&e.target.closest(".proof-body");
   if(body&&!body.hidden){const t=document.querySelector('[data-proof-toggle][aria-controls="'+body.id+'"]');if(t){e.preventDefault();e.stopPropagation();t.setAttribute("aria-expanded","false");body.hidden=true;const lab=t.querySelector(".proof-label");if(lab)lab.textContent="Show working";t.focus();}}
 },true);
-const TODAY=new Date();const SNAPDATE="demo data";
+const TODAY=new Date();
+const TYPE_ALIAS={"Navisworks clash":"Clash Issue"};function typeDisplay(n){return TYPE_ALIAS[n]||n||"";}
+function actLocalYmd(d){d=d||new Date();const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());}
+/* Resolve a relative-date phrase against the LOCAL clock (browser timezone). Returns YYYY-MM-DD or null. PURE-ish (reads only the passed `now`). */
+function actResolveDate(expr,now){if(expr==null)return null;now=now||new Date();let s=String(expr).toLowerCase().trim();if(!s)return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const base=new Date(now.getFullYear(),now.getMonth(),now.getDate());const add=n=>actLocalYmd(new Date(base.getFullYear(),base.getMonth(),base.getDate()+n));
+  if(s==="today")return add(0);if(s==="tomorrow")return add(1);if(s==="yesterday")return add(-1);
+  let m=s.match(/^in\s+(\d+)\s*(day|days|week|weeks|month|months)$/);if(m){const n=+m[1];if(/month/.test(m[2]))return actLocalYmd(new Date(base.getFullYear(),base.getMonth()+n,base.getDate()));return add(n*(/week/.test(m[2])?7:1));}
+  if(/end of (the )?month/.test(s))return actLocalYmd(new Date(base.getFullYear(),base.getMonth()+1,0));
+  if(/end of (the )?week/.test(s))return add((5-base.getDay()+7)%7);
+  const WD={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6,sun:0,mon:1,tue:2,tues:2,wed:3,weds:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
+  const isNext=/\bnext\b/.test(s);let wname=null;for(const w in WD){if(new RegExp("\\b"+w+"\\b").test(s)){if(wname==null||w.length>wname.length)wname=w;}}
+  if(wname!=null){const tw=WD[wname];let diff=(tw-base.getDay()+7)%7;if(isNext)diff+=7;return add(diff);}
+  return null;}const SNAPDATE="demo data";
 let DATA={
  meta:{name:"Riverside Medical Centre — demo",region:"demo",created:"2026-03-02",lastActive:"2026-05-18 09:12:44",revNum:4,revBy:"Alex Rivera",revDate:"2026-05-15"},
  status:{Open:412,"In progress":186,Solved:97,Closed:143},
@@ -1520,7 +1534,7 @@ function renderBulkBar(){const b=document.getElementById("bulkBar");const n=work
     <label>Assignee<select id="bAssignee"><option value="">— no change —</option>${assigneeOptions().map(e=>`<option value="${e}">${e}</option>`).join("")}</select></label>
     <label>Status<select id="bStatus"><option value="">— no change —</option>${STATUSES.map(s=>`<option value="${s.uuid}">${s.name}</option>`).join("")}</select></label>
     <label>Priority<select id="bPriority">${prios.map(p=>`<option value="${p}">${p||"— no change —"}</option>`).join("")}</select></label>
-    <label>Type<select id="bType"><option value="">— no change —</option>${TYPES.map(t=>`<option value="${t.uuid}">${t.name}</option>`).join("")}</select></label>
+    <label>Type<select id="bType"><option value="">— no change —</option>${TYPES.map(t=>`<option value="${t.uuid}">${typeDisplay(t.name)}</option>`).join("")}</select></label>
     <label>Deadline<input type="date" id="bDeadline"></label>
     <label>Tags (comma-sep)<input type="text" id="bTags" placeholder="blank = no change"></label>
    </div>
@@ -2555,7 +2569,8 @@ function actNormalizeIntent(raw,vocab){raw=raw||{};vocab=vocab||{};
   const pr=persons("reporter",f.reporter);if(pr.emails.length)filt.reporterEmails=pr.emails;
   const pw=persons("watcher",f.watcher);if(pw.emails.length)filt.watcherEmails=pw.emails;
   const legalStatus=v=>["open","in_progress","solved","closed"].indexOf(v)>=0?v:null;
-  const statuses=arr(f.status).map(s=>legalStatus(String(s).toLowerCase().trim())).filter(Boolean);if(statuses.length)filt.statuses=uniq(statuses);
+  const normStatus=x=>{const t=String(x).toLowerCase().trim().replace(/[\s\-]+/g,"_");return legalStatus(t)||actBucketByName(x);};
+  const statuses=arr(f.status).map(normStatus).filter(Boolean);if(statuses.length)filt.statuses=uniq(statuses);
   const prios=arr(f.priority).map(p=>String(p).toLowerCase().trim()).filter(p=>PRIO_ENUM.indexOf(p)>=0);if(prios.length)filt.priorities=uniq(prios);
   const types=[];arr(f.type).forEach(t=>{const m=actCiFind(typeList,t);if(m)types.push(m.name);else warn.push("Couldn't match the filter type “"+t+"”.");});if(types.length)filt.typeNames=uniq(types);
   const stamps=arr(f.stamp).map(s=>String(s).trim()).filter(Boolean);if(stamps.length)filt.stamps=uniq(stamps);
@@ -2581,7 +2596,7 @@ function actNormalizeIntent(raw,vocab){raw=raw||{};vocab=vocab||{};
   if(c.priority&&PRIO_ENUM.indexOf(String(c.priority).toLowerCase())>=0){change.priority=String(c.priority).toLowerCase();labels.push("priority → "+change.priority);}
   else if(c.priority)warn.push("“"+c.priority+"” isn't a valid priority.");
   if(c.type){const t=actCiFind(typeList,c.type);if(t){change.customType=t.uuid;labels.push("type → "+t.name);}else warn.push("Couldn't match the type “"+c.type+"”.");}
-  if(c.deadline&&/^\d{4}-\d{2}-\d{2}$/.test(String(c.deadline))){change.deadline=c.deadline+" 00:00:00";labels.push("deadline → "+c.deadline);}
+  {let _dl=null;if(c.deadlineExpr&&String(c.deadlineExpr).trim())_dl=actResolveDate(c.deadlineExpr,new Date());if(!_dl&&c.deadline&&/^\d{4}-\d{2}-\d{2}$/.test(String(c.deadline)))_dl=String(c.deadline);if(!_dl&&c.deadline)_dl=actResolveDate(c.deadline,new Date());if(_dl){change.deadline=_dl+" 00:00:00";labels.push("deadline → "+_dl);}}
   if(Array.isArray(c.tags)&&c.tags.length){change.tags=c.tags.map(s=>String(s).trim()).filter(Boolean);if(change.tags.length)labels.push("tags → "+change.tags.join(", "));}
   const commentText=(c.comment||"").trim();const commentOnly=!!commentText&&!labels.length;
   if(commentOnly)labels.push("add comment");
@@ -2675,8 +2690,8 @@ function actRenderHandoff(){const h=document.getElementById("actHandoff");if(!h)
   if(!n){h.hidden=true;h.innerHTML="";return;}
   h.hidden=false;h.innerHTML=`<span class="ah-txt"><b>${fmt(n)} issue${n>1?"s":""}</b> selected in Coordination analytics. Action just those, or describe a change below to target the wider project.</span><button class="btn" id="ahUse">Action the ${fmt(n)} selected &rarr;</button>`;
   const b=document.getElementById("ahUse");if(b)b.onclick=actFromSelection;}
-async function actParseIntent(q){const v=actVocab();
-  const sys="You translate a plain-language project-change request into a STRICT JSON object and NOTHING else. You do not perform the change; you only describe it for a human to confirm. Schema: {\"filter\":{\"assignee\":email-name-or-array|null,\"reporter\":email-name-or-array|null,\"watcher\":email-name-or-array|null,\"status\":array of any of [open,in_progress,solved,closed]|null,\"priority\":array of any of [blocker,critical,major,minor,trivial,none]|null,\"type\":array-of-type-names|null,\"stamp\":array-of-strings|null,\"tag\":array-of-strings|null,\"olderThanDays\":integer|null,\"text\":string|null},\"change\":{\"assignee\":email-or-name|null,\"status\":status-name|null,\"priority\":one of the priority values|null,\"type\":type-name|null,\"deadline\":\"YYYY-MM-DD\"|null,\"tags\":[strings]|null,\"comment\":string|null},\"note\":\"one short plain-language restatement of the change\"}. IMPORTANT: \"change\" may set SEVERAL fields at once — include EVERY change requested (e.g. \"change priority and set a deadline\" -> set BOTH change.priority AND change.deadline). Every filter field EXCEPT olderThanDays and text may be an ARRAY to match ANY of the listed values (e.g. \"open or in progress\" -> filter.status:[\"open\",\"in_progress\"]; \"critical and blocker\" -> filter.priority:[\"blocker\",\"critical\"]; \"Ana or Ben\" -> filter.assignee:[\"Ana\",\"Ben\"]). If DIFFERENT issues need DIFFERENT changes, return a JSON ARRAY where each element is a full {filter,change} object — e.g. \"open issues to critical, in-progress to major\" -> [{filter:{status:[\"open\"]},change:{priority:\"critical\"}},{filter:{status:[\"in_progress\"]},change:{priority:\"major\"}}]. Repeat any SHARED change (e.g. a common deadline) in EVERY element. Issues needing the SAME change should be ONE element with array filters, not several. Use ONLY these known values where relevant — statuses:"+JSON.stringify(v.statusList.map(s=>s.name))+", types:"+JSON.stringify(v.typeList.map(t=>t.name))+", assignees:"+JSON.stringify(v.assignees)+". CRITICAL — filters vs changes: \"stamp\" (a stamp code like HYD/EK/W54), \"tag\", \"reporter\" and \"watcher\" are FILTERS that pick WHICH issues — never put them in \"change\". The change.tags field is ONLY for when the user explicitly says to ADD or SET a tag. e.g. \"...with the stamp of HYD\" → filter.stamp=\"HYD\" (NOT a tag change). \"reported by Ana\" → filter.reporter=\"Ana\". \"issues I'm watching\" → filter.watcher=\"me\". There is no stamp/reporter/watcher CHANGE field — those are read-only here. A descriptive phrase about the issue's subject or title — clash names like \"Ductwork vs Structure\", disciplines, systems, rooms, levels, locations — goes in \"text\" (a forgiving free-text search of the title and tags), NOT in \"stamp\" or \"tag\". Use \"stamp\" or \"tag\" ONLY when the user literally says \"stamp\", \"tag\" or \"label\". e.g. \"my open Ductwork vs Structure issues\" → filter.text=\"Ductwork vs Structure\". If the user refers to themselves (\"my\", \"me\", \"mine\", \"I\", \"reported by me\", \"I'm watching\", \"assigned to me\"), put the literal word \"me\" in the relevant person field (assignee/reporter/watcher) — do NOT guess an email; the dashboard resolves \"me\" to the signed-in user. If something named isn't in those lists, put your best guess in the field and let the human correct it. Respond with JSON only — no prose, no markdown fences.";
+async function actParseIntent(q){const v=actVocab();const _now=new Date();const _todayStr=actLocalYmd(_now)+" ("+["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][_now.getDay()]+", the user's local date)";
+  const sys="You translate a plain-language project-change request into a STRICT JSON object and NOTHING else. You do not perform the change; you only describe it for a human to confirm. Schema: {\"filter\":{\"assignee\":email-name-or-array|null,\"reporter\":email-name-or-array|null,\"watcher\":email-name-or-array|null,\"status\":array of any of [open,in_progress,solved,closed]|null,\"priority\":array of any of [blocker,critical,major,minor,trivial,none]|null,\"type\":array-of-type-names|null,\"stamp\":array-of-strings|null,\"tag\":array-of-strings|null,\"olderThanDays\":integer|null,\"text\":string|null},\"change\":{\"assignee\":email-or-name|null,\"status\":status-name|null,\"priority\":one of the priority values|null,\"type\":type-name|null,\"deadline\":\"YYYY-MM-DD\"|null,\"deadlineExpr\":\"verbatim relative-date phrase e.g. friday, next friday, tomorrow, in 3 days, end of month\"|null,\"tags\":[strings]|null,\"comment\":string|null},\"note\":\"one short plain-language restatement of the change\"}. IMPORTANT: \"change\" may set SEVERAL fields at once — include EVERY change requested (e.g. \"change priority and set a deadline\" -> set BOTH change.priority AND change.deadline). Every filter field EXCEPT olderThanDays and text may be an ARRAY to match ANY of the listed values (e.g. \"open or in progress\" -> filter.status:[\"open\",\"in_progress\"]; \"critical and blocker\" -> filter.priority:[\"blocker\",\"critical\"]; \"Ana or Ben\" -> filter.assignee:[\"Ana\",\"Ben\"]). If DIFFERENT issues need DIFFERENT changes, return a JSON ARRAY where each element is a full {filter,change} object — e.g. \"open issues to critical, in-progress to major\" -> [{filter:{status:[\"open\"]},change:{priority:\"critical\"}},{filter:{status:[\"in_progress\"]},change:{priority:\"major\"}}]. Repeat any SHARED change (e.g. a common deadline) in EVERY element. Issues needing the SAME change should be ONE element with array filters, not several. Use ONLY these known values where relevant — statuses:"+JSON.stringify(v.statusList.map(s=>s.name))+", types:"+JSON.stringify(v.typeList.map(t=>t.name))+", assignees:"+JSON.stringify(v.assignees)+". CRITICAL — filters vs changes: \"stamp\" (a stamp code like HYD/EK/W54), \"tag\", \"reporter\" and \"watcher\" are FILTERS that pick WHICH issues — never put them in \"change\". The change.tags field is ONLY for when the user explicitly says to ADD or SET a tag. e.g. \"...with the stamp of HYD\" → filter.stamp=\"HYD\" (NOT a tag change). \"reported by Ana\" → filter.reporter=\"Ana\". \"issues I'm watching\" → filter.watcher=\"me\". There is no stamp/reporter/watcher CHANGE field — those are read-only here. A descriptive phrase about the issue's subject or title — clash names like \"Ductwork vs Structure\", disciplines, systems, rooms, levels, locations — goes in \"text\" (a forgiving free-text search of the title and tags), NOT in \"stamp\" or \"tag\". Use \"stamp\" or \"tag\" ONLY when the user literally says \"stamp\", \"tag\" or \"label\". e.g. \"my open Ductwork vs Structure issues\" → filter.text=\"Ductwork vs Structure\". If the user refers to themselves (\"my\", \"me\", \"mine\", \"I\", \"reported by me\", \"I'm watching\", \"assigned to me\"), put the literal word \"me\" in the relevant person field (assignee/reporter/watcher) — do NOT guess an email; the dashboard resolves \"me\" to the signed-in user. If something named isn't in those lists, put your best guess in the field and let the human correct it. DATES: today is "+_todayStr+". For ANY relative deadline (today, tomorrow, a weekday like \"friday\" or \"next friday\", \"in 3 days\", \"end of week/month\") put the phrase VERBATIM in change.deadlineExpr and set change.deadline to null — the app computes the exact date from the local date above. Use change.deadline ONLY for an explicit absolute calendar date the user stated. Respond with JSON only — no prose, no markdown fences.";
   const out=await window.cowork.askClaude(sys,[{request:q}]);
   const text=typeof out==="string"?out:(out&&(out.text||out.answer||JSON.stringify(out)));
   return actExtractJson(text);/* raw object OR array — actBuildSteps groups it into steps */}
@@ -2687,7 +2702,7 @@ function actMergeIntents(list){const out={action:"",filter:{},change:{},note:""}
   (list||[]).forEach(it=>{it=it||{};const f=it.filter||{},c=it.change||{};
     ["assignee","reporter","watcher","status","priority","type","stamp","tag"].forEach(k=>addArr(out.filter,k,f[k]));
     if(f.olderThanDays!=null)out.filter.olderThanDays=f.olderThanDays;if(f.text!=null&&String(f.text).trim())out.filter.text=f.text;
-    ["assignee","status","priority","type","deadline","comment"].forEach(k=>{if(c[k]!=null&&String(c[k]).trim())out.change[k]=c[k];});
+    ["assignee","status","priority","type","deadline","deadlineExpr","comment"].forEach(k=>{if(c[k]!=null&&String(c[k]).trim())out.change[k]=c[k];});
     if(Array.isArray(c.tags)&&c.tags.length)out.change.tags=(out.change.tags||[]).concat(c.tags);
     if(it.note)notes.push(it.note);});
   Object.keys(out.filter).forEach(k=>{if(Array.isArray(out.filter[k]))out.filter[k]=[...new Set(out.filter[k].map(x=>String(x).trim()).filter(Boolean))];});
@@ -2706,7 +2721,7 @@ async function actInterpret(){if(writesOff()||ACT.busy)return;
   } catch(e){if(msg)msg.textContent="Couldn't plan that. Try naming the change and which issues — e.g. “reassign Marco's open issues to Aisha”.";}
   ACT.busy=false;if(go){go.disabled=false;go.textContent="Plan";}}
 /* group an intent (object OR array) into steps: same change → one step (union filters); different change → separate steps. */
-function actChangeSig(c){c=c||{};const o={};["assignee","status","priority","type","deadline","comment"].forEach(k=>{if(c[k]!=null&&String(c[k]).trim()!=="")o[k]=String(c[k]).toLowerCase().trim();});if(Array.isArray(c.tags)&&c.tags.length)o.tags=c.tags.map(x=>String(x).toLowerCase().trim()).sort();return JSON.stringify(o);}
+function actChangeSig(c){c=c||{};const o={};["assignee","status","priority","type","deadline","deadlineExpr","comment"].forEach(k=>{if(c[k]!=null&&String(c[k]).trim()!=="")o[k]=String(c[k]).toLowerCase().trim();});if(Array.isArray(c.tags)&&c.tags.length)o.tags=c.tags.map(x=>String(x).toLowerCase().trim()).sort();return JSON.stringify(o);}
 function actBuildSteps(parsed,vocab){const list=Array.isArray(parsed)?parsed:[parsed];const order=[],by={};
   list.forEach(it=>{it=it||{};const sig=actChangeSig(it.change||{});if(by[sig]==null){by[sig]=[];order.push(sig);}by[sig].push(it);});
   const steps=order.map(sig=>actNormalizeIntent(actMergeIntents(by[sig]),vocab));
@@ -2720,10 +2735,10 @@ function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const asgLbl=e=>e===ME.email?e+"  —  me":e;
   const asgC=[{v:"",t:"— no change —"}].concat(asgEmails.map(e=>({v:e,t:asgLbl(e)})));
   const wfC=[{v:"",t:"— no change —"}].concat(v.statusList.map(s=>({v:s.uuid,t:s.name})));
-  const tyC=[{v:"",t:"— no change —"}].concat(v.typeList.map(t=>({v:t.uuid,t:t.name})));
+  const tyC=[{v:"",t:"— no change —"}].concat(v.typeList.map(t=>({v:t.uuid,t:typeDisplay(t.name)})));
   const prioC=[{v:"",t:"— no change —"}].concat(PRIO_ENUM.map(p=>({v:p,t:p})));
   const curTypeUuid=c.customType||"";const curStatusUuid=c.customStatus||"";const curDeadline=(c.deadline||"").slice(0,10);
-  const _cgPeople=actCandidateEmails().map(e=>({v:e,t:(e===ME.email?e+"  —  me":e)}));const _cgStatus=[{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];const _cgPrio=PRIO_ENUM.map(p=>({v:p,t:p}));const _cgType=v.typeList.map(t=>({v:t.name,t:t.name}));const _setOf=x=>new Set((x||[]).map(String));
+  const _cgPeople=actCandidateEmails().map(e=>({v:e,t:(e===ME.email?e+"  —  me":e)}));const _cgStatus=[{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];const _cgPrio=PRIO_ENUM.map(p=>({v:p,t:p}));const _cgType=v.typeList.map(t=>({v:t.name,t:typeDisplay(t.name)}));const _setOf=x=>new Set((x||[]).map(String));
   const filterBlock=fixedTarget?`<div class="ac-h">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>`
     :`<div class="ac-h">Which issues <b>(tick several to match any)</b></div>
       <div class="ac-fgrid">
@@ -3070,7 +3085,7 @@ function tlBuild(){
     const pts=[];if(measure==="rate"){let ca=0,cb=0;for(let i=0;i<=todayIdx;i++){ca+=op[i];cb+=cp[i];pts.push({x:i,y:ca>0?Math.round(100*cb/ca):0});}}else{for(let i=0;i<=todayIdx;i++)pts.push({x:i,y:act[i]});}
     if(measure!=="rate"){let prev=act[todayIdx];for(let i=todayIdx+1;i<=lastIdx;i++){prev=Math.max(0,prev+orr-crr);pts.push({x:i,y:Math.round(prev)});}}
     const col=colFor(k,gi);
-    const shown=(k==="Other"&&capInfo&&capInfo.restN)?("Other ("+capInfo.restN+" more)"):k;
+    const shown=(k==="Other"&&capInfo&&capInfo.restN)?("Other ("+capInfo.restN+" more)"):(dim==="type"?typeDisplay(k):k);
     ds.push({label:shown,data:pts,borderColor:col,backgroundColor:col,borderWidth:2,pointRadius:0,tension:.25,spanGaps:true,segment:{borderDash:c=>c.p0DataIndex>=todayIdx?[6,4]:undefined}});
     legend.push({label:dim==="none"?(measure==="rate"?"Resolution rate":"Active (open + in-progress)"):(shown.indexOf("@")>0?shown.split("@")[0]:shown),full:shown,key:k,col:col,dash:false});
   });
