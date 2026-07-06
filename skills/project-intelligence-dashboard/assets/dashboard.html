@@ -541,6 +541,13 @@ th{white-space:nowrap}
 .tl-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:11.5px;color:var(--ink);min-height:16px}
 .tl-legend span{display:inline-flex;align-items:center;gap:6px}
 .tl-legend .ln{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;display:inline-block}
+.tl-chip{display:inline-flex;align-items:center;gap:6px;font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;font-weight:500;padding:2px 9px;border:1px solid #D5DEDE;border-radius:999px;background:#fff;color:var(--ink);cursor:pointer;line-height:1.5}
+.tl-chip:hover{border-color:var(--teal-deep)}
+.tl-chip.off{opacity:.38}
+.tl-chip--other{border-style:dashed}
+.tl-chip--info{cursor:default;border-color:transparent;background:transparent}
+.tl-chip--info:hover{border-color:transparent}
+.tl-chip--back{border-color:var(--teal-deep);color:#007373;background:#E7F4F0}
 .tl-legend .ln.dash{border-top-style:dashed}
 .tl-chartbox{position:relative;height:420px;touch-action:none;cursor:grab}
 .tl-glbl{font-size:11px;color:var(--muted);margin-right:2px}
@@ -1353,7 +1360,7 @@ let charts={};
 function mk(id,type,data,opts){if(charts[id])charts[id].destroy();
   charts[id]=new Chart(document.getElementById(id),{type,data,options:Object.assign({responsive:true,maintainAspectRatio:false,font:{family:"Geist"}},opts)});}
 
-function blankData(){DATA.status={Open:0,"In progress":0,Solved:0,Closed:0};DATA.priority={};DATA.trend={labels:[],opened:[],resolved:[]};DATA.reporters=[];DATA.assignees=[];DATA.assigneesFull=[];DATA.team=[];DATA.sheets=0;DATA.clashTests=0;DATA.clashRun=0;DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;DATA.workflow=null;DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};DATA.reporterCount=0;DATA.assigneeCount=0;DATA.meta={name:"",region:"",created:"",lastActive:"",revNum:0,revBy:"",revDate:""};DATA.tested={};DATA.verified=undefined;DATA.detect=undefined;PORTM={};STATUSES=[];TYPES=[];PMEMBERS=[];WORK=[];workSel=new Set();LAST=null;DATA.tl=[];DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;DATA.assigneeExactMode=false;try{Object.keys(charts).forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});}catch(e){}try{if(typeof TL!=="undefined"&&TL&&TL.chart){TL.chart.destroy();TL.chart=null;}}catch(e){}}
+function blankData(){DATA.status={Open:0,"In progress":0,Solved:0,Closed:0};DATA.priority={};DATA.trend={labels:[],opened:[],resolved:[]};DATA.reporters=[];DATA.assignees=[];DATA.assigneesFull=[];DATA.team=[];DATA.sheets=0;DATA.clashTests=0;DATA.clashRun=0;DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;DATA.workflow=null;DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};DATA.reporterCount=0;DATA.assigneeCount=0;DATA.meta={name:"",region:"",created:"",lastActive:"",revNum:0,revBy:"",revDate:""};DATA.tested={};DATA.verified=undefined;DATA.detect=undefined;PORTM={};STATUSES=[];TYPES=[];PMEMBERS=[];WORK=[];workSel=new Set();LAST=null;DATA.tl=[];DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;DATA.assigneeExactMode=false;try{Object.keys(charts).forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});}catch(e){}try{if(typeof TL!=="undefined"&&TL){TL.drill=0;if(TL.chart){TL.chart.destroy();TL.chart=null;}}}catch(e){}}
 function setNoProj(on){NOPROJ=on;const w=document.querySelector(".wrap");if(w)w.classList.toggle("noproj-on",on);const b=document.getElementById("noproj");if(b)b.hidden=!on;}
 function renderHeader(){const m=DATA.meta;
   /* static project facts → ⓘ popover on the project picker */
@@ -2858,10 +2865,10 @@ function actToApproval(target,norm){if(writesOff())return;const plan=actToPlan(t
   showConfirm(plan);/* hand to the canonical approval gate → executePlan → staged job dock */}
 function actReset(){const stage=document.getElementById("actStage");if(stage)stage.innerHTML="";const inp=document.getElementById("actInput");if(inp)inp.value="";ACT.intent=null;ACT.target=null;ACT.query="";const msg=document.getElementById("actMsg");if(msg)msg.textContent="";const rsc=document.getElementById("acRescue");if(rsc)rsc.innerHTML="";if(inp&&current==="action"){try{inp.focus({preventScroll:true});}catch(e){}}}
 /* ===== Issue timeline — burn-up + projection + milestones ===== */
-const TL={gran:"W",dim:"none",measure:"count",steps:3,tune:"typical",off:0,chart:null,init:false};
+const TL={gran:"W",dim:"none",drill:0,measure:"count",steps:3,tune:"typical",off:0,chart:null,init:false};
 const DAYMS=86400000, HORIZON=120;
 const STAMP_PAL={1:"#E40001",2:"#F0A33C",3:"#F2D74E",4:"#7DBE3C",5:"#009999",6:"#0097A7",7:"#3A6EA5",8:"#7E57C2",9:"#C2185B",10:"#8D6E63",11:"#546E7A",12:"#26A69A",13:"#EC407A",14:"#5C6BC0",15:"#66BB6A",16:"#FFA726"};
-const AUTH_PAL=["#009999","#0097A7","#38E9E7","#007373","#016B77","#365050"];
+const AUTH_PAL=["#009999","#4C6FB0","#8E5BA6","#B08830","#1E2E2E","#0097A7","#74904A","#A05A6E"];const GROUP_GREY="#9AA5A5";/* SC-076: categorical identity ramp — non-semantic (no red/amber/green so no group ever reads as a risk state), colour-blind separated; Other/aggregate = GROUP_GREY */
 const PRIO_COL={blocker:"#E40001",critical:"#E40001",major:"#365050",minor:"#009999",trivial:"#98BBBB",none:"#CBDDDD"};
 const CLOSED_COL="#3A4A4A";
 const STATUS_COL={"Open":"#CC2929","In progress":"#FFAA00","Solved":"#42BE65","Closed":"#B8B8B8"};
@@ -2883,9 +2890,20 @@ function tlBuild(){
   const _pu=TL.gran==="D"?1:TL.gran==="W"?7:30,_ps=Math.max(3,Math.min(10,TL.steps||3)),_projLen=_pu*_ps,_tuneMul=(TL.tune==="conservative")?0.90:(TL.tune==="aggressive")?1.25:1.0;const lastIdx=todayIdx+_projLen;
   const dim=TL.dim, groups={};const MM={};(PMEMBERS||[]).forEach(m=>{if(m&&m.email)MM[m.email]={co:m.company||"",de:m.department||""};});
   function gkey(r){if(dim==="priority")return r.pr||"none";if(dim==="stamp")return r.sk?r.sk:"Unstamped";if(dim==="author")return r.au||"(none)";if(dim==="type")return r.ty?r.ty:"Untyped";if(dim==="status")return STATUS_NAME[r.st]||"Other";if(dim==="statuscat")return STATUS_CAT[r.st]||"Other";if(dim==="acompany"){const m=MM[r.au];return (m&&m.co)?m.co:"(no company)";}if(dim==="adept"){const m=MM[r.au];return (m&&m.de)?m.de:"(no department)";}return "Active";}
-  let authTop=null;
-  if(dim==="author"){const c={};for(const r of tl){const k=r.au||"(none)";c[k]=(c[k]||0)+1;}authTop=new Set(Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]));}
-  for(const r of tl){let k=gkey(r);if(dim==="author"&&authTop&&!authTop.has(k))k="Other";(groups[k]=groups[k]||[]).push(r);}
+  /* SC-076: generic Top-6 + Other with recursive drill (TL.drill = level) for unbounded dims.
+     Level L shows groups ranked 6L..6L+5 by record count; everything beyond aggregates into "Other";
+     groups from shallower levels are excluded from the drilled chart (breadcrumb returns).
+     Bounded/semantic dims (priority/status/statuscat) never cap. Whole-project totals (gOpen/gClose/
+     totActive/milestone coverage) are computed from the FULL tl regardless of drill — count-first intact. */
+  let capInfo=null;const CAP_DIMS=["author","stamp","type","acompany","adept"];
+  if(CAP_DIMS.indexOf(dim)>=0){const c={};for(const r of tl){const k=gkey(r);c[k]=(c[k]||0)+1;}
+    const sk=Object.entries(c).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+    if(sk.length>7){const maxL=Math.floor((sk.length-1)/6);const L=Math.max(0,Math.min(TL.drill||0,maxL));TL.drill=L;
+      const vis=new Set(sk.slice(6*L,6*L+6));const prev=new Set(sk.slice(0,6*L));const restN=Math.max(0,sk.length-6*L-6);
+      capInfo={level:L,restN:restN,total:sk.length,vis:vis,prev:prev};}
+    else TL.drill=0;}
+  else TL.drill=0;
+  for(const r of tl){let k=gkey(r);if(capInfo){if(capInfo.prev.has(k))continue;if(!capInfo.vis.has(k))k="Other";}(groups[k]=groups[k]||[]).push(r);}
   const gOpen=new Array(todayIdx+1).fill(0), gClose=new Array(todayIdx+1).fill(0);
   /* Resolved = solved + closed (r.rs). Active = open + in-progress = opened − resolved at T. */
   for(const r of tl){const oi=Math.round((dayMid(r.o)-D0)/DAYMS);if(oi>=0&&oi<=todayIdx)gOpen[oi]++;if(r.rs&&r.c){const ci=Math.round((dayMid(r.c)-D0)/DAYMS);if(ci>=0&&ci<=todayIdx)gClose[ci]++;}}
@@ -2901,8 +2919,8 @@ function tlBuild(){
   /* projected cumulative Opened — used to cap projected Resolved (Resolved can never exceed Opened-to-date) */
   const predOpened=new Array(lastIdx+1);for(let i=0;i<=todayIdx;i++)predOpened[i]=openedCum[i];
   for(let i=todayIdx+1;i<=lastIdx;i++)predOpened[i]=predOpened[i-1]+gOpenRate;
-  const ds=[],legend=[],keys=Object.keys(groups);const measure=TL.measure||"count";
-  function colFor(k,idx){if(dim==="priority")return PRIO_COL[k]||"#777";if(dim==="stamp"){if(k==="Unstamped")return "#98BBBB";const any=groups[k].find(r=>r.sc!=null);const hx=any?stampHex(any.sc):null;return hx||AUTH_PAL[idx%AUTH_PAL.length];}if(dim==="author")return k==="Other"?"#98BBBB":AUTH_PAL[idx%AUTH_PAL.length];if(dim==="status")return STATUS_COL[k]||"#777";if(dim==="type"){const ty=(TYPES||[]).find(t=>t.name===k);return (ty&&ty.iconColor)||AUTH_PAL[idx%AUTH_PAL.length];}if(dim==="statuscat")return STATUS_CAT_COL[k]||"#777";if(dim==="acompany"||dim==="adept")return (k==="(no company)"||k==="(no department)")?"#98BBBB":AUTH_PAL[idx%AUTH_PAL.length];return "#009999";}
+  const ds=[],legend=[],keys=Object.keys(groups).sort((a,b)=>a==="Other"?1:b==="Other"?-1:groups[b].length-groups[a].length);const measure=TL.measure||"count";
+  function colFor(k,idx){if(dim==="priority")return PRIO_COL[k]||"#777";if(dim==="stamp"){if(k==="Unstamped")return GROUP_GREY;const any=groups[k].find(r=>r.sc!=null);const hx=any?stampHex(any.sc):null;return hx||AUTH_PAL[idx%AUTH_PAL.length];}if(k==="Other")return GROUP_GREY;if(dim==="author")return AUTH_PAL[idx%AUTH_PAL.length];if(dim==="status")return STATUS_COL[k]||"#777";if(dim==="type"){const ty=(TYPES||[]).find(t=>t.name===k);return (ty&&ty.iconColor)||AUTH_PAL[idx%AUTH_PAL.length];}if(dim==="statuscat")return STATUS_CAT_COL[k]||"#777";if(dim==="acompany"||dim==="adept")return (k==="(no company)"||k==="(no department)")?GROUP_GREY:AUTH_PAL[idx%AUTH_PAL.length];return "#009999";}
   keys.forEach((k,gi)=>{
     const recs=groups[k];const op=new Array(todayIdx+1).fill(0),cp=new Array(todayIdx+1).fill(0);
     for(const r of recs){const oi=Math.round((dayMid(r.o)-D0)/DAYMS);if(oi>=0&&oi<=todayIdx)op[oi]++;if(r.rs&&r.c){const ci=Math.round((dayMid(r.c)-D0)/DAYMS);if(ci>=0&&ci<=todayIdx)cp[ci]++;}}
@@ -2911,8 +2929,9 @@ function tlBuild(){
     const pts=[];if(measure==="rate"){let ca=0,cb=0;for(let i=0;i<=todayIdx;i++){ca+=op[i];cb+=cp[i];pts.push({x:i,y:ca>0?Math.round(100*cb/ca):0});}}else{for(let i=0;i<=todayIdx;i++)pts.push({x:i,y:act[i]});}
     if(measure!=="rate"){let prev=act[todayIdx];for(let i=todayIdx+1;i<=lastIdx;i++){prev=Math.max(0,prev+orr-crr);pts.push({x:i,y:Math.round(prev)});}}
     const col=colFor(k,gi);
-    ds.push({label:k,data:pts,borderColor:col,backgroundColor:col,borderWidth:2,pointRadius:0,tension:.25,spanGaps:true,segment:{borderDash:c=>c.p0DataIndex>=todayIdx?[6,4]:undefined}});
-    legend.push({label:dim==="none"?(measure==="rate"?"Resolution rate":"Active (open + in-progress)"):k,col:col,dash:false});
+    const shown=(k==="Other"&&capInfo&&capInfo.restN)?("Other ("+capInfo.restN+" more)"):k;
+    ds.push({label:shown,data:pts,borderColor:col,backgroundColor:col,borderWidth:2,pointRadius:0,tension:.25,spanGaps:true,segment:{borderDash:c=>c.p0DataIndex>=todayIdx?[6,4]:undefined}});
+    legend.push({label:dim==="none"?(measure==="rate"?"Resolution rate":"Active (open + in-progress)"):(shown.indexOf("@")>0?shown.split("@")[0]:shown),full:shown,key:k,col:col,dash:false});
   });
   if(measure!=="rate"){const cpts=[];for(let i=0;i<=todayIdx;i++)cpts.push({x:i,y:closedReal[i]});
   /* projected Resolved accrues at the trailing close rate but can never exceed cumulative Opened-to-date */
@@ -2920,7 +2939,7 @@ function tlBuild(){
   ds.push({label:"Resolved (solved + closed)",data:cpts,borderColor:CLOSED_COL,backgroundColor:CLOSED_COL,borderWidth:2,pointRadius:0,tension:.25,spanGaps:true,segment:{borderDash:c=>c.p0DataIndex>=todayIdx?[6,4]:undefined}});
   legend.push({label:"Resolved (cumulative)",col:CLOSED_COL,dash:false});
   legend.push({label:"Projected",col:"#9FB2B2",dash:true});}
-  return {D0,todayIdx,lastIdx,ds,legend,predActive,win};
+  return {D0,todayIdx,lastIdx,ds,legend,predActive,win,capInfo};
 }
 
 function renderTimeline(){hideTip();
@@ -2953,13 +2972,30 @@ function renderTimeline(){hideTip();
       ctx.fillStyle=on?"#38E9E7":"#E40001";ctx.beginPath();ctx.arc(fx+tw-8,fy+15,3.4,0,7);ctx.fill();ctx.restore();});
     (function(){const ys=ch.scales.y,m=(typeof TL!=="undefined"&&TL.measure)||"count",dss=ch.data.datasets;const ticks=xs.getTicks().map(t=>Math.round(t.value)).filter((v,i,a)=>v>=min&&v<=max&&a.indexOf(v)===i);let lastAct=-1;ticks.forEach(t=>{if(t<=todayIdx&&t>lastAct)lastAct=t;});ctx.save();ctx.font="600 10px Geist";ctx.textAlign="center";dss.forEach(function(d){const col=d.borderColor||"#009999";ticks.forEach(function(t){const pt=d.data[t];if(!pt)return;const cx=px(t),cy=ys.getPixelForValue(pt.y);ctx.beginPath();ctx.arc(cx,cy,3.6,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.lineWidth=1.6;ctx.strokeStyle=col;ctx.stroke();});});const boxes=[];function lab(t,di){const d=dss[di];if(!d)return;const pt=d.data[t];if(!pt)return;const txt=(m==="rate")?pt.y+"%":fmt(pt.y);const cx=px(t),cy=ys.getPixelForValue(pt.y)-9,w=ctx.measureText(txt).width,bx=[cx-w/2-2,cy-9,cx+w/2+2,cy+3];if(bx[0]<area.left||bx[2]>area.right||bx[1]<area.top)return;for(var i=0;i<boxes.length;i++){var o=boxes[i];if(bx[0]<o[2]&&bx[2]>o[0]&&bx[1]<o[3]&&bx[3]>o[1])return;}boxes.push(bx);ctx.fillStyle=(t===lastAct)?"#1E2E2E":"#8A8A82";ctx.fillText(txt,cx,cy);}dss.forEach(function(d,di){lab(lastAct,di);});ticks.forEach(function(t){if(t===lastAct)return;dss.forEach(function(d,di){lab(t,di);});});ctx.restore();})();
   }};
+  const endLbl={id:"tlEndLbl",afterDatasetsDraw(ch){if(TL.dim==="none")return;const ca=ch.chartArea;if(!ca)return;const pts=[];
+    ch.data.datasets.forEach((d,i)=>{const m=ch.getDatasetMeta(i);if(m.hidden||!m.data.length)return;if((d.label||"").indexOf("Resolved")===0)return;const p=m.data[m.data.length-1];if(!p)return;let t=d.label||"";if(t.indexOf("@")>0)t=t.split("@")[0];if(t.length>16)t=t.slice(0,15)+"\u2026";pts.push({y:p.y,x:p.x,t:t,c:d.backgroundColor});});
+    pts.sort((a,b)=>a.y-b.y);for(let i=1;i<pts.length;i++)if(pts[i].y-pts[i-1].y<11)pts[i].y=pts[i-1].y+11;
+    const ctx=ch.ctx;ctx.save();ctx.font="10px 'Geist Mono',ui-monospace,monospace";ctx.textBaseline="middle";
+    pts.forEach(p=>{ctx.fillStyle=p.c;ctx.fillText(p.t,Math.min(p.x+6,ca.right+4),p.y);});ctx.restore();}};
   if(TL.chart)TL.chart.destroy();
-  TL.chart=new Chart(cv,{type:"line",data:{datasets:ds},plugins:[plugin],options:{responsive:true,maintainAspectRatio:false,animation:false,font:{family:"Geist"},
+  TL.chart=new Chart(cv,{type:"line",data:{datasets:ds},plugins:[plugin,endLbl],options:{responsive:true,maintainAspectRatio:false,animation:false,font:{family:"Geist"},layout:{padding:{right:TL.dim==="none"?0:96}},
     interaction:{mode:"nearest",intersect:false,axis:"x"},
     plugins:{legend:{display:false},tooltip:{callbacks:{title:it=>it.length?fmtDate(it[0].parsed.x)+(it[0].parsed.x>todayIdx?" · projected":""):""}}},
     scales:{x:{type:"linear",min:min,max:max,ticks:{stepSize:tickStep,autoSkip:TL.gran==="M",maxRotation:0,callback:v=>fmtDate(v),font:{size:10},color:"#5E6E6E"},grid:{display:false}},
       y:(TL.measure==="rate"?{beginAtZero:true,max:100,ticks:{color:"#5E6E6E",callback:v=>v+"%"},grid:{color:"#eef2f2"},title:{display:true,text:"Resolution rate",color:"#5E6E6E",font:{size:10}}}:{beginAtZero:true,ticks:{precision:0,color:"#5E6E6E"},grid:{color:"#eef2f2"},title:{display:true,text:"Issues",color:"#5E6E6E",font:{size:10}}})}}});
-  const lg=document.getElementById("tlLegend");if(lg)lg.innerHTML=legend.map(l=>`<span><i class="ln ${l.dash?"dash":""}" style="border-top-color:${l.col}"></i>${l.label}</span>`).join("");
+  const lg=document.getElementById("tlLegend");
+  if(lg){const ci=built.capInfo;let lh="";
+    if(ci&&ci.level>0)lh+=`<button type="button" class="tl-chip tl-chip--back" id="tlDrillBack">&#8592; Back &middot; top ${6*ci.level} shown one level up</button>`;
+    lh+=legend.map((l,i)=>`<button type="button" class="tl-chip${l.dash?" tl-chip--info":""}${ci&&l.key==="Other"?" tl-chip--other":""}" data-tli="${i}" title="${_esc(l.full||l.label)}"><i class="ln ${l.dash?"dash":""}" style="border-top-color:${l.col}"></i>${_esc(l.label)}</button>`).join("");
+    lg.innerHTML=lh;
+    const bk=document.getElementById("tlDrillBack");if(bk)bk.onclick=()=>{TL.drill=Math.max(0,(TL.drill||0)-1);renderTimeline();};
+    lg.querySelectorAll(".tl-chip[data-tli]").forEach(b=>{const i=+b.dataset.tli;const l=legend[i];
+      if(l.dash){b.disabled=true;return;}/* "Projected" is a key, not a series */
+      b.onmouseenter=()=>{if(!TL.chart)return;TL.chart.data.datasets.forEach((d,j)=>{d.borderColor=(j===i)?d.backgroundColor:(d.backgroundColor+"2E");});TL.chart.update("none");};
+      b.onmouseleave=()=>{if(!TL.chart)return;TL.chart.data.datasets.forEach(d=>{d.borderColor=d.backgroundColor;});TL.chart.update("none");};
+      if(ci&&l.key==="Other"){b.onclick=()=>{TL.drill=(TL.drill||0)+1;renderTimeline();};}
+      else{b.onclick=()=>{if(!TL.chart)return;const m=TL.chart.getDatasetMeta(i);m.hidden=!m.hidden;b.classList.toggle("off",m.hidden);TL.chart.update("none");};}
+    });}
   renderMileChips(built);
   const s=DATA.sample;
   const everyK=(s&&!s.complete&&s.n>0)?Math.max(1,Math.round(s.total/s.n)):0;
@@ -3015,7 +3051,7 @@ function tlBindNav(){if(TL.init)return;TL.init=true;
   function tlStepsFill(){const sel=document.getElementById("tlSteps");if(!sel)return;const u=TL.gran==="D"?"days":TL.gran==="M"?"mos":"wks";const cur=Math.max(3,Math.min(10,parseInt(sel.value,10)||TL.steps||3));sel.innerHTML="";for(let i=3;i<=10;i++){const o=document.createElement("option");o.value=i;o.textContent=i+" "+u;if(i===cur)o.selected=true;sel.appendChild(o);}}
   tlStepsFill();
   const g=document.getElementById("tlGran");if(g)g.addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(!b)return;TL.gran=b.dataset.g;TL.off=0;g.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));tlStepsFill();renderTimeline();});
-  const gp=document.getElementById("tlGroup");if(gp)gp.addEventListener("change",()=>{TL.dim=gp.value;renderTimeline();});const stp=document.getElementById("tlSteps");if(stp)stp.addEventListener("change",()=>{var v=Math.max(3,Math.min(10,parseInt(stp.value,10)||3));stp.value=v;TL.steps=v;renderTimeline();});const tnp=document.getElementById("tlTune");if(tnp)tnp.addEventListener("change",()=>{TL.tune=tnp.value;renderTimeline();});const ms=document.getElementById("tlMeasure");if(ms)ms.addEventListener("click",e=>{const b=e.target.closest("[data-m]");if(!b)return;TL.measure=b.dataset.m;ms.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));renderTimeline();});
+  const gp=document.getElementById("tlGroup");if(gp)gp.addEventListener("change",()=>{TL.dim=gp.value;TL.drill=0;renderTimeline();});const stp=document.getElementById("tlSteps");if(stp)stp.addEventListener("change",()=>{var v=Math.max(3,Math.min(10,parseInt(stp.value,10)||3));stp.value=v;TL.steps=v;renderTimeline();});const tnp=document.getElementById("tlTune");if(tnp)tnp.addEventListener("change",()=>{TL.tune=tnp.value;renderTimeline();});const ms=document.getElementById("tlMeasure");if(ms)ms.addEventListener("click",e=>{const b=e.target.closest("[data-m]");if(!b)return;TL.measure=b.dataset.m;ms.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));renderTimeline();});
   const nv=document.getElementById("tlNav");if(nv)nv.addEventListener("click",e=>{const b=e.target.closest("[data-n]");if(!b)return;const n=+b.dataset.n;if(n===0)TL.off=0;else TL.off+=n;renderTimeline();});
   const add=document.getElementById("tlMileAdd");if(add)add.onclick=()=>{const dt=document.getElementById("tlMileDate").value,lb=(document.getElementById("tlMileLabel").value||"").trim()||"Milestone",msg=document.getElementById("tlMileMsg");const a=milesGet();if(!dt){if(msg)msg.textContent="Pick a date.";return;}if(a.length>=10){if(msg)msg.textContent="Max 10 milestones.";return;}a.push({date:dt,label:lb});a.sort((x,y)=>x.date.localeCompare(y.date));milesSet(a);document.getElementById("tlMileLabel").value="";if(msg)msg.textContent="";renderTimeline();};
   const box=document.querySelector(".tl-chartbox");if(box){

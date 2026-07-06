@@ -5,6 +5,7 @@
 - Demo mode v2: two contrasting sample projects (Riverside Medical Centre, Hillcrest Aquatic Centre), synthetic issue timeline so 04 Coordination analytics renders offline, demo-aware refresh so project switching re-seeds instead of attempting a live load. Live path untouched.
 - README: exact customer install steps (prerequisites, connect → get → create → verify) + troubleshooting table.
 - Read-only pill lock: when `CONFIG.readOnly` is true the header pill is checked, disabled and carries an explainer tooltip — read-only deployments are visibly immutable. In write-enabled builds (`readOnly:false`) the pill remains a live user toggle. Writes additionally require `update_issues` on the artifact's declared tool list (host-enforced outer gate).
+- Timeline series legibility (04): 8-hue non-semantic categorical ramp (red/amber/green reserved for risk states, never identity); end-of-line identity labels with collision avoidance; interactive legend chips (hover to focus, click to isolate); generic Top-6 + "Other (n more)" aggregation across Assignee/Stamp/Type/Company/Department group-bys, with recursive drill-down into "Other" and breadcrumb back. Whole-project totals, milestones and projections always compute from the full dataset regardless of drill level.
 
 ## 1.0.0-rc.1 — 2026-07-06 (WS10 package)
 
