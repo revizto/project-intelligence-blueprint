@@ -171,7 +171,7 @@ h1{font-weight:500;font-size:27px;letter-spacing:-.01em;margin:2px 0 0}
 .ac-frow .rx:hover{color:var(--red,#E40001);background:#fdeeed}
 .ac-frow .red{display:none;border-top:1px solid var(--paper,#eef2f2);padding:10px 11px 11px;background:#fcfefe}
 .ac-frow.open .red{display:block}
-.ac-frow .red input,.ac-frow .red select{width:100%;min-height:36px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--white)}
+.ac-frow .red input:not([type="checkbox"]),.ac-frow .red select{width:100%;min-height:36px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--white)}
 .ac-frow .fx2{display:flex;gap:7px;margin-top:6px}
 .ac-frow .rhint{font-size:10.5px;color:var(--muted);margin-top:7px;text-transform:none;letter-spacing:0}
 .ac-addf{display:inline-flex;align-items:center;gap:6px;border:1px dashed;background:transparent;border-radius:9px;padding:8px 12px;font:inherit;font-weight:600;font-size:12px;cursor:pointer;margin-top:2px}
@@ -191,7 +191,7 @@ h1{font-weight:500;font-size:27px;letter-spacing:-.01em;margin:2px 0 0}
 .ac-tbanner b{color:#0a6d6d}
 .ac-foot{margin:11px 0 0;font-size:11px;color:var(--muted);line-height:1.5;padding-top:10px;border-top:1px solid var(--line)}
 .ac-foot b{color:#3a4c4d}
-@media(pointer:coarse){.ac-frow .red input,.ac-frow .red select,.ac-frow .rsum,.icbtn,.ac-addf{min-height:44px}}
+@media(pointer:coarse){.ac-frow .red input:not([type="checkbox"]),.ac-frow .red select,.ac-frow .rsum,.icbtn,.ac-addf{min-height:44px}}
 @media(max-width:700px){.ac-cols{grid-template-columns:1fr}.ac-colmid{padding:5px 0}.ac-colmid .ac-ar{transform:rotate(90deg)}}
 .apx-list{display:flex;flex-direction:column;gap:9px;margin:6px 0 0}
 .apx-grp{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--white,#fff)}
