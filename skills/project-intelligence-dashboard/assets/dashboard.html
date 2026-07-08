@@ -515,13 +515,8 @@ tr:last-child td{border-bottom:0}
 .tcs-done{border:1px solid var(--line);background:var(--white);border-radius:999px;min-height:40px;padding:8px 20px;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--ink);cursor:pointer}
 .tcs-done:hover{border-color:var(--concrete-mid)}
 .tcs-note{font-size:11px;color:var(--muted);font-family:var(--mono)}
-.tcs-optcopy{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--muted);line-height:1.5;cursor:pointer;margin:0 0 12px}
-.tcs-optcopy input{margin:2px 0 0;width:16px;height:16px;flex:none;accent-color:var(--teal-deep);cursor:pointer}
-.tcs-optcopy input:disabled{cursor:not-allowed;opacity:.5}
-.tcs-emailbtn{border:1px solid var(--teal-deep);background:#f0f7f7;color:var(--teal-ink);border-radius:999px;min-height:40px;padding:8px 18px;font-family:var(--sans);font-weight:600;font-size:13px;cursor:pointer}
-.tcs-emailbtn:hover{background:#e4f2f2}
 @media(max-width:600px){.tcs-card{max-height:94vh}.tcs-hd,.tcs-bd,.tcs-ft{padding-left:16px;padding-right:16px}}
-@media(pointer:coarse){.tcs-x{min-height:44px}.tcs-accept{min-height:44px}.tcs-done{min-height:44px}.tcs-emailbtn{min-height:44px}}
+@media(pointer:coarse){.tcs-x{min-height:44px}.tcs-accept{min-height:44px}.tcs-done{min-height:44px}}
 .worktable{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .worktable table{width:100%}
 .worktable th{position:sticky;top:0;background:var(--white);z-index:1}
@@ -3701,26 +3696,24 @@ function tcsRenderFoot(gate){
     ft.innerHTML=
       '<div class="tcs-fields">'+
         '<label>Your name<input type="text" id="tcsName" autocomplete="name" value="'+tcsEsc(me.name||"")+'" placeholder="Full name"></label>'+
-        '<label>Email (optional)<input type="email" id="tcsEmail" autocomplete="email" value="'+tcsEsc(me.email||"")+'" placeholder="name@company.com"></label>'+
       '</div>'+
       '<label class="tcs-agree"><input type="checkbox" id="tcsChk"><span>I have read and agree to these Terms and Conditions. I understand the Blueprint is an experimental demonstration and that access to and use of it is conditional on my acceptance.</span></label>'+
-      '<label class="tcs-optcopy"><input type="checkbox" id="tcsEmailChk" disabled><span>Email a copy of my acceptance to the address above (optional)</span></label>'+'<div class="tcs-actions"><button class="tcs-accept" id="tcsAccept" type="button" disabled>Agree and continue</button>'+
+      '<div class="tcs-actions"><button class="tcs-accept" id="tcsAccept" type="button" disabled>Agree and continue</button>'+
       '<span class="tcs-note">v'+tcsEsc(TCS_VERSION)+' · your acceptance is recorded on this device</span></div>';
     var chk=document.getElementById("tcsChk"),nm=document.getElementById("tcsName"),acc=document.getElementById("tcsAccept");
     function sync(){acc.disabled=!(chk.checked&&nm.value.trim().length>0);}
     chk.addEventListener("change",sync);nm.addEventListener("input",sync);sync();
-    var _em=document.getElementById("tcsEmail"),_ec=document.getElementById("tcsEmailChk");function esync(){var has=!!(_em&&_em.value.trim());if(_ec){_ec.disabled=!has;if(!has)_ec.checked=false;}}if(_em)_em.addEventListener("input",esync);esync();acc.addEventListener("click",tcsAccept);
+    acc.addEventListener("click",tcsAccept);
   }else{
     var html="";
-    if(rec){html+='<div class="tcs-rec">'+seal+'<span>Accepted by '+tcsEsc(rec.name||"—")+(rec.email?' ('+tcsEsc(rec.email)+')':'')+' on '+tcsEsc(tcsFmtWhen(rec.at))+' · v'+tcsEsc(rec.v||"")+'</span></div>';}
-    html+='<div class="tcs-actions"><button class="tcs-done" id="tcsOk" type="button">Close</button>'+((rec&&rec.email)?'<button class="tcs-emailbtn" id="tcsEmailCopyBtn" type="button">Email me a copy</button>':'')+'</div>';
-    ft.innerHTML=html;var ok=document.getElementById("tcsOk");if(ok)ok.addEventListener("click",closeTcs);var _eb=document.getElementById("tcsEmailCopyBtn");if(_eb)_eb.addEventListener("click",function(){tcsEmailCopy(rec);});
+    if(rec){html+='<div class="tcs-rec">'+seal+'<span>Accepted by '+tcsEsc(rec.name||"—")+' on '+tcsEsc(tcsFmtWhen(rec.at))+' · v'+tcsEsc(rec.v||"")+'</span></div>';}
+    html+='<div class="tcs-actions"><button class="tcs-done" id="tcsOk" type="button">Close</button></div>';
+    ft.innerHTML=html;var ok=document.getElementById("tcsOk");if(ok)ok.addEventListener("click",closeTcs);
   }
 }
 function openTcs(gate){var sc=document.getElementById("tcsScrim");if(!sc)return;TCS_GATE=!!gate;_tcsReturn=document.activeElement;tcsRenderFoot(TCS_GATE);sc.hidden=false;document.body.style.overflow="hidden";tcsInert(true);var bd=document.getElementById("tcsBody");if(bd)bd.scrollTop=0;var f=tcsFocusable();if(f.length)setTimeout(function(){try{f[0].focus();}catch(e){}},20);}
 function closeTcs(){if(TCS_GATE)return;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);var r=_tcsReturn;_tcsReturn=null;if(r&&r.focus){try{r.focus();}catch(e){}}}
-function tcsAccept(){var nm=(document.getElementById("tcsName")||{}).value||"";var email=(document.getElementById("tcsEmail")||{}).value||"";var chk=document.getElementById("tcsChk");if(!chk||!chk.checked||!nm.trim())return;var ecpy=document.getElementById("tcsEmailChk");var wantEmail=!!(ecpy&&ecpy.checked&&email.trim());var rec={v:TCS_VERSION,name:nm.trim(),email:email.trim(),emailed:wantEmail,at:new Date().toISOString(),ua:(typeof navigator!=="undefined"&&navigator.userAgent)||""};try{localStorage.setItem(TCS_KEY,JSON.stringify(rec));}catch(e){}try{if(typeof ME!=="undefined"&&ME){ME.name=rec.name;ME.email=rec.email;}localStorage.setItem("rvz_actor",rec.name);if(rec.email)localStorage.setItem("rvz_me_email",rec.email);}catch(e){}TCS_GATE=false;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);if(typeof renderHeader==="function"){try{renderHeader();}catch(e){}}if(wantEmail)tcsEmailCopy(rec);if(typeof tcsPostAccept==="function")tcsPostAccept();}
-function tcsEmailCopy(rec){try{if(!rec||!rec.email)return;var subj="Revizto Project Intelligence Blueprint - Terms & Conditions acceptance (v"+(rec.v||"")+")";var when=tcsFmtWhen(rec.at);var body=["This confirms your acceptance of the Revizto Project Intelligence Blueprint Terms and Conditions.","","Accepted by: "+(rec.name||""),"Email: "+(rec.email||""),"Date: "+when,"Terms version: "+(rec.v||""),"","The Blueprint is an experimental demonstration provided as is, with no guarantees. The full Terms and Conditions are available inside the Blueprint (the Terms button, top-right). You also agreed to the Revizto MCP Server Terms and Conditions."].join(String.fromCharCode(10));var url="mailto:"+encodeURIComponent(rec.email)+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body);var a=document.createElement("a");a.href=url;a.style.display="none";document.body.appendChild(a);a.click();setTimeout(function(){try{document.body.removeChild(a);}catch(e){}},0);}catch(e){}}
+function tcsAccept(){var nm=(document.getElementById("tcsName")||{}).value||"";var chk=document.getElementById("tcsChk");if(!chk||!chk.checked||!nm.trim())return;var rec={v:TCS_VERSION,name:nm.trim(),at:new Date().toISOString(),ua:(typeof navigator!=="undefined"&&navigator.userAgent)||""};try{localStorage.setItem(TCS_KEY,JSON.stringify(rec));}catch(e){}try{if(typeof ME!=="undefined"&&ME){ME.name=rec.name;}localStorage.setItem("rvz_actor",rec.name);}catch(e){}TCS_GATE=false;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);if(typeof renderHeader==="function"){try{renderHeader();}catch(e){}}if(typeof tcsPostAccept==="function")tcsPostAccept();}
 document.addEventListener("keydown",function(e){var sc=document.getElementById("tcsScrim");if(!sc||sc.hidden)return;if(e.key==="Escape"){e.preventDefault();if(!TCS_GATE)closeTcs();return;}if(e.key==="Tab"){var f=tcsFocusable();if(!f.length)return;var first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();try{last.focus();}catch(err){}}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();try{first.focus();}catch(err){}}}},true);
 
 if(window.cowork&&window.cowork.callMcpTool){/* T&Cs gate: live load deferred until acceptance — see tcsPostAccept */}else{
