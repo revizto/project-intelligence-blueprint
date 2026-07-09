@@ -1812,23 +1812,26 @@ async function proposeRebalance(){
     /* page the top assignee's OPEN issues, bounded to what we'll move. Pages are INDEPENDENT —
        a flaky page is retried with backoff then SKIPPED (recorded), never aborting the whole pull.
        Confirmed live: deep pages succeed at this page size; failures are transient. Scales to 50k+. */
-    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-    const targetOpen=(top[2]>0?top[2]:moveTarget),lastPage=Math.max(1,Math.ceil(targetOpen/REB_PAGE))+2;
-    const pull=async(page)=>{for(let att=0;att<4;att++){try{return await call(RB+"list_issues",{projectUuid:PRJ,assigneeEmail:top[0],statuses:["open"],limit:REB_PAGE,page},{timeout:REB_TIMEOUT});}catch(e){if(att<3)await sleep(500*(att+1));}}return null;};
-    const open=[],failed=[];
-    const prog=()=>setModalProgress(`Loading issues to move… <b>${fmt(Math.min(open.length,moveTarget))}</b> of ~${fmt(moveTarget)}`);
-    for(let page=0;page<lastPage&&open.length<moveTarget;page++){
-      const r=await pull(page);
-      if(my!==reqSeq){closeConfirm();return;}
-      if(!r){failed.push(page);continue;}/* skip a persistently-failing page, keep going */
-      const d=(r&&r.data)||[];for(const i of d){if(i&&i.uuid)open.push(i.uuid);}
-      prog();
-      if(d.length<REB_PAGE&&page>=lastPage-3)break;/* genuine end of data near the tail */
+    /* Plan from issues ALREADY in memory (the loaded project sample) — no fresh read at click time, so a
+       transient connector stall cannot make a visible, valid move "impossible". A bounded top-up read runs
+       ONLY if the sample didn't hold enough of this owner's open issues, and it is best-effort: on any
+       failure we proceed with what's in memory rather than dead-ending. */
+    const open=(DATA.tl||[]).filter(r=>r&&r.au===top[0]&&r.st==="open").map(r=>r.u).slice(0,moveTarget);
+    if(open.length<moveTarget&&(window.cowork&&window.cowork.callMcpTool)){
+      const sleep=ms=>new Promise(r=>setTimeout(r,ms));const seen=new Set(open);
+      const pull=async(page)=>{for(let att=0;att<3;att++){try{return await call(RB+"list_issues",{projectUuid:PRJ,assigneeEmail:top[0],statuses:["open"],limit:REB_PAGE,page},{timeout:REB_TIMEOUT});}catch(e){if(att<2)await sleep(400*(att+1));}}return null;};
+      const lastPage=Math.max(1,Math.ceil(moveTarget/REB_PAGE))+1;
+      for(let page=0;page<lastPage&&open.length<moveTarget;page++){
+        const r=await pull(page);
+        if(my!==reqSeq){closeConfirm();return;}
+        if(!r)break;/* best-effort top-up: never dead-end — we already hold in-memory issues */
+        const d=(r&&r.data)||[];for(const i of d){if(i&&i.uuid&&!seen.has(i.uuid)){seen.add(i.uuid);open.push(i.uuid);}}
+        setModalProgress(`Loading more issues to move… <b>${fmt(Math.min(open.length,moveTarget))}</b> of ~${fmt(moveTarget)}`);
+        if(d.length<REB_PAGE)break;
+      }
     }
-    /* reconciliation: one more attempt at any page that failed transiently */
-    for(const page of failed){if(open.length>=moveTarget)break;const r=await pull(page);if(my!==reqSeq){closeConfirm();return;}if(r){const d=(r&&r.data)||[];for(const i of d){if(i&&i.uuid)open.push(i.uuid);}prog();}}
     const fetched=open.length;
-    if(!fetched){showRetryMsg("Couldn't plan rebalance","Couldn't load the issues to move just now — the connector may be busy. It's usually transient, so try again in a moment.",function(){runRec("rebalance",false);});return;}
+    if(!fetched){showRetryMsg("Couldn't plan rebalance","No open issues for "+top[0]+" have loaded yet — let the project finish sampling, then try again.",function(){runRec("rebalance",false);});return;}
     const moveCount=Math.min(moveTarget,fetched),move=open.slice(0,moveCount);
     /* spread the move across ALL receivers proportional to capacity \u2014 a partial move must still span the team,
        not collapse onto the largest-capacity person (that was the single-assignee failure). */
