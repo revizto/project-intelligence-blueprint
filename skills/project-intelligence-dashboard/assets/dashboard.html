@@ -1669,7 +1669,7 @@ function actionRecs(){const out=[];const top=(DATA.assignees||[])[0];const crit=
   const _bk=_as.reduce((s,a)=>s+(a[2]||0),0);
   const _topShare=(_bk&&top)?(top[2]||0)/_bk:0;
   const _trigShare=Math.max(1.5/_contrib,0.05);
-  if(top&&_bk>0&&_topShare>=_trigShare){
+  if(DATA.assigneeExactMode&&top&&_bk>0&&_topShare>=_trigShare){
     const _fairReal=_bk/_contrib;/* real-valued mean — round only for display */
     const _conc=Math.round(100*_topShare),_ex=Math.max(0,Math.round(top[2]-_fairReal)),_pct=top[2]?Math.round(100*_ex/top[2]):0;
     const _exact=DATA.assigneeExactMode&&!DATA.assigneeExactPartial;
@@ -1779,6 +1779,7 @@ async function runRec(key,fromBrief){if(writesOff())return;
   if(key==="rebalance"){if(current!=="action")showTab("action");await proposeRebalance();}}
 async function proposeRebalance(){
   if(writesOff()){showModalMsg("Rebalance unavailable",READONLY?"Read-only mode is on — switch it off to action changes in Revizto.":"Connect the Revizto MCP to action a rebalance.");return;}
+  if(!DATA.assigneeExactMode){showModalMsg("Rebalance not ready","A fair-share rebalance moves OPEN (unstarted) issues and needs exact open counts per teammate — those are still resolving, or the connector is busy. Try again shortly. Heavy in-progress load is a throughput concern, not a redistribution one.");return;}
   const pool=(DATA.assigneesFull||DATA.assignees||[]).filter(a=>a[0]&&a[0]!=="(unassigned)");const top=pool[0];
   if(!top){showModalMsg("Nothing to rebalance yet","No assignee workload is loaded — open a project with the MCP connected, then try again.");return;}
   /* plan math from already-loaded EXACT open counts — no fetch needed to size the move */
@@ -1806,7 +1807,7 @@ async function proposeRebalance(){
         +`</div><div class="proof-formula">receivers</div><div class="proof-rows"><div class="proof-empty">0 teammates below ${fmt(fairDisp)} — nowhere to move work.</div></div>`
         +`<div class="proof-src"><span aria-hidden="true">↳</span> Source: ${_exactLoad?"exact open counts (count-first)":"representative sample of contributor load — confirm before acting"}</div>`});
     showModalMsg("No fair-share move available",`${top[0]} holds ${fmt(top[2])} of ${fmt(backlog)} open${sizedNote} (fair share ~${fmt(fairDisp)}), but no teammate sits below the line to receive work. This is a capacity or scope problem, not a reassignment one — consider adding resource or descoping.${_edgeProof}`);return;}
-  const moveTarget=Math.min(excess,capacity);
+  const moveTarget=Math.min(excess,capacity,200);
   const ws=document.getElementById("workStatus");if(ws)ws.textContent="Planning rebalance…";
   const my=reqSeq;/* abandon if the project/licence is switched mid-plan */
   showConfirmLoading(`Planning a fair-share rebalance for ${top[0]}…`);
@@ -2576,13 +2577,13 @@ function renderCoffee(){const m=DATA.meta;
   const resolved=C?(C.solved+C.closed):(DATA.status.Solved+DATA.status.Closed);
   const rate=tot?Math.round(100*resolved/tot):0;
   const reconNote=(C&&!C.reconciled)?`<span class="db-badge warn">counts re-syncing</span>`:"";
-  const crit=(DATA.priority.critical||0)+(DATA.priority.blocker||0);
+  const crit=(DATA.priority.critical||0)+(DATA.priority.blocker||0);const critEst=(DATA.sample&&!DATA.sample.complete&&DATA.sample.n>0&&C&&C.total)?Math.round(crit/DATA.sample.n*C.total):crit;
   const o90=DATA.trend.opened.reduce((a,b)=>a+b,0),r90=DATA.trend.resolved.reduce((a,b)=>a+b,0),net=o90-r90;
   const sampQ=(DATA.sample&&!DATA.sample.complete)?((DATA.sample.n>0)?` (based on a representative sample of ${fmt(DATA.sample.n)} of ${fmt(DATA.sample.total)})`:" (sampling in progress)"):"";
   const flowLoading=(DATA.sample&&!DATA.sample.complete&&(DATA.sample.n||0)===0)||!(DATA.trend&&DATA.trend.opened&&DATA.trend.opened.length);
   const idle=m.lastActive?Math.round((TODAY-new Date(m.lastActive.replace(" ","T")))/864e5):0;
   const dormant=DATA.team.filter(t=>!t[4]).length;const am=DATA.team.filter(t=>t[4]).length;
-  const topA=DATA.assignees[0];const share=topA&&active?Math.round(100*topA[2]/active):0;
+  const topA=DATA.assignees[0];const _exOpen=DATA.assigneeExactMode;const _loadWord=_exOpen?"open":"active";const _loadBase=_exOpen?((C&&C.open)||0):active;const share=(topA&&_loadBase)?Math.round(100*topA[2]/_loadBase):0;
   const dl=DATA.delta||{d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};const snap=DATA.snap||{};
   const kpis=[["Active backlog"+proofTerm("Active backlog","Open + In-progress issues — work not yet resolved. Shown as a share of the project total. 'cleared 7d' is resolved minus opened over the last 7 days (negative means the backlog grew)."),fmt(active),"",`${tot?Math.round(100*active/tot):0}% of ${fmt(tot)} &nbsp; ${dch(dl.d7.resolved-dl.d7.opened)} cleared 7d`,(tot?Math.round(100*active/tot):0)],
     ["Resolution rate"+proofTerm("Resolution rate","Solved + Closed as a share of all issues. 'net over 90 days' is issues opened minus resolved across the last 90 days — positive means the backlog is growing."),rate+"%","",flowLoading?`90-day flow calculating…`:`net ${net>=0?'+':''}${net} over 90 days`,rate],
@@ -2609,17 +2610,17 @@ function renderCoffee(){const m=DATA.meta;
   else{clashMoveLabel="Review clash coverage";clashMovePrompt=`We have ${fmt(ct)} clash test${ct>1?"s":""} configured and running. Where are the likely coverage gaps across disciplines?`;}
   let m1,m2;
   if(coffeeKey==="owner"){m1=`${verdict[0]}. ${rate}% of issues resolved; backlog moved ${net>=0?'+':''}${net} over 90 days${sampQ}; last activity ${idle} days ago.`;m2=`Delivery exposure sits in ${fmt(crit)} unresolved critical/blocker issues${sampQ} and ${clashGap}.`;}
-  else if(coffeeKey==="pm"){m1=`${fmt(active)} issues active, ${rate}% cleared — and the clearances are one batch-close, not steady throughput. Momentum is the watch-item.`;m2=topA?`${topA[0]} is single-threaded on ${fmt(topA[2])} open issues (${share}% of the backlog) — a capacity bottleneck.`:`Capacity is concentrated on a few assignees.`;}
+  else if(coffeeKey==="pm"){m1=`${fmt(active)} issues active, ${rate}% cleared — and the clearances are one batch-close, not steady throughput. Momentum is the watch-item.`;m2=topA?`${topA[0]} is single-threaded on ${fmt(topA[2])} ${_loadWord} issues (${share}% of the ${_loadWord} backlog) — a capacity bottleneck.`:`Capacity is concentrated on a few assignees.`;}
   else if(coffeeKey==="qs"){m1=`${fmt(crit)} criticals open against a ${fmt(tot)}-issue book dominated by major-priority items${sampQ}. Rework is concentrated, not spread.`;m2=`Variation and commercial exposure sits in the ageing criticals and the ${fmt(active)} unresolved items.`;}
   else if(coffeeKey==="arch"){m1=`${fmt(active)} issues active of ${fmt(tot)}, ${rate}% resolved${sampQ}. The design question: is coordination converging on the design intent, or is the model drifting?`;m2=`${clashLead} — design clashes against structure and services ${ctRun>0?"are being surfaced":"aren't being caught early"}${crit>0?`, and ${fmt(crit)} unresolved critical/blocker issues sit against the model`:''}.`;}
   else if(coffeeKey==="eng"){m1=`${fmt(crit)} unresolved critical/blocker issues${sampQ} — technical risk concentrates in the criticals, not the long tail of ${fmt(active)} active items.`;m2=`${ct===0?`Zero clash tests${_live3d}: structural and MEP clashes are being found by eye, not automatically — the biggest engineering exposure to close.`:(ctRun===0?`${fmt(ct)} clash test${ct>1?"s":""} configured but none run yet — run them to surface structural and MEP clashes automatically.`:`${fmt(ctRun)} of ${fmt(ct)} clash test${ct>1?"s":""} running — structural and MEP clashes are being surfaced automatically${ctRun<ct?`; ${fmt(ct-ctRun)} test${(ct-ctRun)>1?"s":""} still stale`:""}.`)}`;}
-  else if(coffeeKey==="gc"){m1=`${verdict[0]}. ${fmt(active)} active, ${rate}% resolved, backlog moved ${net>=0?'+':''}${net} over 90 days${sampQ} — can the field build against this today?`;m2=topA?`${topA[0]} is single-threaded on ${fmt(topA[2])} open issues (${share}% of the backlog) — a bottleneck that will surface on site.`:`${fmt(crit)} unresolved criticals${sampQ} are the buildability risks to close before they reach the field.`;}
+  else if(coffeeKey==="gc"){m1=`${verdict[0]}. ${fmt(active)} active, ${rate}% resolved, backlog moved ${net>=0?'+':''}${net} over 90 days${sampQ} — can the field build against this today?`;m2=topA?`${topA[0]} is single-threaded on ${fmt(topA[2])} ${_loadWord} issues (${share}% of the ${_loadWord} backlog) — a bottleneck that will surface on site.`:`${fmt(crit)} unresolved criticals${sampQ} are the buildability risks to close before they reach the field.`;}
   else if(coffeeKey==="field"){m1=`Your work front: of ${fmt(active)} active issues${sampQ}, focus on what's assigned to you and your trade — the items holding up your scope on site.`;m2=`${fmt(crit)} unresolved critical/blocker issues${sampQ} are the work-front blockers — clear the ones in your scope before they hold up the trades behind you.`;}
-  else{m1=`${fmt(active)} active of ${fmt(tot)} · ${rate}% resolved · net ${net>=0?'+':''}${net} over 90 days${sampQ}. Verdict: ${verdict[0].toLowerCase()}.`;m2=topA?`${topA[0]} is carrying ${fmt(topA[2])} open issues — ${share}% of the whole backlog sits with one person.`:`Open load is uneven across the team.`;}
+  else{m1=`${fmt(active)} active of ${fmt(tot)} · ${rate}% resolved · net ${net>=0?'+':''}${net} over 90 days${sampQ}. Verdict: ${verdict[0].toLowerCase()}.`;m2=topA?`${topA[0]} is carrying ${fmt(topA[2])} ${_loadWord} issues — ${share}% of the ${_loadWord} backlog sits with one person.`:`Open load is uneven across the team.`;}
   const moves=[
     ["01","Project Radar§High-level analytics",m1,[],"A one-glance read of the project's overall state for your chosen persona — active backlog vs total, resolution rate, 90-day net movement and an at-risk / watch / on-plan verdict. Use it to decide whether the project needs your attention today."],
     ["02","Hot Spots§At-risk items",m2,[["Dig in",`As a ${lensName}, what is the single biggest risk on this project today, and why?`]],"The single biggest risk surfaced for your persona — usually an overloaded assignee, ageing criticals, or a coordination gap. 'Dig in' asks the live project for the detail behind it."],
-    ["03","Next Moves§Immediate actions",`Three to fire this morning: rebalance ${topA?topA[0]:'the top assignee'}'s load to the team's fair share, triage the ${fmt(crit)} unresolved criticals${sampQ}, and ${clashMoveClause}.`,
+    ["03","Next Moves§Immediate actions",`Three to fire this morning: address the load concentrated on ${topA?topA[0]:'the top assignee'}, triage the ${critEst!==crit?'~'+fmt(critEst):fmt(crit)} unresolved criticals${sampQ}, and ${clashMoveClause}.`,
       [["Rebalance load",`What share of the open backlog does ${topA?topA[0]:'the most-loaded assignee'} hold, what is the team's fair-share per person, and how many issues must move \u2014 and to whom \u2014 to bring them to that line without overloading anyone?`],["Triage criticals",`List the oldest unresolved critical and blocker issues with their assignees.`],[clashMoveLabel,clashMovePrompt]],"The two or three highest-leverage actions to take this morning, sized to the backlog — a fair-share rebalance, a critical triage, and clash-automation coverage. Buttons run the action (approval-gated) or load the worklist."],
     ["04","The Finish Line§Done and verified",`${dormant} licence member(s) invited but dormant; last project activity ${idle} days ago. Adoption is the quiet risk.`,[["Draft a nudge",`Draft a short, friendly nudge to the dormant project members to log back in and pick up their issues.`]],"Closure and adoption signals — dormant members and time since last activity — the quiet risks to getting everything verified and closed by your milestone."]];
   const actOf=a=>({'Rebalance load':'rebalance','Triage criticals':'loadcrit'})[a[0]]||'';
