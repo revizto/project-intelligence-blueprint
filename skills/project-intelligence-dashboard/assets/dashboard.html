@@ -909,7 +909,7 @@ th{white-space:nowrap}
     </div>
     <div class="prodnav">
       <button class="prodlink" id="aboutBtn" type="button" aria-pressed="false" aria-controls="panel-cap" title="What this tool is and how it works">About</button>
-      <button class="prodlink" id="termsBtn" type="button" aria-haspopup="dialog" aria-controls="tcsScrim" title="Terms &amp; Conditions for this Blueprint"><span class="pl-i" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg></span>Terms</button>
+      <button class="prodlink" id="termsBtn" type="button" aria-haspopup="dialog" aria-controls="tcsScrim" title="Terms &amp; Conditions for this Blueprint">Terms</button>
       <button class="tour-link" id="tourBtn" type="button" aria-label="Take the guided tour" title="Replay the guided tour"><span class="tl-i" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" shape-rendering="geometricPrecision"><path d="M7 5l12 7-12 7z"/></svg></span> Tour</button>
     </div>
   </header>
@@ -1048,7 +1048,7 @@ th{white-space:nowrap}
     <div class="card">
       <div class="act-bar">
         <select id="fAssignee" aria-label="Filter by assignee"><option value="">Any assignee</option></select>
-        <select id="fStatus" aria-label="Filter by status"><option value="open">Open</option><option value="in_progress">In progress</option><option value="solved">Solved</option><option value="closed">Closed</option><option value="">Any status</option></select>
+        <select id="fStatus" aria-label="Filter by status"><option value="">Any status</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="solved">Solved</option><option value="closed">Closed</option></select>
         <input id="fLimit" type="number" min="5" max="200" value="50" aria-label="Max issues" title="Max issues to load">
         <button class="btn primary" id="loadWorkBtn">Load issues</button>
         <span class="em" id="workStatus"></span>
@@ -1773,7 +1773,7 @@ function buildManualPlan(){if(writesOff())return;const g=id=>(document.getElemen
   const uuids=[...workSel];const prior={};uuids.forEach(u=>{const w=WORK.find(x=>x.uuid===u);if(w)prior[u]={assignee:w.assignee,priority:w.priority,status:w.status};});
   showConfirm({summary:`Update ${uuids.length} issue${uuids.length>1?"s":""}: ${labels.join("; ")}`,reason,groups:[{issueUuids:uuids,change,label:labels.join("; ")}],prior,fields:Object.keys(change)});}
 async function runRec(key,fromBrief){if(writesOff())return;
-  if(key==="loadcrit"){if(fromBrief)showTab("issues");document.getElementById("fStatus").value="open";document.getElementById("fAssignee").value="";await loadWork();WORK=WORK.filter(w=>w.priority==="critical"||w.priority==="blocker");renderWork();document.getElementById("workStatus").textContent=`${WORK.length} open critical/blocker issue(s).`;return;}
+  if(key==="loadcrit"){if(fromBrief)showTab("issues");document.getElementById("fStatus").value="";document.getElementById("fAssignee").value="";await loadWork();WORK=WORK.filter(w=>w.priority==="critical"||w.priority==="blocker");renderWork();document.getElementById("workStatus").textContent=`${WORK.length} open critical/blocker issue(s).`;return;}
   if(key==="rebalance")await proposeRebalance();}
 async function proposeRebalance(){
   if(writesOff()){showModalMsg("Rebalance unavailable",READONLY?"Read-only mode is on — switch it off to action changes in Revizto.":"Connect the Revizto MCP to action a rebalance.");return;}

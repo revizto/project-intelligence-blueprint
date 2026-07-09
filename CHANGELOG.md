@@ -2,6 +2,8 @@
 
 ## Unreleased (post-rc.1)
 
+- Terms button: dropped the document glyph so it matches the text-only About pill (About · Terms · Tour).
+- Issue actions (06): the status filter now defaults to "Any status" instead of "Open" — reordered the options and removed the JS that forced it back to Open on the 04→06 handoff.
 - Warn/caution polish. Retuned the semantic warn colour from the muddy burnt-orange `#B45309` to a cleaner orange-red `#C2410C` (with a warmer tint and border), applied via the single `--warn` token so every write/risk surface updates together — rec tiles, badges, banners, the identity "SET" tag, and the approval modal. Still AA-compliant. Replaced all thin text "⚠" glyphs with a crisp SVG warning triangle at a legible 14px, and made the recommendation-card arrow a bolder 17px SVG, so caution icons read clearly instead of being nearly invisible.
 - 06 Action fix: recoverable people pickers. When the assignee/reporter/watcher candidate list came back empty or short (members not yet loaded), there was no way to find or reload members, so a person you needed couldn't be picked. Added a search box and a "Refresh members" button to each people match field (re-fetches `list_project_members` and re-renders, repopulating both the match checklist and the change-assignee dropdown), an empty-state hint when nothing is loaded, and a "Refresh member list" button inside the "pick the right people" blocker.
 - UI fix: the six view tabs now stay on one line in Read-only mode. The read-only padlock on "06 Action anything" was widening the tab enough to wrap it to a second row; tightened tab padding (16→12px) and the number/label gap (8→6px) to reclaim the space. `flex-wrap` retained so genuinely narrow viewports still wrap gracefully.
