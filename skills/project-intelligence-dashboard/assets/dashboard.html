@@ -20,7 +20,7 @@
  color-scheme:light;
  --red:#E40001;--red-dark:#4E0000;--red-tint:#FFECEC;
  --fs-1:12px;--fs-2:14px;--fs-3:17px;--fs-4:21px;--fs-5:25px;
- --warn:#B45309;--warn-bg:#FFFBEB;--warn-line:#F5D08C;
+ --warn:#C2410C;--warn-bg:#FFF7ED;--warn-line:#F3C89B;
  --error:#B42318;--error-bg:#FEF2F2;--error-line:#F0B4AC;--error-ink:#7F1D1D;
  --concrete:#1E2E2E;--concrete-mid:#365050;
  --teal-mid:#98BBBB;--teal-light:#CBDDDD;--teal-deep:#009999;
@@ -491,6 +491,8 @@ tr:last-child td{border-bottom:0}
 .rec-desc{font-size:var(--fs-1);color:var(--muted);line-height:1.45}
 .rec-badge{font-family:var(--mono);font-size:var(--fs-1);margin-top:5px;color:var(--muted)}
 .rec-badge.w{color:var(--warn)}
+.warn-ic{width:14px;height:14px;flex:none;display:inline-block;vertical-align:-2px;color:var(--warn)}
+.rec-arrow svg{width:17px;height:17px;display:block}
 .modal-scrim{position:fixed;inset:0;background:rgba(30,46,46,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 .modal-scrim[hidden]{display:none}
 .modal-card{background:var(--white);border-radius:16px;width:100%;max-width:520px;padding:22px 24px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
@@ -1704,7 +1706,7 @@ function actionRecs(){const out=[];const top=(DATA.assignees||[])[0];const crit=
   }
   if(!out.length)out.push({key:"loadcrit",title:"Open the worklist",desc:"Load issues to review and action — nothing flagged automatically right now.",write:false});
   return out;}
-function recCard(c){const card=`<button class="rec ${c.write?'rec-write':''}" data-rec="${c.key}" aria-label="${c.title}"><span class="rec-arrow" aria-hidden="true">→</span><span class="rec-body"><b>${c.title}</b><span class="rec-desc">${c.desc}</span><span class="rec-badge ${c.write?'w':''}">${c.write?'<span aria-hidden="true">⚠</span> Approval-gated write to Revizto':'↳ Loads the worklist'}</span></span></button>`;
+function recCard(c){const card=`<button class="rec ${c.write?'rec-write':''}" data-rec="${c.key}" aria-label="${c.title}"><span class="rec-arrow" aria-hidden="true">${REC_ARROW_IC}</span><span class="rec-body"><b>${c.title}</b><span class="rec-desc">${c.desc}</span><span class="rec-badge ${c.write?'w':''}">${c.write?WARN_IC+' Approval-gated write to Revizto':'↳ Loads the worklist'}</span></span></button>`;
   /* proof expander is a SIBLING of the card button (a button can't legally nest a button); the toggle's own delegated handler stopPropagations so opening the working never fires the card action */
   return c.proof?`<div class="rec-cell">${card}${c.proof}</div>`:card;}
 function renderBriefRecs(){hideTip();const el=document.getElementById("briefRecs");if(!el)return;
@@ -1904,7 +1906,7 @@ function showConfirm(plan){if(writesOff())return;if(jobActive()){showModalMsg("A
     ? `<div class="confirm-note"><b>Before you start.</b> This will ${vb.inf} <b>${fmt(total)} issue(s)</b>. Revizto applies these at about one a second, so expect roughly <b>${eta}</b> of writing, plus the time you take to approve each batch. It runs in the background — you can keep using the dashboard, and pause or stop any time. ${promptLine}<br><br><b>Tip for a run this size:</b> set this connector to <b>Always allow</b> in Claude’s settings so it runs unattended. That lets any write through this connector go without asking until you switch it back — so turn it off afterwards if you’d rather approve each change. Prefer to stay hands-on? Leave it as is and approve each batch as it appears. Every issue still gets a dated note recording who changed it and why.</div>`
     : `<div class="confirm-note"><b>Before you continue.</b> ${promptLine} When the small Claude window appears, choose <b>Allow</b> to keep going or <b>Cancel</b> to stop — nothing changes in Revizto until you approve, and every issue gets a dated note recording who changed it and why.</div>`;
   const proceedLbl=big?`Start — ${vb.inf} ${fmt(total)} issue(s)`:`Proceed — ${vb.inf} ${fmt(total)} issue(s)`;
-  card.innerHTML=`<div class="confirm-h">⚠ Confirm — this writes to Revizto</div>
+  card.innerHTML=`<div class="confirm-h">${WARN_IC} Confirm — this writes to Revizto</div>
     <div class="confirm-sum">${plan.summary}</div>
     ${plan.proof||""}
     <ul class="confirm-list">${plan.groups.map(g=>`<li>${g.label} — ${fmt(g.issueUuids.length)} issue(s)</li>`).join("")}</ul>
@@ -2859,7 +2861,7 @@ function actCandidateEmails(){const set=new Set();(assigneeOptions()||[]).forEac
 function actRenderIdBar(){const b=document.getElementById("actId");if(!b)return;
   if(ME.email){b.innerHTML=`<span class="act-id-tag">YOU</span><span>“my” / “me” / “I” means <b>${_esc(ME.email)}</b></span><button type="button" class="act-link" id="actIdChange">Change</button>`;
     const c=document.getElementById("actIdChange");if(c)c.onclick=()=>actChooseIdentity(null);}
-  else{b.innerHTML=`<span class="act-id-tag warn"><span aria-hidden="true">⚠</span> SET</span><span>Tell me who <b>you</b> are so “my” / “me” targets <b>only your</b> issues — not everyone's.</span><button type="button" class="act-link" id="actIdSet">Choose your account…</button>`;
+  else{b.innerHTML=`<span class="act-id-tag warn">${WARN_IC} SET</span><span>Tell me who <b>you</b> are so “my” / “me” targets <b>only your</b> issues — not everyone's.</span><button type="button" class="act-link" id="actIdSet">Choose your account…</button>`;
     const c=document.getElementById("actIdSet");if(c)c.onclick=()=>actChooseIdentity(null);}}
 /* identity clarify gate — explicit pick (no whoami in the allowlist), remembered on the device */
 function actChooseIdentity(after){const stage=document.getElementById("actStage");if(!stage)return;
@@ -2944,6 +2946,8 @@ function actBuildSteps(parsed,vocab){const list=Array.isArray(parsed)?parsed:[pa
   return steps.length?steps:[actNormalizeIntent({},vocab)];}
 function _selOpts(list,cur){return list.map(o=>`<option value="${_esc(o.v)}"${String(o.v)===String(cur)?" selected":""}>${_esc(o.t)}</option>`).join("");}
 var ACT_REFRESH_IC='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+var WARN_IC='<svg class="warn-ic" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+var REC_ARROW_IC='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>';
 function actPeopleField(name,opts,sel){var empty=!opts||!opts.length;var qid=name+"_q";
   return '<div class="ac-people" data-people="'+_esc(name)+'"><div class="ac-people-ctl">'+
     '<input type="text" class="ac-psearch" id="'+_esc(qid)+'" placeholder="Search people…" autocomplete="off"'+(empty?" disabled":"")+'>'+
@@ -3029,9 +3033,9 @@ function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
     return `<div class="ac-frow" data-side="${side}" data-key="${k}"><div class="rsum" role="button" tabindex="0" aria-expanded="false"><span class="rk">${_esc(lab)}</span><span class="rv">${_esc(summ||"—")}</span><span class="rc" aria-hidden="true">${ACT_IC.caret}</span><button class="rx" type="button" title="Remove" aria-label="Remove ${_esc(lab)} ${side==="match"?"filter":"change"}">${ACT_IC.close}</button></div><div class="red">${side==="match"?matchCtl(k):doCtl(k)}</div></div>`;};
   let drows=(norm._drows?norm._drows.slice():actPresentD(c,norm));drows=ACT_DF.filter(k=>drows.indexOf(k)>=0);
   const doCol=`<div class="ac-col do"><div class="ac-zhead"><span class="ac-zico do">${ACT_IC.wand}</span><span class="ac-ztitle">Then apply…</span><span class="ac-zcount">${drows.length} change${drows.length===1?"":"s"}</span></div>${drows.length?drows.map(k=>frow("do",k)).join(""):`<div class="ac-cempty">No change yet — add one.</div>`}<button class="ac-addf" type="button" data-addf="do">${ACT_IC.plus} Add change</button></div>`;
-  const warnHtml=(norm.warnings&&norm.warnings.length)?`<div class="ac-warn"><span aria-hidden="true">⚠</span> ${norm.warnings.map(_esc).join("<br>")}</div>`:"";
+  const warnHtml=(norm.warnings&&norm.warnings.length)?`<div class="ac-warn">${WARN_IC} ${norm.warnings.map(_esc).join("<br>")}</div>`:"";
   const exprPerson=!fixedTarget&&!!(norm.expressedAssignee||norm.expressedReporter||norm.expressedWatcher);
-  const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden><span aria-hidden="true">⚠</span> <b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:<label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label><button type="button" class="ab-refresh" data-prefresh="1">${ACT_REFRESH_IC}Refresh member list</button></div>`:"";
+  const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden>${WARN_IC} <b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:<label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label><button type="button" class="ab-refresh" data-prefresh="1">${ACT_REFRESH_IC}Refresh member list</button></div>`:"";
   if(fixedTarget){
     return `<div class="act-chips"><div class="ac-tbanner">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>${doCol}${warnHtml}</div>`;
   }
@@ -3230,7 +3234,7 @@ function actShowPreview(target,norm){const stage=document.getElementById("actSta
     ${actDiffHtml(norm,target)}
     <div class="ap-scope ${scope.est?"est":""}"><span aria-hidden="true">↳</span><span>${scope.txt}</span></div>
     ${sampleRows?`<div class="ap-sample"><div class="as-h">Sample of affected issues (first ${Math.min(10,(target.sample||[]).length)})</div><ul>${sampleRows}</ul></div>`:""}
-    <div class="ap-sure"><span aria-hidden="true" style="color:var(--warn);flex:none;line-height:1.4">⚠</span><input type="checkbox" id="apSure"><label for="apSure">Yes — I want to ${vb.inf} ${fmt(n)} issue${n===1?"":"s"} in Revizto. I understand each one gets a dated, attributed note recording who changed it and why.</label></div>
+    <div class="ap-sure">${WARN_IC}<input type="checkbox" id="apSure"><label for="apSure">Yes — I want to ${vb.inf} ${fmt(n)} issue${n===1?"":"s"} in Revizto. I understand each one gets a dated, attributed note recording who changed it and why.</label></div>
     <div class="act-cta"><button class="btn primary" id="apGo" disabled>Continue to approval &rarr;</button><button class="btn" id="apBack">Back</button><span class="act-msg" id="apMsg" role="status" aria-live="polite"></span></div>
   </div>`;
   const sure=document.getElementById("apSure"),goB=document.getElementById("apGo");
@@ -3249,7 +3253,7 @@ function actShowStepsPreview(){const stage=document.getElementById("actStage");i
   stage.innerHTML=`<div class="act-prev">
     <div class="ap-count" tabindex="-1">${fmt(total)} <span class="un">issue${total===1?"":"s"} across ${fmt(groups.length)} step${groups.length===1?"":"s"} will change</span></div>
     <div class="apx-list">${rows}</div>${ov}
-    <div class="ap-sure"><span aria-hidden="true" style="color:var(--warn);flex:none;line-height:1.4">⚠</span><input type="checkbox" id="apSure"><label for="apSure">Yes — apply these ${fmt(groups.length)} grouped change${groups.length===1?"":"s"} to ${fmt(total)} issue${total===1?"":"s"} in Revizto. Each one gets a dated, attributed note recording who changed it and why.</label></div>
+    <div class="ap-sure">${WARN_IC}<input type="checkbox" id="apSure"><label for="apSure">Yes — apply these ${fmt(groups.length)} grouped change${groups.length===1?"":"s"} to ${fmt(total)} issue${total===1?"":"s"} in Revizto. Each one gets a dated, attributed note recording who changed it and why.</label></div>
     <div class="act-cta"><button class="btn primary" id="apGo" disabled>Continue to approval &rarr;</button><button class="btn" id="apBack">Back</button><span class="act-msg" id="apMsg" role="status" aria-live="polite"></span></div>
   </div>`;
   const sure=document.getElementById("apSure"),goB=document.getElementById("apGo");
