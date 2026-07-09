@@ -121,6 +121,15 @@ h1{font-weight:500;font-size:var(--fs-5);letter-spacing:-.01em;margin:2px 0 0}
 .ac-chks-scroll{max-height:120px;overflow:auto;flex-direction:column;flex-wrap:nowrap;gap:5px}
 .ac-chk{display:flex;align-items:center;gap:6px;font-family:var(--sans);font-size:var(--fs-2);text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;white-space:nowrap}
 .ac-chk input{margin:0;flex:none}
+.ac-people{display:flex;flex-direction:column;gap:6px}
+.ac-people-ctl{display:flex;gap:8px}
+.ac-psearch{flex:1;min-width:0;min-height:32px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-family:var(--sans);font-size:var(--fs-1);color:var(--ink);background:var(--white)}
+.ac-psearch:focus{outline:2px solid var(--teal-deep);outline-offset:1px;border-color:var(--teal-deep)}
+.ac-psearch:disabled{background:var(--paper);cursor:not-allowed}
+.ac-prefresh,.ab-refresh{flex:none;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--white);border-radius:8px;padding:5px 10px;font-family:var(--mono);font-size:var(--fs-1);color:var(--teal-ink);cursor:pointer}
+.ac-prefresh:hover,.ab-refresh:hover{border-color:var(--teal-deep)}
+.ac-people-empty{font-size:var(--fs-1);color:var(--muted);line-height:1.5}
+.ab-refresh{margin-top:8px}
 .ac-chks-empty{font-family:var(--sans);font-size:var(--fs-2);color:var(--muted);padding:2px}
 .asteps-head{font-family:var(--mono);font-size:var(--fs-1);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
 .asteps-head .asteps-hint{text-transform:none;letter-spacing:0;color:var(--muted);font-family:var(--sans);font-size:var(--fs-2);margin-left:8px}
@@ -2934,6 +2943,20 @@ function actBuildSteps(parsed,vocab){const list=Array.isArray(parsed)?parsed:[pa
   const steps=order.map(sig=>actNormalizeIntent(actMergeIntents(by[sig]),vocab));
   return steps.length?steps:[actNormalizeIntent({},vocab)];}
 function _selOpts(list,cur){return list.map(o=>`<option value="${_esc(o.v)}"${String(o.v)===String(cur)?" selected":""}>${_esc(o.t)}</option>`).join("");}
+var ACT_REFRESH_IC='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+function actPeopleField(name,opts,sel){var empty=!opts||!opts.length;var qid=name+"_q";
+  return '<div class="ac-people" data-people="'+_esc(name)+'"><div class="ac-people-ctl">'+
+    '<input type="text" class="ac-psearch" id="'+_esc(qid)+'" placeholder="Search people…" autocomplete="off"'+(empty?" disabled":"")+'>'+
+    '<button type="button" class="ac-prefresh" data-prefresh="1" title="Reload project members from Revizto">'+ACT_REFRESH_IC+'Refresh</button></div>'+
+    _chkGroup(name,opts,sel,true)+
+    (empty?'<div class="ac-people-empty">No project members loaded yet — <b>Refresh</b> to fetch them from Revizto.</div>':"")+
+  '</div>';}
+async function actRefreshMembers(btn){if(!(window.cowork&&window.cowork.callMcpTool))return;
+  if(btn){btn.disabled=true;btn.innerHTML=ACT_REFRESH_IC+"Loading…";}
+  try{if(typeof loadProjectMembers==="function")await loadProjectMembers(PRJ);}catch(e){}
+  var after=(typeof PMEMBERS!=="undefined"&&PMEMBERS)?PMEMBERS.length:0;
+  if(typeof actStoreActive==="function")actStoreActive();if(typeof actReRender==="function")actReRender();
+  var m=document.getElementById("acMsg");if(m)m.textContent=after?("Loaded "+after+" project member"+(after===1?"":"s")+"."):"No project members returned for this project.";}
 function _chkGroup(name,opts,sel,scroll){sel=sel||new Set();const inner=(opts||[]).map(o=>`<label class="ac-chk"><input type="checkbox" data-cg="${_esc(name)}" value="${_esc(o.v)}"${sel.has(String(o.v))?" checked":""}><span>${_esc(o.t)}</span></label>`).join("");return `<div class="ac-chks${scroll?" ac-chks-scroll":""}" role="group">${inner||'<span class="ac-chks-empty">none available</span>'}</div>`;}
 /* one step's editing form (filter + change), no CTA — the container adds the CTA. */
 /* WS12 — two-column Match/Do workbench: catalogues, crisp SVG icons, per-field summaries, progressive-disclosure rows. */
@@ -2968,7 +2991,7 @@ function actBindForm(stage){if(!stage)return;
   stage.querySelectorAll(".ac-frow .rx").forEach(x=>{x.onclick=e=>{e.stopPropagation();const fr=x.closest(".ac-frow");actRemoveField(fr.dataset.side,fr.dataset.key);};});
   stage.querySelectorAll("[data-addf]").forEach(b=>{b.onclick=e=>{e.stopPropagation();actAddMenu(b,b.dataset.addf);};});
   stage.querySelectorAll(".ac-frow").forEach(fr=>{const upd=()=>actRowChanged(fr);fr.addEventListener("input",upd);fr.addEventListener("change",upd);});
-  const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;
+  stage.querySelectorAll(".ac-people").forEach(function(pc){var q=pc.querySelector(".ac-psearch");if(q)q.addEventListener("input",function(){var t=q.value.trim().toLowerCase();pc.querySelectorAll(".ac-chk").forEach(function(lb){lb.style.display=(!t||lb.textContent.toLowerCase().indexOf(t)>=0)?"":"none";});});});stage.querySelectorAll("[data-prefresh]").forEach(function(b){b.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();actRefreshMembers(b);});});const abAllow=document.getElementById("abAllow");if(abAllow)abAllow.onchange=actSyncBlock;
   actSyncBlock();}
 function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const v=actVocab();const f=norm.filter||{},c=norm.change||{};
@@ -2982,9 +3005,9 @@ function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const _cgPeople=actCandidateEmails().map(e=>({v:e,t:(e===ME.email?e+"  —  me":e)}));const _cgStatus=[{v:"open",t:"Open"},{v:"in_progress",t:"In progress"},{v:"solved",t:"Solved"},{v:"closed",t:"Closed"}];const _cgPrio=PRIO_ENUM.map(p=>({v:p,t:p}));const _cgType=v.typeList.map(t=>({v:t.name,t:typeDisplay(t.name)}));const _setOf=x=>new Set((x||[]).map(String));
   const hint=t=>`<div class="rhint">${t}</div>`;
   const matchCtl=k=>{
-    if(k==="assignee")return _chkGroup("afAssignee",_cgPeople,_setOf(f.assigneeEmails),true)+hint(ACT_MFD.assignee);
-    if(k==="reporter")return _chkGroup("afReporter",_cgPeople,_setOf(f.reporterEmails),true)+hint(ACT_MFD.reporter);
-    if(k==="watcher")return _chkGroup("afWatcher",_cgPeople,_setOf(f.watcherEmails),true)+hint(ACT_MFD.watcher);
+    if(k==="assignee")return actPeopleField("afAssignee",_cgPeople,_setOf(f.assigneeEmails))+hint(ACT_MFD.assignee);
+    if(k==="reporter")return actPeopleField("afReporter",_cgPeople,_setOf(f.reporterEmails))+hint(ACT_MFD.reporter);
+    if(k==="watcher")return actPeopleField("afWatcher",_cgPeople,_setOf(f.watcherEmails))+hint(ACT_MFD.watcher);
     if(k==="status")return _chkGroup("afStatus",_cgStatus,_setOf(f.statuses),false)+hint(ACT_MFD.status);
     if(k==="priority")return _chkGroup("afPriority",_cgPrio,_setOf(f.priorities),false)+hint(ACT_MFD.priority);
     if(k==="type")return _chkGroup("afType",_cgType,_setOf(f.typeNames),false)+hint(ACT_MFD.type);
@@ -3008,7 +3031,7 @@ function actStepFormHtml(norm,fixedTarget){norm=norm||{filter:{},change:{}};
   const doCol=`<div class="ac-col do"><div class="ac-zhead"><span class="ac-zico do">${ACT_IC.wand}</span><span class="ac-ztitle">Then apply…</span><span class="ac-zcount">${drows.length} change${drows.length===1?"":"s"}</span></div>${drows.length?drows.map(k=>frow("do",k)).join(""):`<div class="ac-cempty">No change yet — add one.</div>`}<button class="ac-addf" type="button" data-addf="do">${ACT_IC.plus} Add change</button></div>`;
   const warnHtml=(norm.warnings&&norm.warnings.length)?`<div class="ac-warn"><span aria-hidden="true">⚠</span> ${norm.warnings.map(_esc).join("<br>")}</div>`:"";
   const exprPerson=!fixedTarget&&!!(norm.expressedAssignee||norm.expressedReporter||norm.expressedWatcher);
-  const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden><span aria-hidden="true">⚠</span> <b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:<label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label></div>`:"";
+  const blockHtml=exprPerson?`<div class="act-block" id="actBlock" hidden><span aria-hidden="true">⚠</span> <b>This step is about specific people.</b> No match is selected for: <b id="abList"></b>. Running now would target <b>everyone</b> for those. Pick them above, or confirm explicitly:<label class="ab-allow"><input type="checkbox" id="abAllow"> Yes — run on <b>all</b> (ignore the people I couldn't match)</label><button type="button" class="ab-refresh" data-prefresh="1">${ACT_REFRESH_IC}Refresh member list</button></div>`:"";
   if(fixedTarget){
     return `<div class="act-chips"><div class="ac-tbanner">Target: <b>${fmt(ACT.target?ACT.target.count:0)} selected issue${(ACT.target&&ACT.target.count)===1?"":"s"}</b> from Coordination analytics</div>${doCol}${warnHtml}</div>`;
   }
