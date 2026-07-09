@@ -1774,7 +1774,7 @@ function buildManualPlan(){if(writesOff())return;const g=id=>(document.getElemen
   showConfirm({summary:`Update ${uuids.length} issue${uuids.length>1?"s":""}: ${labels.join("; ")}`,reason,groups:[{issueUuids:uuids,change,label:labels.join("; ")}],prior,fields:Object.keys(change)});}
 async function runRec(key,fromBrief){if(writesOff())return;
   if(key==="loadcrit"){if(fromBrief)showTab("issues");document.getElementById("fStatus").value="";document.getElementById("fAssignee").value="";await loadWork();WORK=WORK.filter(w=>w.priority==="critical"||w.priority==="blocker");renderWork();document.getElementById("workStatus").textContent=`${WORK.length} open critical/blocker issue(s).`;return;}
-  if(key==="rebalance")await proposeRebalance();}
+  if(key==="rebalance"){if(current!=="action")showTab("action");await proposeRebalance();}}
 async function proposeRebalance(){
   if(writesOff()){showModalMsg("Rebalance unavailable",READONLY?"Read-only mode is on — switch it off to action changes in Revizto.":"Connect the Revizto MCP to action a rebalance.");return;}
   const pool=(DATA.assigneesFull||DATA.assignees||[]).filter(a=>a[0]&&a[0]!=="(unassigned)");const top=pool[0];
@@ -1828,7 +1828,7 @@ async function proposeRebalance(){
     /* reconciliation: one more attempt at any page that failed transiently */
     for(const page of failed){if(open.length>=moveTarget)break;const r=await pull(page);if(my!==reqSeq){closeConfirm();return;}if(r){const d=(r&&r.data)||[];for(const i of d){if(i&&i.uuid)open.push(i.uuid);}prog();}}
     const fetched=open.length;
-    if(!fetched){showModalMsg("Couldn't plan rebalance","Couldn't load the issues to move just now — the connector isn't responding. Give it a moment and try again.");return;}
+    if(!fetched){showRetryMsg("Couldn't plan rebalance","Couldn't load the issues to move just now — the connector may be busy. It's usually transient, so try again in a moment.",function(){runRec("rebalance",false);});return;}
     const moveCount=Math.min(moveTarget,fetched),move=open.slice(0,moveCount);
     /* spread the move across ALL receivers proportional to capacity \u2014 a partial move must still span the team,
        not collapse onto the largest-capacity person (that was the single-assignee failure). */
@@ -1863,7 +1863,7 @@ async function proposeRebalance(){
         +`<div class="proof-src"><span aria-hidden="true">\u21b3</span> Source: ${_exactLoad?"exact open counts (count-first)":"representative sample of contributor load \u2014 confirm before acting"}${_exactLoad?"":proofTerm("representative sample","Contributor load estimated from a spread of issues across the whole project, not every issue. Confirm before acting.")}</div>`});
     showConfirm({summary:`Rebalance ${moveCount} of ${top[0]}'s ${top[2]} open issues (~${pct}%) across ${groups.length} teammate(s) toward the team fair-share of ~${fairDisp}`,reason:`Fair-share rebalance \u2014 ${top[0]} holds ${top[2]} open (${conc}% of the ${backlog} active backlog${sizedNote}); this brings them to ~${newTop} (${newConc}%) and lifts under-loaded teammates toward the ~${fairDisp} mean.${batch}`,groups,prior,fields:["assignee"],proof:_rebProof});
     if(ws)ws.textContent="";
-  }catch(e){showModalMsg("Couldn't plan rebalance","The issue list couldn't be loaded just now. Check the MCP connection and try again.");}
+  }catch(e){showRetryMsg("Couldn't plan rebalance","The issue list couldn't be loaded just now. Check the MCP connection, then try again.",function(){runRec("rebalance",false);});}
 }
 let _modalReturn=null;
 function modalFocusable(){const c=document.getElementById("confirmCard");if(!c)return [];return [...c.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(e=>!e.disabled&&e.offsetParent!==null);}
@@ -1879,6 +1879,7 @@ document.addEventListener("keydown",e=>{const m=document.getElementById("confirm
     if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
     else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 function showConfirmLoading(text){const m=modalOpen(`<div class="confirm-h">Working…</div><div class="confirm-load"><span class="spin" aria-hidden="true"></span><span>${text}</span></div>`);if(m)m.onclick=null;}
+function showRetryMsg(title,body,retry){var m=modalOpen(`<div class="confirm-h">${typeof WARN_IC!=="undefined"?WARN_IC+" ":""}${title}</div><div class="confirm-sum">${body}</div><div class="confirm-actions"><button class="btn primary" id="cRetry2">Try again</button><button class="btn" id="cClose3">Close</button></div>`);if(!m)return;var r=document.getElementById("cRetry2");if(r)r.onclick=function(){closeConfirm();try{if(retry)retry();}catch(e){}};var b=document.getElementById("cClose3");if(b)b.onclick=closeConfirm;m.onclick=function(e){if(e.target===m)closeConfirm();};}
 function showModalMsg(title,body){const m=modalOpen(`<div class="confirm-h">${title}</div><div class="confirm-sum">${body}</div><div class="confirm-actions"><button class="btn primary" id="cClose2">Close</button></div>`);if(!m)return;const b=document.getElementById("cClose2");if(b)b.onclick=closeConfirm;m.onclick=e=>{if(e.target===m)closeConfirm();};}
 /* promise-based confirm for heavy loads — resolves true on confirm, false on cancel / backdrop / Esc.
    (The global keydown handler also closes the modal on Esc; the capture-phase listener here ensures the

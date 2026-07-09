@@ -2,6 +2,7 @@
 
 ## Unreleased (post-rc.1)
 
+- Action unification, Stage 1: fixed the morning-brief rebalance dead-end. Rebalance now switches to the 06 Action view first, and the two "Couldn't plan rebalance / the connector isn't responding" dialogs now offer a **Try again** button (the connector stall is transient) instead of terminating. Rebalance already composes its full fair-share plan + proof into the shared approval modal and job runner; this makes it recoverable and lands it in 06. Follow-up stages: route the match-based triggers (triage criticals, worklist) into 06's Match/Do workbench, and surface the rebalance plan as an editable pre-built plan in 06.
 - Terms button: dropped the document glyph so it matches the text-only About pill (About · Terms · Tour).
 - Issue actions (06): the status filter now defaults to "Any status" instead of "Open" — reordered the options and removed the JS that forced it back to Open on the 04→06 handoff.
 - Warn/caution polish. Retuned the semantic warn colour from the muddy burnt-orange `#B45309` to a cleaner orange-red `#C2410C` (with a warmer tint and border), applied via the single `--warn` token so every write/risk surface updates together — rec tiles, badges, banners, the identity "SET" tag, and the approval modal. Still AA-compliant. Replaced all thin text "⚠" glyphs with a crisp SVG warning triangle at a legible 14px, and made the recommendation-card arrow a bolder 17px SVG, so caution icons read clearly instead of being nearly invisible.
