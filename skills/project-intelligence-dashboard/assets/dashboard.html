@@ -3675,9 +3675,8 @@ function tcsRenderFoot(gate){
   }else{
     var html="";
     if(rec){html+='<div class="tcs-rec">'+seal+'<span>Accepted by '+tcsEsc(rec.name||"—")+' on '+tcsEsc(tcsFmtWhen(rec.at))+' · v'+tcsEsc(rec.v||"")+'</span></div>';}
-    html+='<div class="tcs-actions"><button class="tcs-done" id="tcsOk" type="button">Close</button>'+(rec?'<button class="tcs-done" id="tcsReset" type="button" style="background:transparent;color:var(--red);border:1px solid var(--red);margin-left:8px">Reset acceptance (demo)</button>':'')+'</div>';
+    html+='<div class="tcs-actions"><button class="tcs-done" id="tcsOk" type="button">Close</button></div>';
     ft.innerHTML=html;var ok=document.getElementById("tcsOk");if(ok)ok.addEventListener("click",closeTcs);
-    var rs=document.getElementById("tcsReset");if(rs)rs.addEventListener("click",function(){try{localStorage.removeItem(TCS_KEY);}catch(e){}try{localStorage.removeItem("rvz_actor");}catch(e){}location.reload();});
   }
 }
 function openTcs(gate){var sc=document.getElementById("tcsScrim");if(!sc)return;TCS_GATE=!!gate;sc.classList.toggle("tcs-scrim--gate",!!gate);var _su=document.getElementById("tcsSumm");if(_su)_su.hidden=!gate;_tcsReturn=document.activeElement;tcsRenderFoot(TCS_GATE);sc.hidden=false;document.body.style.overflow="hidden";tcsInert(true);var bd=document.getElementById("tcsBody");if(bd)bd.scrollTop=0;var f=tcsFocusable();if(f.length)setTimeout(function(){try{f[0].focus();}catch(e){}},20);}
