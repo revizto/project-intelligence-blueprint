@@ -1901,7 +1901,7 @@ async function executePlan(){if(!PENDING||writesOff())return;
     prior:PENDING.prior||{},fields:PENDING.fields||[],totalN,confirmed:[],already:[],failed:[],status:"running",rate:null,verbPast:_vb.past,srcPrompt:PENDING.srcPrompt||""};
   PENDING=null;window._writing=false;closeConfirm();
   persistJob();showDock();focusDock();runJob();}
-async function runJob(){if(!JOB)return;if(JOB_LOOP)return;JOB_LOOP=true;JOB.status="running";renderDock();const durs=[];try{
+async function runJob(){if(!JOB)return;if(JOB_LOOP)return;/* trust guard: never write unattributed — a job persisted before the name-gate could lack actor/reason; re-collect through the approval gate before any write */if(!(JOB.actor&&String(JOB.actor).trim())||!(JOB.reason&&String(JOB.reason).trim())){const _rem=jobRemainingGroups();const _plan=_rem.length?{summary:JOB.summary,reason:JOB.reason||"",groups:_rem,prior:JOB.prior||{},fields:JOB.fields||[],srcPrompt:JOB.srcPrompt||""}:null;JOB=null;persistJob();var _jd=document.getElementById("jobDock");if(_jd)_jd.hidden=true;if(_plan&&typeof showConfirm==="function")showConfirm(_plan);return;}JOB_LOOP=true;JOB.status="running";renderDock();const durs=[];try{
   for(const g of jobRemainingGroups()){
     const audit=`Revizto Project Intelligence Blueprint — ${g.label}. ${JOB.ts}${JOB.actor?" by "+JOB.actor:""}. Reason: ${JOB.reason}`;
     for(let i=0;i<g.issueUuids.length;i+=WRITE_BATCH){
