@@ -2538,17 +2538,15 @@ function renderCoffee(){const m=DATA.meta;
   const _nmParts=[];
   if(RS.ready)_nmParts.push("rebalance the "+RS.conc+"% of the open backlog on "+RS.top[0]);
   if(crit>0)_nmParts.push("triage the "+(critEst!==crit?"~"+fmt(critEst):fmt(crit))+" unresolved criticals"+sampQ);
-  _nmParts.push(clashMoveClause);
   const _nmLead=_nmParts.length>=3?"Three to fire this morning: ":(_nmParts.length===2?"Two to fire this morning: ":"To fire this morning: ");
-  const _nmNarr=_nmParts.length>1?(_nmLead+_nmParts.slice(0,-1).join(", ")+", and "+_nmParts[_nmParts.length-1]+"."):(_nmLead+_nmParts[0]+".");
+  const _nmNarr=_nmParts.length===0?"Nothing urgent to fire this morning — no overloaded owner and no unresolved criticals right now.":(_nmParts.length>1?(_nmLead+_nmParts.slice(0,-1).join(", ")+", and "+_nmParts[_nmParts.length-1]+"."):(_nmLead+_nmParts[0]+"."));
   const _nmActs=[];
   if(RS.ready)_nmActs.push(["Rebalance load",""]);
   _nmActs.push(["Triage criticals","List the oldest unresolved critical and blocker issues with their assignees."]);
-  _nmActs.push([clashMoveLabel,clashMovePrompt]);
   const moves=[
     ["01","Project Radar§High-level analytics",m1,[],"A one-glance read of the project's overall state for your chosen persona — active backlog vs total, resolution rate, 90-day net movement and an at-risk / watch / on-plan verdict. Use it to decide whether the project needs your attention today."],
     ["02","Hot Spots§At-risk items",m2,[["Dig in",`As a ${lensName}, what is the single biggest risk on this project today, and why?`]],"The single biggest risk surfaced for your persona — usually an overloaded assignee, ageing criticals, or a coordination gap. 'Dig in' asks the live project for the detail behind it."],
-    ["03","Next Moves§Immediate actions",_nmNarr,_nmActs,"The highest-leverage actions this morning — when one owner is overloaded, set up a rebalance in Action anything; triage the unresolved criticals; and keep clash coverage current. Buttons open Action anything for review, load the worklist, or ask the project."],
+    ["03","Next Moves§Immediate actions",_nmNarr,_nmActs,"The highest-leverage actions this morning — when one owner is overloaded, set up a rebalance in Action anything, and triage the unresolved criticals. Buttons open Action anything for review or load the worklist."],
     ["04","The Finish Line§Done and verified",`${dormant} licence member(s) invited but dormant; last project activity ${idle} days ago. Adoption is the quiet risk.`,[["Draft a nudge",`Draft a short, friendly nudge to the dormant project members to log back in and pick up their issues.`]],"Closure and adoption signals — dormant members and time since last activity — the quiet risks to getting everything verified and closed by your milestone."]];
   const actOf=a=>({'Rebalance load':'rebalance','Triage criticals':'loadcrit'})[a[0]]||'';
   document.getElementById("moves").innerHTML=moves.map(mv=>{const acts=mv[3].filter(a=>!(writesOff()&&isWriteAct(actOf(a))));/* hide write-back actions in read-only — Trust */
@@ -3675,8 +3673,9 @@ function tcsRenderFoot(gate){
   }else{
     var html="";
     if(rec){html+='<div class="tcs-rec">'+seal+'<span>Accepted by '+tcsEsc(rec.name||"—")+' on '+tcsEsc(tcsFmtWhen(rec.at))+' · v'+tcsEsc(rec.v||"")+'</span></div>';}
-    html+='<div class="tcs-actions"><button class="tcs-done" id="tcsOk" type="button">Close</button></div>';
+    html+='<div class="tcs-actions"><button class="tcs-done" id="tcsOk" type="button">Close</button>'+(rec?'<button class="tcs-done" id="tcsReset" type="button" style="background:transparent;color:var(--red);border:1px solid var(--red);margin-left:8px">Reset acceptance (demo)</button>':'')+'</div>';
     ft.innerHTML=html;var ok=document.getElementById("tcsOk");if(ok)ok.addEventListener("click",closeTcs);
+    var rs=document.getElementById("tcsReset");if(rs)rs.addEventListener("click",function(){try{localStorage.removeItem(TCS_KEY);}catch(e){}try{localStorage.removeItem("rvz_actor");}catch(e){}location.reload();});
   }
 }
 function openTcs(gate){var sc=document.getElementById("tcsScrim");if(!sc)return;TCS_GATE=!!gate;sc.classList.toggle("tcs-scrim--gate",!!gate);var _su=document.getElementById("tcsSumm");if(_su)_su.hidden=!gate;_tcsReturn=document.activeElement;tcsRenderFoot(TCS_GATE);sc.hidden=false;document.body.style.overflow="hidden";tcsInert(true);var bd=document.getElementById("tcsBody");if(bd)bd.scrollTop=0;var f=tcsFocusable();if(f.length)setTimeout(function(){try{f[0].focus();}catch(e){}},20);}
