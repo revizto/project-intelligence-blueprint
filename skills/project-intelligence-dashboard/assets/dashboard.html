@@ -1830,8 +1830,8 @@ function showConfirm(plan){if(writesOff())return;if(jobActive()){showModalMsg("A
     <div class="confirm-sum">${plan.summary}</div>
     ${plan.proof||""}
     <ul class="confirm-list">${plan.groups.map(g=>`<li>${g.label} — ${fmt(g.issueUuids.length)} issue(s)</li>`).join("")}</ul>
-    <label class="reason">Reason — written into each issue <input type="text" id="cReason" value="${(plan.reason||"").replace(/"/g,"&quot;")}"></label>
-    <label class="reason">Your name / initials — for the audit trail <input type="text" id="cActor" value="${(ME.name||"").replace(/"/g,"&quot;")}" placeholder="e.g. JH"></label>
+    <label class="reason">Reason — written into each issue <span class="tcs-req">· required</span> <input type="text" id="cReason" value="${(plan.reason||"").replace(/"/g,"&quot;")}"></label>
+    <label class="reason">Your name / initials — for the audit trail <span class="tcs-req">· required</span> <input type="text" id="cActor" value="${(ME.name||"").replace(/"/g,"&quot;")}" placeholder="e.g. JH"></label>
     ${noteHtml}
     <div class="confirm-actions"><button class="btn primary" id="cProceed">${proceedLbl}</button><button class="btn" id="cCancel">Cancel</button><span class="em" id="cMsg"></span></div>`;
   openModalA11y();m.hidden=false;const ri=document.getElementById("cReason");if(ri)setTimeout(()=>ri.focus(),10);
@@ -1889,7 +1889,8 @@ function planVerb(plan){const f=(plan&&plan.fields)||[];const g=(plan&&plan.grou
 /* the confirm modal is the one blocking DECISION; on Proceed we hand off to the non-blocking dock */
 async function executePlan(){if(!PENDING||writesOff())return;
   const reason=((document.getElementById("cReason")||{}).value||"").trim();const actor=((document.getElementById("cActor")||{}).value||"").trim();const msg=document.getElementById("cMsg");
-  if(!reason){if(msg)msg.textContent="A reason is required.";return;}
+  if(!reason){if(msg)msg.textContent="A reason is required.";var _re=document.getElementById("cReason");if(_re){try{_re.focus();}catch(e){}}return;}
+  if(!actor){if(msg)msg.textContent="Your name or initials is required for the audit trail.";var _na=document.getElementById("cActor");if(_na){try{_na.focus();}catch(e){}}return;}
   if(jobActive()){if(msg)msg.textContent="A bulk update is already running — finish or stop it first.";return;}
   ME.name=actor;localStorage.setItem("rvz_actor",actor);
   const totalN=PENDING.groups.reduce((s,g)=>s+(g.issueUuids||[]).length,0);
