@@ -1255,7 +1255,7 @@ let PRJ=localStorage.getItem("rvz_prj")||""; /* no seed: refresh() lands on the 
 let LICENSES=[],PROJECTS=[],COMPARE=[],cmpLoading=false,cmpPivot="projects",cmpFcast=3,cmpOutlook=1,cmpTeamSrc="company",cmpLoad=null,cmpDoneAt="",cmpSort="attention",cmpSigFilter="all",cmpKeyOpen=false;
 let STATUSES=[],TYPES=[],PMEMBERS=[],WORK=[],workSel=new Set(),PENDING=null;let PORTM={};
 let ME={name:localStorage.getItem("rvz_actor")||"",email:localStorage.getItem("rvz_me_email")||""};/* email = who "my"/"me"/"I" resolves to in 06 Action; set explicitly (no whoami in the allowlist) */
-let READONLY=(CONFIG.readOnly||localStorage.getItem("rvz_readonly")==="1");let LAST=null;let NOPROJ=false;
+let READONLY=true;/* WS17: force read-only at EVERY start — the toggle is per-session only; the last state is never remembered (was CONFIG.readOnly||localStorage rvz_readonly). CONFIG.readOnly:true still hard-locks the toggle. */let LAST=null;let NOPROJ=false;
 /* user-adjustable issue sample scale.
    PCT mode (default): sample n = clamp(10%..100% of the LIVE basis = open + in-progress + solved),
    floored at SAMPLE_FLOOR (so small / early-life projects stay precise) and capped at SAMPLE_CEILING
