@@ -10,9 +10,13 @@ This plugin needs the **Revizto MCP** connector. It is a directory connector wit
 
 Auth is OAuth 2.1 PKCE against the regional Revizto API; the user signs in on connect. The dashboard's reads are **read-only** by default; the write tool (`update_issues`) is inert while `CONFIG.readOnly` is `true`.
 
-## Regional endpoints
+## Regional endpoints (multi-region, WS20)
 
-The MCP authenticates against the *regional* Revizto API. A customer in any region connects their regional MCP entry and the dashboard follows — there is no region binding in the dashboard itself (region shown in AI context is derived from the connected project's metadata).
+The MCP authenticates against the *regional* Revizto API — **each Revizto region is a separate MCP connector**. The dashboard binds regions in a deploy-time registry: `CONFIG.servers` in `dashboard.html` maps a region key → that region's connector prefix (`mcp__<your-connector-id>__`) + the workspace host for issue deep-links.
+
+- **Single region (most installs):** keep one entry, set its `prefix` to your connector id. No region UI appears.
+- **Multi-region estates:** add one entry per region your organisation uses (each with its own connector id). A Region dropdown appears in the toolbar; switching regions fully resets state, re-locks read-only, and re-runs the T&C acceptance for that region.
+- Licences are regional: a licence unreachable from a region's MCP reports its actual cause (account authorisation, licence role, or wrong-region) rather than failing silently.
 
 ## Admin network allowlist (Team/Enterprise)
 
