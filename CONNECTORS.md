@@ -10,13 +10,20 @@ This plugin needs the **Revizto MCP** connector. It is a directory connector wit
 
 Auth is OAuth 2.1 PKCE against the regional Revizto API; the user signs in on connect. The dashboard's reads are **read-only** by default; the write tool (`update_issues`) is inert while `CONFIG.readOnly` is `true`.
 
-## Regional endpoints (multi-region, WS20)
+## Regional connections (licence-first, WS21)
 
-The MCP authenticates against the *regional* Revizto API — **each Revizto region is a separate MCP connector**. The dashboard binds regions in a deploy-time registry: `CONFIG.servers` in `dashboard.html` maps a region key → that region's connector prefix (`mcp__<your-connector-id>__`) + the workspace host for issue deep-links.
+Each Revizto region is a separate MCP connection (see the regional server URLs in Revizto's MCP help article). Add one connection per region your organisation uses, then list each connection's id in `CONFIG.connectors` in `dashboard.html`:
 
-- **Single region (most installs):** keep one entry, set its `prefix` to your connector id. No region UI appears.
-- **Multi-region estates:** add one entry per region your organisation uses (each with its own connector id). A Region dropdown appears in the toolbar; switching regions fully resets state, re-locks read-only, and re-runs the T&C acceptance for that region.
-- Licences are regional: a licence unreachable from a region's MCP reports its actual cause (account authorisation, licence role, or wrong-region) rather than failing silently.
+```js
+connectors:[
+  {prefix:"mcp__<your-connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
+  // one entry per connected region — any subset works
+]
+```
+
+The dashboard is **licence-first**: it probes every configured connection, aggregates the licences your Revizto user can see into one picker ("Licence name — Region"), and automatically routes each licence to the connection that serves it. The displayed region is always the licence's own Revizto region. With a single entry there is no extra UI; with several, a Connections ⓘ shows per-connection health.
+
+If a licence can't be read, the dashboard explains the actual cause: the account hasn't enabled the Revizto MCP server (Developer Portal), your licence role is insufficient, or the licence lives on a regional instance you haven't connected.
 
 ## Admin network allowlist (Team/Enterprise)
 

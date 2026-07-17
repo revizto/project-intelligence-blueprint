@@ -599,7 +599,9 @@ tr:last-child td{border-bottom:0}
 .ctl-right-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 #prjBtnLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0;text-align:left}
 #licPick{width:248px;max-width:46vw}
-#regPick{width:200px;max-width:40vw}
+.regbadge{display:inline-flex;align-items:center;padding:2px 10px;border:1px solid #CBDDDD;border-radius:999px;font-size:var(--fs-1,11px);color:#1E2E2E;white-space:nowrap}
+.connwrap{display:inline-flex;align-items:center;gap:4px}
+.connlbl{font-size:var(--fs-1,11px);color:#5b6b6b}
 .cb-lic{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 .combo{display:flex;align-items:center;gap:8px;position:relative}
 .combo>label{font-family:var(--mono);font-size:var(--fs-1);color:var(--muted)}
@@ -925,7 +927,7 @@ th{white-space:nowrap}
     </div>
   </header>
   <div class="controlbar">
-    <div class="cb-lic"><div class="prjpick" id="regWrap" hidden><label for="regPick">Region</label><select id="regPick" aria-label="Select region" title="Switch the Revizto region — each region is a separate MCP connector and Revizto instance"></select></div><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div></div>
+    <div class="cb-lic"><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div><span class="regbadge" id="regBadge" hidden></span><div class="connwrap" id="connWrap" hidden title="Revizto MCP connections"><button class="proof-i" id="connI" type="button" data-proof-i aria-label="Connections — status" data-proof-def="Checking your Revizto MCP connections…"><span aria-hidden="true">&#9432;</span></button><span class="connlbl" id="connLbl" aria-hidden="true"></span></div></div>
     <div class="cb-prj"><div class="combo" id="prjCombo"><label>Project</label>
         <button class="combo-btn" id="prjBtn" aria-haspopup="listbox" aria-expanded="false"><span id="prjBtnLabel">Loading…</span><span class="combo-caret">▾</span></button>
         <button class="proof-i" id="prjFactsI" type="button" data-proof-i aria-label="Project details — created, last activity, model revision" hidden><span aria-hidden="true">&#9432;</span></button>
@@ -1251,19 +1253,23 @@ th{white-space:nowrap}
 </div>
 
 <script>
-const CONFIG={servers:{
- "ireland":{label:"Ireland (eu-west-1)",prefix:"mcp__YOUR-REVIZTO-MCP-CONNECTOR-ID__",wsHost:"ws.revizto.com",env:"prod",missing:[]}
-},defaultRegion:"ireland",readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.2"};
-/* Deploy-time REGION REGISTRY (production). Each Revizto region is its own MCP connector: add one entry per region your
-   organisation uses and set that entry's prefix to YOUR connector id for the region (see CONNECTORS.md — the install
-   steps cover finding the id). With a single entry the region selector stays hidden and the build behaves single-region;
-   with several, a Region dropdown appears in the toolbar. wsHost stays "ws.revizto.com" for production deep-links.
-   readOnly:true — the write surface (06 Action anything) ships disabled; enabling it is a deploy-time decision, never a
-   runtime toggle. T&C acceptance is recorded per region. */
-let REGION=(function(){try{var r=localStorage.getItem("rvz_region");return (r&&CONFIG.servers[r])?r:CONFIG.defaultRegion;}catch(e){return CONFIG.defaultRegion;}})();
-CONFIG.server=(CONFIG.servers[REGION]||{}).prefix||"";CONFIG.wsHost=(CONFIG.servers[REGION]||{}).wsHost||"ws.revizto.com";/* legacy mirrors — retargeted by setRegion() so every existing CONFIG.server / CONFIG.wsHost read stays correct */
-let LIC=localStorage.getItem(lsKey("rvz_lic"))||""; /* no seed: discoverLicenses() lands on the user's first/own licence on a fresh install */
-let PRJ=localStorage.getItem(lsKey("rvz_prj"))||""; /* no seed: refresh() lands on the most-recently-active project of the discovered licence */
+const CONFIG={connectors:[
+ /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
+    prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
+    Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
+],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.4"};
+/* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
+   be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
+   LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
+   always the SELECTED LICENCE's own region. One entry keeps the UI single-connection; several add a Connections ⓘ.
+   readOnly:true — the write surface (06 Action anything) ships disabled; enabling it is a deploy-time decision,
+   never a runtime toggle. T&C acceptance is recorded per connection. */
+const REGION_NAMES={"us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland"};
+function regionName(c){return REGION_NAMES[c]||c||"—";}
+let CONN=(function(){try{var c=localStorage.getItem("rvz_conn");if(c&&CONFIG.connectors.some(function(x){return x.prefix===c;}))return c;}catch(e){}return (CONFIG.connectors[0]||{}).prefix||"";})();
+CONFIG.server=CONN;CONFIG.wsHost=(CONFIG.connectors.find(function(x){return x.prefix===CONN;})||{}).wsHost||"ws.revizto.com";/* legacy mirrors — retargeted by setConn() so every existing CONFIG.server / CONFIG.wsHost read stays correct */
+let LIC=localStorage.getItem("rvz_lic2")||"";/* global — the licence picker aggregates every connection */ /* no seed: discoverLicenses() lands on the user's first/own licence on a fresh install */
+let PRJ=localStorage.getItem("rvz_prj2")||""; /* no seed: refresh() lands on the most-recently-active project of the discovered licence */
 let LICENSES=[],PROJECTS=[],COMPARE=[],cmpLoading=false,cmpPivot="projects",cmpFcast=3,cmpOutlook=1,cmpTeamSrc="company",cmpLoad=null,cmpDoneAt="",cmpSort="attention",cmpSigFilter="all",cmpKeyOpen=false;
 let STATUSES=[],TYPES=[],PMEMBERS=[],WORK=[],workSel=new Set(),PENDING=null;let PORTM={};
 let ME={name:localStorage.getItem("rvz_actor")||"",email:localStorage.getItem("rvz_me_email")||""};/* email = who "my"/"me"/"I" resolves to in 06 Action; set explicitly (no whoami in the allowlist) */
@@ -1577,28 +1583,33 @@ function sampleBadge(){const s=DATA.sample;if(!s)return "";
 let reqSeq=0;let sampling=false;
 async function refresh(){
   if(!(window.cowork&&window.cowork.callMcpTool)){if(window.demoBoot)window.demoBoot(PRJ);return;}/* demo/standalone: re-seed, never attempt a live load */
+  if(typeof tcsAccepted==="function"&&!tcsAccepted())return;/* WS21.1 defence-in-depth: no live MCP call before consent, whatever the caller */
   const my=++reqSeq;bumpCB();
   try{
     await discoverLicenses(my);if(my!==reqSeq)return;const lic=LIC;
-    let arr=[],_forbidden=false,_fk=null;try{const projs=await call(RB+"list_projects",{licenseUuid:lic,include:["revision","lastActive","has3d"]});if(projs&&projs.error)_forbidden=true;arr=Array.isArray(projs&&projs.entities)?projs.entities:(Array.isArray(projs)?projs:[]);const _lid=(LICENSES.find(l=>l.uuid===lic)||{}).id;if(_lid!=null)arr=arr.filter(p=>p&&p.license_id===_lid);}catch(e){_forbidden=true;_fk=mcpFailKind(e);arr=[];}
+    let arr=[],_forbidden=false,_fk=null;
+    const _rc=await resolveConn(lic,my);if(my!==reqSeq)return;
+    if(_rc&&_rc.projects){arr=_rc.projects;const _le=LICENSES.find(l=>l.uuid===lic)||{};const _lid=(_le._ids&&_le._ids[_rc.conn]!=null)?_le._ids[_rc.conn]:_le.id;/* WS21.1: numeric licence ids are instance-scoped — filter with the SERVING connection's id */if(_lid!=null)arr=arr.filter(p=>p&&p.license_id===_lid);}
+    else if(_rc&&_rc.fail){_forbidden=true;_fk=_rc.fail;}
+    else if(!_rc){_forbidden=!!DISC_ERR;_fk=DISC_ERR;}
     if(my!==reqSeq)return;
     PROJECTS=arr;if(arr.length&&!arr.find(p=>p.uuid===PRJ)){const _mr=arr.slice().sort((a,b)=>(b.lastActive||b.updated||"").localeCompare(a.lastActive||a.updated||""))[0];if(_mr)PRJ=_mr.uuid;}renderPicker();
     const prj=PRJ;
-    if(!PROJECTS.length||!prj){blankData();setNoProj(true);var _kk=_fk||DISC_ERR;const _nb=document.getElementById("noproj");if(_nb){_nb.innerHTML=(_forbidden||_kk)?("<b>"+((_kk&&_kk.t)||"This licence isn’t accessible via the MCP Server.")+"</b><br>"+((_kk&&_kk.d)||"The Revizto MCP could not read this licence from the "+regionCfg().label+" connector. Nothing can be shown live; switch licence — or region — above.")):"<b>No projects in this licence.</b><br>Nothing to display — all project insights are cleared. Switch licence above to view a project.";}setSrc((_forbidden||_kk)?"Licence not accessible via MCP":"No projects in this licence",(_forbidden||_kk)?"#B42318":"#0097A7");renderHeader();renderPicker();renderTab(current);return;}
+    if(!PROJECTS.length||!prj){blankData();setNoProj(true);var _kk=_fk||DISC_ERR;const _nb=document.getElementById("noproj");if(_nb){_nb.innerHTML=(_forbidden||_kk)?("<b>"+((_kk&&_kk.t)||"This licence isn’t accessible via the MCP Server.")+"</b><br>"+((_kk&&_kk.d)||"The Revizto MCP could not read this licence from any of your connections. Nothing can be shown live; switch licence above.")):"<b>No projects in this licence.</b><br>Nothing to display — all project insights are cleared. Switch licence above to view a project.";}setSrc((_forbidden||_kk)?"Licence not accessible via MCP":"No projects in this licence",(_forbidden||_kk)?"#B42318":"#0097A7");renderHeader();renderPicker();renderTab(current);return;}
     setNoProj(false);
     const pj=arr.find(p=>p.uuid===prj)||arr[0];
     if(pj){DATA._projectId=pj.id||DATA._projectId;DATA.meta.name=pj.title||DATA.meta.name;DATA.meta.created=(pj.created||"").slice(0,10)||DATA.meta.created;DATA.meta.lastActive=pj.lastActive||DATA.meta.lastActive;DATA.meta.region=pj.region||DATA.meta.region;DATA.meta.has3d=(pj.has3d!==false);if(pj.revision){DATA.meta.revNum=pj.revision.number;DATA.meta.revBy=(pj.revision.author||{}).fullname||DATA.meta.revBy;DATA.meta.revDate=(pj.revision.created||"").slice(0,10);}}
-    DATA.sheetsNote="";if(!regionHas("list_sheets")){DATA.sheets=null;DATA.sheetsNote="Sheets aren’t exposed by this region’s MCP build";}
+    DATA.sheetsNote="";if(!connHas("list_sheets")){DATA.sheets=null;DATA.sheetsNote="Sheets aren’t exposed by this region’s MCP build";}
     else{try{const sh=await call(RB+"list_sheets",{projectUuid:prj});if(my!==reqSeq)return;DATA.sheets=(sh.entities||sh).length;{const _sh=(sh.entities||sh);if(_sh[0]&&_sh[0].uuid)DATA._sheetUuid=_sh[0].uuid;}}catch(e){if(my!==reqSeq)return;DATA.sheets=null;DATA.sheetsNote=mcpFailKind(e).t;}}/* WS20: per-region MCP builds can lack tools — degrade HONESTLY (null + note, never a fabricated 0), don’t abort the whole refresh */
     try{let ct=await call(RB+"list_clash_tests",{projectUuid:prj});if(my!==reqSeq)return;const _cte=Array.isArray(ct)?ct:((ct.entities||ct.data)||[]);DATA.clashTests=_cte.length;DATA.clashRun=_cte.filter(t=>t&&t.lastRunAt&&!/^0001-/.test(String(t.lastRunAt))).length;}catch(e){if(my!==reqSeq)return;DATA.clashTests=0;DATA.clashRun=0;}
-    try{const stp=await call(RB+"list_stamp_templates",{projectUuid:prj});const _ste=(stp&&(stp.entities||stp.data))||[];DATA.stamps=(stp&&stp.count!=null)?stp.count:_ste.length;DATA.stampDisc=_ste.filter(t=>t&&t.nodeRole===2).length;DATA.stampLeaf=_ste.filter(t=>t&&t.nodeRole===1).length;}catch(e){DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;}if(my!==reqSeq)return;
+    try{const stp=await call(RB+"list_stamp_templates",{projectUuid:prj});if(my!==reqSeq)return;const _ste=(stp&&(stp.entities||stp.data))||[];DATA.stamps=(stp&&stp.count!=null)?stp.count:_ste.length;DATA.stampDisc=_ste.filter(t=>t&&t.nodeRole===2).length;DATA.stampLeaf=_ste.filter(t=>t&&t.nodeRole===1).length;}catch(e){if(my!==reqSeq)return;DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;}if(my!==reqSeq)return;
     DATA.teamNote="";
-    if(!regionHas("list_license_members")){DATA.team=[];DATA.teamNote="Licence members aren’t exposed by this region’s MCP build";}
+    if(!connHas("list_license_members")){DATA.team=[];DATA.teamNote="Licence members aren’t exposed by this region’s MCP build";}
     else{try{const lm=await call(RB+"list_license_members",{licenseUuid:lic});if(my!==reqSeq)return;
     DATA.team=(lm.entities||[]).map(m=>{const u=m.user||{};const la=u.lastActive||m.lastActive||"";const onp=(m.projects||[]).includes(prj);
       let role=m.role===5?"Owner":(u.role==="admin"?"Licence administrator":(u.role==="invited"?"Invited — never activated":"Member"));if(!onp&&u.role!=="invited")role+=" (not on project)";
       return [u.fullname&&u.fullname.trim()?u.fullname:"(unnamed)",u.email||"",role,la,onp&&!!la];}).sort((a,b)=>(b[3]||"").localeCompare(a[3]||""));}catch(e){if(my!==reqSeq)return;DATA.team=[];DATA.teamNote=mcpFailKind(e).t;}}
-    try{await loadWorkflows(prj);}catch(e){}try{await loadProjectMembers(prj);}catch(e){}if(my!==reqSeq)return;
+    try{await loadWorkflows(prj,my);}catch(e){}try{await loadProjectMembers(prj,my);}catch(e){}if(my!==reqSeq)return;
     /* ---- Tier 1: EXACT aggregates drive every headline ---- */
     setLoad("Reading exact totals…",6,"");
     const [cTot,cOpen,cInProg,cSolved,cClosed]=await Promise.all([
@@ -1661,61 +1672,90 @@ function renderHeader(){const m=DATA.meta;
   if(st){if(m.name&&DATA.counts){const C=DATA.counts,s=DATA.sample;const cov=s?(s.complete?`full sample (${fmt(s.total)})`:`sample ${fmt(s.n)} of ${fmt(s.total)}`):"sampling…";
       st.textContent=`Issue totals: ${C.reconciled?"exact":"re-syncing"} · ${cov}`;}
     else st.textContent="";}
-  const foot=document.getElementById("foot");if(foot)foot.textContent=`Live via the Revizto MCP Server · ${regionCfg().label||""} · real-time project intelligence`;}
+  const foot=document.getElementById("foot");if(foot)foot.textContent=`Live via the Revizto MCP Server · ${dispRegion()} · real-time project intelligence`;}
 
 let DISC_ERR=null;/* WS20: last licence-discovery failure (mcpFailKind) — cleared on success */
-async function discoverLicenses(seq){
-  try{const l=await call(RB+"list_licenses");if(seq!=null&&seq!==reqSeq)return;LICENSES=(l.entities||l||[]);DISC_ERR=null;
-    if(LICENSES.length&&!LICENSES.find(x=>x.uuid===LIC))LIC=LICENSES[0].uuid;
-    renderLicensePicker();}catch(e){if(seq!=null&&seq!==reqSeq)return;DISC_ERR=mcpFailKind(e);LICENSES=[];renderLicensePicker();}}
+async function discoverLicenses(seq){/* WS21: probe EVERY configured connection in parallel; aggregate licences, dedupe by uuid, remember which connections list each */
+  var results=await Promise.all((CONFIG.connectors||[]).map(async function(c){
+    try{var l=await call(c.prefix+"list_licenses",{},{timeout:12000});return {c:c,ents:(l&&(l.entities||l))||[]};}
+    catch(e){return {c:c,err:mcpFailKind(e)};}
+  }));
+  if(seq!=null&&seq!==reqSeq)return;
+  var map=new Map();CONNSTATE={};DISC_ERR=null;
+  results.forEach(function(r){
+    CONNSTATE[r.c.prefix]=r.err?{ok:false,kind:r.err}:{ok:true,count:(r.ents||[]).length};
+    (r.ents||[]).forEach(function(l){if(!l||!l.uuid)return;var ex=map.get(l.uuid);if(ex){ex._conns.push(r.c.prefix);ex._ids[r.c.prefix]=l.id;}else{l._conns=[r.c.prefix];l._ids={};l._ids[r.c.prefix]=l.id;map.set(l.uuid,l);}});
+  });
+  LICENSES=Array.from(map.values()).sort(function(a,b){return String(a.name||"").localeCompare(String(b.name||""));});
+  if(!LICENSES.length){var _bad=Object.keys(CONNSTATE).map(function(p){return CONNSTATE[p];}).filter(function(x){return !x.ok;});DISC_ERR=(_bad[0]&&_bad[0].kind)||{k:"nolic",t:"No licences visible through your MCP connections",d:"Every configured connection answered, but your Revizto user sees no licences on any of them. Check you signed in with the right Revizto account, and that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal)."};}
+  if(LICENSES.length&&!LICENSES.find(function(x){return x.uuid===LIC;}))LIC=LICENSES[0].uuid;
+  renderLicensePicker();renderConnHealth();}
 function renderLicensePicker(){const w=document.getElementById("licWrap"),sel=document.getElementById("licPick");if(!sel)return;
-  if(LICENSES.length>1){w.hidden=false;sel.innerHTML=LICENSES.map(l=>`<option value="${l.uuid}" ${l.uuid===LIC?"selected":""}>${(l.name||l.uuid)}</option>`).join("");
-    sel.onchange=()=>{if(jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it before switching licence.");sel.value=LIC;return;}LIC=sel.value;localStorage.setItem(lsKey("rvz_lic"),LIC);PROJECTS=[];STATUSES=[];TYPES=[];PMEMBERS=[];PRJ="";blankData();renderHeader();renderPicker();renderTab(current);setSrc("Loading…","#0097A7");refresh();};}
-  else{w.hidden=true;}}
-/* ===== WS20: multi-region MCP — registry helpers, honest-failure taxonomy, region picker + switch ===== */
-function regionCfg(k){return CONFIG.servers[k||REGION]||CONFIG.servers[CONFIG.defaultRegion]||{};}
-function regionHas(tool){var rc=regionCfg();return !(rc.missing&&rc.missing.indexOf(tool)>=0);}
-function lsKey(base){return base+"@"+(typeof REGION!=="undefined"?REGION:"default");}
+  if(LICENSES.length>1){w.hidden=false;sel.innerHTML=LICENSES.map(l=>`<option value="${l.uuid}" ${l.uuid===LIC?"selected":""}>${tcsEsc(l.name||l.uuid)} — ${tcsEsc(regionName(l.region))}</option>`).join("");
+    sel.onchange=()=>{if(jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it before switching licence.");sel.value=LIC;return;}LIC=sel.value;localStorage.setItem("rvz_lic2",LIC);PROJECTS=[];STATUSES=[];TYPES=[];PMEMBERS=[];PRJ="";COMPARE=[];cmpDoneAt="";cmpLoad=null;if(window._cmpSel)window._cmpSel=new Set();if(window._cmpExp)window._cmpExp=new Set();blankData();renderHeader();renderPicker();renderTab(current);setSrc("Loading…","#0097A7");refresh();};}
+  else{w.hidden=true;}
+  var _rb=document.getElementById("regBadge");if(_rb){var _l=(LICENSES||[]).find(x=>x.uuid===LIC);_rb.hidden=!_l;if(_l){_rb.textContent=regionName(_l.region);_rb.title="Revizto licence region — where this licence’s data is hosted";}}}
+/* ===== WS21: licence-first, connector-agnostic MCP routing =====
+   Users pick a LICENCE; the serving connection is resolved automatically. Connector ids are per-install and
+   anonymous — nothing user-facing is keyed to a connector except the Connections health ⓘ. */
+function connCfg(p){var pf=p||CONN;var a=CONFIG.connectors||[];for(var i=0;i<a.length;i++){if(a[i].prefix===pf)return a[i];}return {};}
+function connHas(tool){var c=connCfg();return !(c.missing&&c.missing.indexOf(tool)>=0);}
+function lsKey(base){return base+"@"+(typeof CONN!=="undefined"&&CONN?CONN:"default");}
+function dispRegion(){var l=(LICENSES||[]).find(function(x){return x.uuid===LIC;});return regionName(l&&l.region);}
 function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
-  if(/not authorized to access this account/i.test(m))return{k:"appauth",t:"Account hasn’t authorised this MCP application",d:"This Revizto account (organisation) hasn’t authorised the MCP OAuth application, so its licences can’t be read through this connector. A licence administrator must approve API/MCP access for the account first."};
+  if(/not authorized to access this account/i.test(m))return{k:"appauth",t:"The Revizto MCP isn’t enabled for this account",d:"This organisation account hasn’t enabled the Revizto MCP server. An account owner or admin can enable it under Manage account info → Developer portal (standard users: Account info → App integrations). Until then, its licences can’t be read."};
   if(/sufficient rights/i.test(m))return{k:"rights",t:"Your licence role can’t read this via the MCP",d:"The Revizto MCP returned “insufficient rights” — your role on this licence doesn’t permit this call. Ask a licence administrator to raise your role."};
-  if(/direct api access is forbidden/i.test(m))return{k:"xregion",t:"Licence not reachable from this region’s MCP",d:"The Revizto MCP returned “direct API access is forbidden” — this licence lives on a different Revizto instance. Switch to that region’s connector (if connected) to reach it."};
-  if(/entity not found/i.test(m))return{k:"notfound",t:"Not found on this region’s instance",d:"The Revizto MCP couldn’t find this entity on the selected region — it likely lives on a different regional instance. Switch region to reach it."};
-  if(/timeout/i.test(m))return{k:"timeout",t:"The region’s MCP didn’t answer in time",d:"The call timed out — the connector may be disconnected or the region unreachable. Reload to retry, or check the connector under Settings → Connectors."};
-  return{k:"error",t:"This region’s MCP couldn’t serve the request",d:"The call failed"+(m?" — “"+m.slice(0,160)+"”":"")+". Reload to retry, or check the connector connection."};}
-function renderRegionPicker(){var w=document.getElementById("regWrap"),sel=document.getElementById("regPick");if(!sel)return;
-  var keys=Object.keys(CONFIG.servers||{});if(keys.length<2){if(w)w.hidden=true;return;}if(w)w.hidden=false;
-  sel.innerHTML=keys.map(function(k){var c=CONFIG.servers[k];var lbl=c.label+(c.env==="prod"?" · Production":" · Stage")+(c.internal?" (internal)":"");return '<option value="'+k+'" '+(k===REGION?"selected":"")+'>'+lbl+"</option>";}).join("");
-  sel.onchange=function(){setRegion(sel.value);};}
-function setRegion(key){
-  if(!CONFIG.servers[key]||key===REGION){renderRegionPicker();return;}
-  if(typeof jobActive==="function"&&jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it before switching region.");var rp=document.getElementById("regPick");if(rp)rp.value=REGION;return;}
-  REGION=key;try{localStorage.setItem("rvz_region",key);}catch(e){}
-  reqSeq++;/* QA WS20.1: invalidate EVERY in-flight old-region continuation immediately — including on the T&C-gated path where refresh() (and its own bump) never runs */
-  var rc=regionCfg();RB=rc.prefix;CONFIG.server=rc.prefix;CONFIG.wsHost=rc.wsHost;
-  /* WS17 doctrine extended: EVERY region switch re-locks read-only — a fresh region always starts locked */
-  READONLY=true;var ro=document.getElementById("roToggle");if(ro&&!ro.disabled)ro.checked=true;var pill=document.getElementById("roPill");if(pill)pill.classList.add("on");
-  /* full state reset — same doctrine as a licence switch, plus licence discovery itself */
-  try{LIC=localStorage.getItem(lsKey("rvz_lic"))||"";}catch(e){LIC="";}
-  try{PRJ=localStorage.getItem(lsKey("rvz_prj"))||"";}catch(e){PRJ="";}
-  LICENSES=[];PROJECTS=[];COMPARE=[];PORTM={};PENDING=null;DISC_ERR=null;
-  /* QA WS20.1: a stopped/finished job (jobActive() is false) must not keep a live Resume affordance across regions — its persisted copy stays under ITS region's key */
-  JOB=null;PENDING_RESUME=null;JOB_LOOP=false;var _jd=document.getElementById("jobDock");if(_jd)_jd.hidden=true;var _rbn=document.getElementById("resumeBanner");if(_rbn){_rbn.hidden=true;_rbn.innerHTML="";}
-  blankData();
-  renderRegionPicker();if(typeof renderLicensePicker==="function")renderLicensePicker();renderHeader();renderPicker();renderTab(current);setSrc("Loading…","#0097A7");
-  if(typeof refreshAboutBuild==="function")refreshAboutBuild();if(typeof syncActionTab==="function")syncActionTab();
-  /* per-region consent: first entry to a region re-runs the T&C acceptance gate */
-  if(typeof tcsAccepted==="function"&&!tcsAccepted()){if(typeof openTcs==="function"){openTcs(true);return;}}
-  refresh();if(typeof offerResume==="function")offerResume();}
-function refreshAboutBuild(){var b=document.getElementById("aboutBuild");if(b&&typeof CONFIG!=="undefined"&&CONFIG){var rc=regionCfg();b.textContent="Build "+(CONFIG.buildStamp||"—")+" · Terms v"+(CONFIG.tcsVersion||"1.0")+" · read live from the Revizto MCP Server ("+(rc.label||"—")+(rc.env==="prod"?" · production":" · staging")+")";}}
-async function loadWorkflows(p){try{const w=await call(RB+"list_workflows",{projectUuid:p||PRJ});
+  if(/direct api access is forbidden/i.test(m))return{k:"xregion",t:"Licence not reachable through this connection",d:"The Revizto MCP returned “direct API access is forbidden” — this licence lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
+  if(/entity not found/i.test(m))return{k:"notfound",t:"Not found on this regional instance",d:"The Revizto MCP couldn’t find this entity on this connection — it likely lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
+  if(/timeout/i.test(m))return{k:"timeout",t:"The Revizto MCP didn’t answer in time",d:"The call timed out — the connection may be broken or the region unreachable. Reload to retry, or check the connector under Settings → Connectors."};
+  return{k:"error",t:"The Revizto MCP couldn’t serve the request",d:"The call failed"+(m?" — “"+m.slice(0,160)+"”":"")+". Reload to retry, or check the connector connection."};}
+let CONNSTATE={};/* prefix → {ok,count} | {ok:false,kind} — per-connection health for the Connections ⓘ */
+function renderConnHealth(){var b=document.getElementById("connI");var w=document.getElementById("connWrap");if(!b)return;
+  var n=(CONFIG.connectors||[]).length;if(w)w.hidden=n<2;/* single-connection installs stay clean */
+  var lines=[],okN=0;
+  (CONFIG.connectors||[]).forEach(function(c,i){var st=CONNSTATE[c.prefix];var nm="Connection "+(i+1)+(c.env==="stage"?" (stage)":"");
+    if(!st){lines.push(nm+": checking…");return;}
+    if(st.ok){okN++;lines.push(nm+": connected · "+st.count+" licence"+(st.count===1?"":"s")+" visible to you");}
+    else{lines.push(nm+": "+((st.kind&&st.kind.t)||"unreachable"));}});
+  b.setAttribute("data-proof-def","Your configured Revizto MCP connections — each Revizto region is its own connection, and the Blueprint automatically routes each licence to the connection that serves it. "+lines.join(" · "));
+  var lbl=document.getElementById("connLbl");if(lbl)lbl.textContent=Object.keys(CONNSTATE).length?(okN+"/"+n):"…";}
+function setConn(prefix){var e=connCfg(prefix);if(!e.prefix)return;var changed=prefix!==CONN;
+  CONN=prefix;try{localStorage.setItem("rvz_conn",prefix);}catch(x){}
+  RB=prefix;CONFIG.server=prefix;CONFIG.wsHost=e.wsHost||"ws.revizto.com";
+  if(changed){
+    /* WS17 doctrine: a change of serving connection re-locks read-only */
+    READONLY=true;var ro=document.getElementById("roToggle");if(ro&&!ro.disabled)ro.checked=true;var pill=document.getElementById("roPill");if(pill)pill.classList.add("on");
+    /* a staged job never crosses connections — hide any resumable affordance from the previous connection */
+    if(JOB&&!(typeof jobActive==="function"&&jobActive())){JOB=null;PENDING_RESUME=null;var _jd=document.getElementById("jobDock");if(_jd)_jd.hidden=true;var _rbn=document.getElementById("resumeBanner");if(_rbn){_rbn.hidden=true;_rbn.innerHTML="";}}
+    if(typeof syncActionTab==="function")syncActionTab();
+    if(typeof offerResume==="function")offerResume();/* the new connection may hold its own pending job */
+  }
+  if(typeof refreshAboutBuild==="function")refreshAboutBuild();}
+async function resolveConn(licUuid,seq){/* find the connection that actually SERVES this licence: cached winner first, then the other candidates; cache on success, honest kind on total failure */
+  var lic=(LICENSES||[]).find(function(l){return l.uuid===licUuid;});if(!lic)return null;
+  var cached=null;try{cached=localStorage.getItem("rvz_conn4lic:"+licUuid);}catch(e){}
+  var cands=(lic._conns||[]).slice();var ci=cands.indexOf(cached);if(ci>0){cands.splice(ci,1);cands.unshift(cached);}
+  var lastKind=null;
+  for(var i=0;i<cands.length;i++){var p=cands[i];
+    if(typeof jobActive==="function"&&jobActive()&&p!==CONN)continue;/* WS21.1: the serving connection is PINNED while a job is active — a transient probe failure must not flip connections mid-job */
+    try{const projs=await call(p+"list_projects",{licenseUuid:licUuid,include:["revision","lastActive","has3d"]});
+      if(seq!=null&&seq!==reqSeq)return null;
+      if(projs&&projs.error){lastKind=mcpFailKind({mcpMsg:String(projs.error)});continue;}
+      var arr=Array.isArray(projs&&projs.entities)?projs.entities:(Array.isArray(projs)?projs:[]);
+      setConn(p);try{localStorage.setItem("rvz_conn4lic:"+licUuid,p);}catch(e){}
+      return {conn:p,projects:arr};
+    }catch(e){if(seq!=null&&seq!==reqSeq)return null;lastKind=mcpFailKind(e);if(cached===p){try{localStorage.removeItem("rvz_conn4lic:"+licUuid);}catch(x){}}}
+  }
+  return {fail:lastKind};}
+function refreshAboutBuild(){var b=document.getElementById("aboutBuild");if(b&&typeof CONFIG!=="undefined"&&CONFIG){var c=connCfg();b.textContent="Build "+(CONFIG.buildStamp||"—")+" · Terms v"+(CONFIG.tcsVersion||"1.0")+" · read live from the Revizto MCP Server ("+dispRegion()+(c.env==="prod"?" · production":" · staging")+")";}}
+async function loadWorkflows(p,seq){try{const w=await call(RB+"list_workflows",{projectUuid:p||PRJ});if(seq!=null&&seq!==reqSeq)return;
   STATUSES=(w.statuses||[]).filter(s=>!s.deletedAt).map(s=>({uuid:s.uuid,name:s.name}));
   TYPES=(w.types||[]).filter(t=>!t.deletedAt&&t.isActive!==false).map(t=>({uuid:t.uuid,name:t.name}));
   const _wfs=(w.workflows||[]).filter(x=>!x.deletedAt);const _wf=_wfs.find(x=>x.isStandard)||_wfs[0]||null;
   const _act=(w.statuses||[]).filter(s=>!s.deletedAt);const _co=["To do","Tracking","Completed"];
   const _cats=[...new Set(_act.map(s=>s.category).filter(Boolean))].sort((a,b)=>_co.indexOf(a)-_co.indexOf(b));
   DATA.workflow={name:(_wf&&_wf.name)||"Workflow",std:!!(_wf&&_wf.isStandard),statuses:_act.length,cats:_cats,wfCount:_wfs.length};}catch(e){DATA.workflow=null;}}
-async function loadProjectMembers(p){try{const m=await call(RB+"list_project_members",{projectUuid:p||PRJ});
+async function loadProjectMembers(p,seq){try{const m=await call(RB+"list_project_members",{projectUuid:p||PRJ});if(seq!=null&&seq!==reqSeq)return;
   PMEMBERS=(m.entities||[]).map(x=>{const u=x.user||{};return {email:u.email||x.email||"",name:(x.fullname||((u.firstname||"")+" "+(u.lastname||""))).trim(),company:x.company||"",department:x.department||"",active:(x.activated===true&&x.role!=="invited"&&x.invited!==true)};}).filter(x=>x.email);}catch(e){}}
 /* ---- issue actions workspace ---- */
 const STAT_LEGACY={open:"Open",in_progress:"In progress",solved:"Solved",closed:"Closed"};
@@ -1926,14 +1966,14 @@ function applyOptimistic(plan){if(!plan||!plan.groups)return;const ch={};plan.gr
   (WORK||[]).forEach(w=>{const c=ch[w.uuid];if(!c)return;if(c.assignee!=null)w.assignee=c.assignee;if(c.priority!=null)w.priority=c.priority;});}
 /* ===== non-blocking staged write job (pre-flight decided, runner is backgroundable) ===== */
 const JOB_KEY="rvz_job";let JOB=null;let PENDING_RESUME=null;let JOB_LOOP=false;
-function jobKey(){return (typeof lsKey==="function")?lsKey(JOB_KEY):JOB_KEY;}/* QA WS20.1: persisted jobs are PER REGION; the legacy un-suffixed key is honoured (and cleaned) on the default region only */
+function jobKey(){var c=(JOB&&JOB.conn)||(typeof CONN!=="undefined"&&CONN)||"default";return JOB_KEY+"@"+c;}/* WS21.1: persisted jobs key by the JOB'S OWN connection (falls back to the current one for reads); never drifts if CONN moves mid-job */
 function jobActive(){return !!(JOB&&(JOB.status==="running"||JOB.status==="paused"||JOB.status==="stopping"));}
 function fmtDur(sec){sec=Math.max(0,Math.round(sec));if(sec<60)return "~"+Math.max(1,sec)+" s";if(sec<3600)return "~"+Math.max(1,Math.round(sec/60))+" min";const h=Math.floor(sec/3600),m=Math.round((sec%3600)/60);return "~"+h+" h"+(m?" "+m+" m":"");}
 function etaBand(n,rate){const r=rate||1;const a=fmtDur(n*r),b=fmtDur(n*r*1.3);return a===b?a:a+" to "+b.replace("~","");}
 function pushUniq(arr,items){const seen=new Set(arr);for(const u of items)if(!seen.has(u)){arr.push(u);seen.add(u);}}
 function dropFrom(arr,items){if(!items||!items.length)return;const d=new Set(items);for(let i=arr.length-1;i>=0;i--)if(d.has(arr[i]))arr.splice(i,1);}
 function jobTotals(){const conf=JOB.confirmed.length,alr=JOB.already.length,done=conf+alr;return {conf,alr,done,rem:Math.max(0,JOB.totalN-done),fail:JOB.failed.length};}
-function persistJob(){try{if(JOB)localStorage.setItem(jobKey(),JSON.stringify(JOB));else{localStorage.removeItem(jobKey());if(REGION===CONFIG.defaultRegion)localStorage.removeItem(JOB_KEY);}}catch(e){}}
+function persistJob(){try{if(JOB){var k=jobKey();persistJob._k=k;localStorage.setItem(k,JSON.stringify(JOB));}else{localStorage.removeItem(persistJob._k||jobKey());persistJob._k=null;}}catch(e){}}
 function jobRemainingGroups(){const seen=new Set(JOB.confirmed.concat(JOB.already));return JOB.groups.map(g=>({change:g.change,label:g.label,commentOnly:g.commentOnly,issueUuids:g.issueUuids.filter(u=>!seen.has(u))})).filter(g=>g.issueUuids.length);}
 /* generic verb for the dock / confirm copy — the write path is no longer reassign-only (WS6) */
 function planVerb(plan){const f=(plan&&plan.fields)||[];const g=(plan&&plan.groups)||[];
@@ -1949,16 +1989,15 @@ async function executePlan(){if(!PENDING||writesOff())return;
   ME.name=actor;localStorage.setItem("rvz_actor",actor);
   const totalN=PENDING.groups.reduce((s,g)=>s+(g.issueUuids||[]).length,0);
   const _vb=planVerb(PENDING);
-  JOB={id:Date.now().toString(36),region:REGION,prj:PRJ,prjName:(DATA.meta&&DATA.meta.name)||"",summary:PENDING.summary,reason,actor,
+  JOB={id:Date.now().toString(36),conn:CONN,prj:PRJ,prjName:(DATA.meta&&DATA.meta.name)||"",summary:PENDING.summary,reason,actor,
     ts:new Date().toISOString().slice(0,16).replace("T"," ")+" UTC",startedAt:Date.now(),
     groups:PENDING.groups.map(g=>({change:g.change,label:g.label,commentOnly:!!g.commentOnly,issueUuids:g.issueUuids.slice()})),
     prior:PENDING.prior||{},fields:PENDING.fields||[],totalN,confirmed:[],already:[],failed:[],status:"running",rate:null,verbPast:_vb.past,srcPrompt:PENDING.srcPrompt||""};
   PENDING=null;window._writing=false;closeConfirm();
   persistJob();showDock();focusDock();runJob();}
 async function runJob(){if(!JOB)return;if(JOB_LOOP)return;
-  /* QA WS20.1 trust guard: a job runs ONLY on the region it was approved for — writes never cross regions. Legacy jobs (pre-WS20, no stamp) belong to the default region. */
-  if(!JOB.region)JOB.region=CONFIG.defaultRegion;
-  if(JOB.region!==REGION){JOB.status="paused";persistJob();renderDock();if(typeof showModalMsg==="function")showModalMsg("Job belongs to another region","This staged job was approved on "+(((CONFIG.servers||{})[JOB.region]||{}).label||JOB.region)+". Switch back to that region to resume it — writes never cross regions.");return;}
+  /* WS21 trust guard: a job runs ONLY on the connection it was approved on — writes never cross connections. Jobs from older builds (no conn stamp) are refused; re-plan them. */
+  if(!JOB.conn||JOB.conn!==CONN){JOB.status="paused";persistJob();renderDock();if(typeof showModalMsg==="function")showModalMsg("Job belongs to another connection","This staged job was approved on a different Revizto MCP connection (or an older build). Switch back to the licence it was planned for, or re-plan it — writes never cross connections.");return;}
   /* trust guard: never write unattributed — a job persisted before the name-gate could lack actor/reason; re-collect through the approval gate before any write */if(!(JOB.actor&&String(JOB.actor).trim())||!(JOB.reason&&String(JOB.reason).trim())){const _rem=jobRemainingGroups();const _plan=_rem.length?{summary:JOB.summary,reason:JOB.reason||"",groups:_rem,prior:JOB.prior||{},fields:JOB.fields||[],srcPrompt:JOB.srcPrompt||""}:null;JOB=null;persistJob();var _jd=document.getElementById("jobDock");if(_jd)_jd.hidden=true;if(_plan&&typeof showConfirm==="function")showConfirm(_plan);return;}JOB_LOOP=true;JOB.status="running";renderDock();const durs=[];try{
   for(const g of jobRemainingGroups()){
     const audit=`Revizto Project Intelligence Blueprint — ${g.label}. ${JOB.ts}${JOB.actor?" by "+JOB.actor:""}. Reason: ${JOB.reason}`;
@@ -2031,11 +2070,11 @@ function renderDock(){const d=document.getElementById("jobDock");if(!d||!JOB)ret
   const bind=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn;};
   bind("jdMin",toggleDockMin);bind("jdPause",pauseJob);bind("jdStop",stopJob);bind("jdResume",resumeJobNow);bind("jdDismiss",dismissJob);}
 /* on load, offer to resume an interrupted job (kept in localStorage, idempotent via verifyWrite) */
-function offerResume(){let j=null;try{let raw=localStorage.getItem(jobKey());if(!raw&&REGION===CONFIG.defaultRegion)raw=localStorage.getItem(JOB_KEY);if(raw)j=JSON.parse(raw);}catch(e){}
+function offerResume(){let j=null;try{let raw=localStorage.getItem(jobKey());if(raw)j=JSON.parse(raw);}catch(e){}
   if(!j||!j.groups||!j.totalN){return;}
-  if(!j.region)j.region=CONFIG.defaultRegion;if(j.region!==REGION)return;/* QA WS20.1: never offer a cross-region resume */
+  if(!j.conn||j.conn!==CONN)return;/* WS21: never offer a cross-connection resume */
   const done=(j.confirmed||[]).length+(j.already||[]).length,rem=Math.max(0,j.totalN-done);
-  if(rem<=0){try{localStorage.removeItem(jobKey());if(REGION===CONFIG.defaultRegion)localStorage.removeItem(JOB_KEY);}catch(e){}return;}
+  if(rem<=0){try{localStorage.removeItem(jobKey());}catch(e){}return;}
   PENDING_RESUME=j;const b=document.getElementById("resumeBanner");if(!b)return;
   const ageD=Math.floor((Date.now()-(j.startedAt||Date.now()))/86400000);
   const stale=ageD>=7?` <span class="jd-warn">Started ${ageD} days ago — assignments may be out of date.</span>`:"";
@@ -2045,7 +2084,7 @@ function offerResume(){let j=null;try{let raw=localStorage.getItem(jobKey());if(
     <div class="jd-actions" style="margin:0"><button class="jd-btn go" id="rbContinue">Continue</button><button class="jd-btn" id="rbDiscard">Discard</button></div>`;
   b.hidden=false;
   const cont=document.getElementById("rbContinue");if(cont)cont.onclick=()=>{if(JOB_LOOP)return;JOB=PENDING_RESUME;PENDING_RESUME=null;JOB.status="paused";b.hidden=true;b.innerHTML="";showDock();runJob();};
-  const disc=document.getElementById("rbDiscard");if(disc)disc.onclick=()=>{if(confirm("Discard tracking for this job? The "+fmt(done)+" changes already made stay in Revizto — this only stops the remaining "+fmt(rem)+" from being picked up here.")){PENDING_RESUME=null;JOB=null;try{localStorage.removeItem(jobKey());if(REGION===CONFIG.defaultRegion)localStorage.removeItem(JOB_KEY);}catch(e){}b.hidden=true;b.innerHTML="";}};}
+  const disc=document.getElementById("rbDiscard");if(disc)disc.onclick=()=>{if(confirm("Discard tracking for this job? The "+fmt(done)+" changes already made stay in Revizto — this only stops the remaining "+fmt(rem)+" from being picked up here.")){PENDING_RESUME=null;JOB=null;try{localStorage.removeItem(jobKey());}catch(e){}b.hidden=true;b.innerHTML="";}};}
 function renderPicker(){const btn=document.getElementById("prjBtn");if(!btn)return;
   const lbl=document.getElementById("prjBtnLabel"),pop=document.getElementById("prjPop"),search=document.getElementById("prjSearch"),list=document.getElementById("prjList");
   const cur=PROJECTS.find(p=>p.uuid===PRJ)||{title:(PROJECTS.length?"Select project":"No projects in this licence")};lbl.textContent=cur.title;btn.disabled=!PROJECTS.length;
@@ -2054,7 +2093,7 @@ function renderPicker(){const btn=document.getElementById("prjBtn");if(!btn)retu
     list.querySelectorAll("[data-u]").forEach(o=>{o.onclick=()=>choose(o.dataset.u);o.onkeydown=e=>{if(e.key==="Enter")choose(o.dataset.u);};});}
   function open(){pop.hidden=false;btn.setAttribute("aria-expanded","true");search.value="";paint("");setTimeout(()=>search.focus(),10);}
   function close(){pop.hidden=true;btn.setAttribute("aria-expanded","false");}
-  function choose(u){if(u&&u!==PRJ&&jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it in the panel at the bottom-right before switching project.");close();return;}if(u&&u!==PRJ){PRJ=u;localStorage.setItem(lsKey("rvz_prj"),PRJ);blankData();const p=PROJECTS.find(x=>x.uuid===PRJ)||{};DATA.meta.name=p.title||"";DATA._projectId=p.id||0;renderHeader();renderTab(current);setSrc("Loading…","#0097A7");refresh();}close();}
+  function choose(u){if(u&&u!==PRJ&&jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it in the panel at the bottom-right before switching project.");close();return;}if(u&&u!==PRJ){PRJ=u;localStorage.setItem("rvz_prj2",PRJ);blankData();const p=PROJECTS.find(x=>x.uuid===PRJ)||{};DATA.meta.name=p.title||"";DATA._projectId=p.id||0;renderHeader();renderTab(current);setSrc("Loading…","#0097A7");refresh();}close();}
   btn.onclick=()=>{pop.hidden?open():close();};
   search.oninput=()=>paint(search.value);
   search.onkeydown=e=>{if(e.key==="Escape"){close();btn.focus();}if(e.key==="Enter"){const first=list.querySelector("[data-u]");if(first)choose(first.dataset.u);}};
@@ -2065,12 +2104,14 @@ async function projectMetrics(uuid){
   let tot=0,open=0,inprog=0,solved=0,closed=0,cT=null;
   try{const [_cT,cO,cI,cS,cC]=await Promise.all([
     issueCount(uuid,{}),issueCount(uuid,{statuses:["open"]}),issueCount(uuid,{statuses:["in_progress"]}),issueCount(uuid,{statuses:["solved"]}),issueCount(uuid,{statuses:["closed"]})]);
-    cT=_cT;open=cO||0;inprog=cI||0;solved=cS||0;closed=cC||0;}catch(e){}
+    cT=_cT;open=cO||0;inprog=cI||0;solved=cS||0;closed=cC||0;
+    if(_cT==null&&cO==null&&cI==null&&cS==null&&cC==null)return {uuid,title:((PROJECTS.find(p=>p.uuid===uuid)||{}).title)||uuid,_err:true};/* WS21.1: nothing answered — unreachable, NOT zero */
+  }catch(e){return {uuid,title:((PROJECTS.find(p=>p.uuid===uuid)||{}).title)||uuid,_err:true};}
   /* coherence: derive total from the summed statuses so active+resolved always == tot.
      Trust the unfiltered server total ONLY when it agrees with the sum; else use the sum and flag !reconciled. */
   const _sum=open+inprog+solved+closed;const reconciled=(typeof cT==="number"&&cT===_sum);tot=reconciled?cT:_sum;
   let sheets=null,clash=0;
-  if(regionHas("list_sheets")){try{const s=await call(RB+"list_sheets",{projectUuid:uuid});sheets=(s.entities||s).length;}catch(e){}}
+  if(connHas("list_sheets")){try{const s=await call(RB+"list_sheets",{projectUuid:uuid});sheets=(s.entities||s).length;}catch(e){}}
   try{const c=await call(RB+"list_clash_tests",{projectUuid:uuid});clash=Array.isArray(c)?c.length:((c.entities||c.data||[]).length);}catch(e){}
   const active=open+inprog,resolved=solved+closed;
   const pj=PROJECTS.find(p=>p.uuid===uuid)||{};const la=pj.lastActive||pj.updated||"";
@@ -2117,6 +2158,7 @@ async function loadCompare(uuids){if(cmpLoading||!(window.cowork&&window.cowork.
   cmpLoad={order:uuids.slice(),i:0,phase:"load"};cmpDoneAt="";COMPARE=[];window._cmpExp=new Set();refreshCmpControls();renderResults();
   for(let i=0;i<uuids.length;i++){cmpLoad.i=i;cmpLoad.phase="load";refreshCmpControls();
     const m=await projectMetrics(uuids[i]);if(_sq!==reqSeq){cmpLoad=null;cmpLoading=false;return;}COMPARE.push(m);renderResults();
+    if(m._err){continue;}/* WS21.1: unreachable project — no sampling, row renders as unavailable */
     cmpLoad.phase="sample";refreshCmpControls();
     const t=await cmpTrend(uuids[i],m.tot,reqSeq);if(t){m.net90=t.net90;m.o90=t.o90;m.r90=t.r90;m.sampleN=t.n;m.sampleComplete=t.complete;m.weeks=t.weeks;m._rows=t.rows;}m._memMap=await cmpMemMap(uuids[i]);if(_sq!==reqSeq){cmpLoad=null;cmpLoading=false;return;}renderResults();refreshCmpControls();}
   cmpDoneAt=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});cmpLoad=null;cmpLoading=false;refreshCmpControls();}
@@ -2147,7 +2189,7 @@ function cmpWeeks(rows){
 function cmpSeries(){
   if(cmpPivot==="teams")return cmpTeamSeries();
   if(cmpPivot==="indiv")return cmpIndivSeries();
-  return {series:COMPARE.map(m=>({key:m.title,viewing:m.uuid===PRJ,net90:(m.net90!=null?m.net90:null),rate:m.rate,tot:m.tot,sampleN:m.sampleN,exact:!!m.sampleComplete,weeks:m.weeks||null,cov:(m.sampleComplete?"exact":(m.net90!=null?"sample":"load"))})),note:""};
+  return {series:COMPARE.filter(m=>!m._err).map(m=>({key:m.title,viewing:m.uuid===PRJ,net90:(m.net90!=null?m.net90:null),rate:m.rate,tot:m.tot,sampleN:m.sampleN,exact:!!m.sampleComplete,weeks:m.weeks||null,cov:(m.sampleComplete?"exact":(m.net90!=null?"sample":"load"))})),note:""};
 }
 /* Shared group aggregation for Teams + Individuals: net-90, 13-week active series,
    resolution rate, coverage (exact only if every constituent row is exact). Rows are
@@ -2285,7 +2327,9 @@ function cmpKeyHtml(){
 }
 function renderSignals(){const el=document.getElementById("cmpSignals");if(!el)return;
   if(!window._cmpExp)window._cmpExp=new Set();
-  let list=COMPARE.map(m=>({m,s:cmpSignals(m)}));
+  const _errRows=COMPARE.filter(m=>m&&m._err);/* WS21.1: unreachable projects are labelled, never scored as zeros */
+  let list=COMPARE.filter(m=>m&&!m._err).map(m=>({m,s:cmpSignals(m)}));
+  renderSignals._errHtml=_errRows.length?_errRows.map(m=>`<div class="sg-krow"><div class="sg-kname">${tcsEsc(m.title||m.uuid)}</div><div><div class="sg-kdef">Couldn’t load — this project didn’t answer on the current connection. Reload to retry.</div></div></div>`).join(""):"";
   if(cmpSigFilter!=="all")list=list.filter(x=>x.s.sig.some(g=>g.key===cmpSigFilter&&(g.status==="risk"||g.status==="watch")));
   if(cmpSort==="attention")list.sort((a,b)=>b.s.worst-a.s.worst||a.m.rate-b.m.rate);
   else if(cmpSort==="name")list.sort((a,b)=>(a.m.title||"").localeCompare(b.m.title||""));
@@ -2310,7 +2354,7 @@ function renderSignals(){const el=document.getElementById("cmpSignals");if(!el)r
       drawer=`<div class="sg-drawer"><div class="sg-dhead">Breakdown<button type="button" class="proof-i" data-proof-i aria-label="Breakdown — how it's computed" data-proof-def="${_esc("The tiles are this project's key metrics. What's driving attention names the highest-severity signal and its cause; concentration and oldest-open are derived from the open issues. On large projects these are from a representative sample, noted below.")}"><span aria-hidden="true">&#9432;</span></button></div><div class="sg-tiles">${tileH}</div><div class="sg-drivers">${drivers.join("")}${cov}</div></div>`;
     }
     return `<div class="sg-row${exp?" sg-open":""}${cur?" sg-cur":""}"><button type="button" class="sg-head" data-exp="${m.uuid}" aria-expanded="${exp}"><span class="sg-top"><span class="sg-dot" style="background:${dotCol[s.dot]}"></span><span class="sg-name">${m.title}</span>${cur?`<span class="sg-cur-pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>Current</span>`:""}<span class="sg-exp">${exp?"Hide details":"Details"}<svg class="sg-cv" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span></span></button><div class="sg-chips">${s.sig.map(chip).join("")}</div>${drawer}</div>`;};
-  el.innerHTML=`<div class="sg-tools"><span class="sg-tlab">Sort</span>${sortSel}<span class="sg-tlab">Signal</span>${filtSel}<button type="button" class="sg-keybtn" id="cmpKeyBtn" aria-expanded="${cmpKeyOpen}">How signals are scored<svg class="sg-cv" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>${cmpKeyOpen?cmpKeyHtml():""}<div class="sg-tbl">${list.length?list.map(rowHtml).join(""):`<div class="sg-row"><div class="em" style="padding:14px">No projects match this signal filter.</div></div>`}</div>`;
+  el.innerHTML=`<div class="sg-tools"><span class="sg-tlab">Sort</span>${sortSel}<span class="sg-tlab">Signal</span>${filtSel}<button type="button" class="sg-keybtn" id="cmpKeyBtn" aria-expanded="${cmpKeyOpen}">How signals are scored<svg class="sg-cv" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>${cmpKeyOpen?cmpKeyHtml():""}<div class="sg-tbl">${(renderSignals._errHtml||"")}${list.length?list.map(rowHtml).join(""):`<div class="sg-row"><div class="em" style="padding:14px">No projects match this signal filter.</div></div>`}</div>`;
   el.querySelectorAll("[data-exp]").forEach(b=>b.onclick=()=>{const u=b.dataset.exp;if(window._cmpExp.has(u))window._cmpExp.delete(u);else window._cmpExp.add(u);renderSignals();});
   const ss=document.getElementById("cmpSortSel");if(ss)ss.onchange=()=>{cmpSort=ss.value;renderSignals();};
   const fs=document.getElementById("cmpFiltSel");if(fs)fs.onchange=()=>{cmpSigFilter=fs.value;renderSignals();};
@@ -2527,7 +2571,7 @@ async function brew(persona,promptText,btn,action){const ans=document.getElement
     }
   }catch(e){A.textContent="Live brief unavailable here — open in Cowork with the MCP connected, or use a prompt's Copy button.";}
   btn.disabled=false;btn.textContent=old;}
-function switchProject(uuid){if(!uuid||uuid===PRJ)return;if(jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it in the panel at the bottom-right before switching project.");return;}PRJ=uuid;localStorage.setItem(lsKey("rvz_prj"),PRJ);blankData();const p=(PROJECTS||[]).find(x=>x.uuid===uuid)||{};DATA.meta.name=p.title||"";DATA._projectId=p.id||0;renderHeader();renderTab(current);setSrc("Loading…","#0097A7");refresh();}
+function switchProject(uuid){if(!uuid||uuid===PRJ)return;if(jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it in the panel at the bottom-right before switching project.");return;}PRJ=uuid;localStorage.setItem("rvz_prj2",PRJ);blankData();const p=(PROJECTS||[]).find(x=>x.uuid===uuid)||{};DATA.meta.name=p.title||"";DATA._projectId=p.id||0;renderHeader();renderTab(current);setSrc("Loading…","#0097A7");refresh();}
 /* ONE scale-invariant project verdict from the resolution rate (0-100). Used by the portfolio tiles,
    the morning-brief verdict, and the health backlog row so every project is judged by the same rule. */
 function riskVerdict(rate){
@@ -2623,7 +2667,7 @@ function renderIssues(){
   {var _net=o90-r90,_abs=Math.abs(_net),_grew=_net>0,_col=_grew?"var(--red)":(_net<0?"var(--teal-deep)":"var(--muted)"),_sgn=_grew?"+":(_net<0?"−":""),_crit=(DATA.priority.critical||0)+(DATA.priority.blocker||0),_flow=_grew?"the backlog is growing":(_net<0?"the backlog is shrinking":"the backlog is holding");var _cs=DATA.sample,_cx=!(_cs&&!_cs.complete),_ctot=(DATA.counts&&DATA.counts.total)||(_cs&&_cs.total)||o90,_cnum=_cx?((DATA.counts&&DATA.counts.total)||o90):(_cs?_cs.n:o90),_ccol=_cx?"#009999":"#B26B00",_clbl=_cx?"issues<br>complete":"of "+fmt(_ctot)+"<br>sample";document.getElementById("flowNote").innerHTML=`<div class="rvh-fig"><span class="rvh-num" style="color:${_col}">${_sgn}${fmt(_abs)}</span><span class="rvh-lbl">net backlog<br>last 90 days</span></div><div class="rvh-body"><p class="rvh-lead">${fmt(o90)} opened against ${fmt(r90)} resolved — ${_flow}.</p><p class="rvh-sub"><b>${fmt(_crit)}</b> critical + blocker ${_crit===1?"issue":"issues"} unresolved.</p></div><div class="rvh-fig rvh-fig--cov"><span class="rvh-num" style="color:${_ccol}">${fmt(_cnum)}</span><span class="rvh-lbl">${_clbl}</span></div>`;}
 }
 
-let RB=CONFIG.server;/* WS20: retargeted by setRegion() — EVERY MCP call routes through the selected region’s connector prefix */
+let RB=CONFIG.server;/* WS21: retargeted by setConn() — EVERY MCP call routes through the connection serving the selected licence */
 /* ---------- PROMPT LIBRARY ---------- */
 const PERSONAS=[
  {key:"owner",name:"Project Owner",short:"Owner",role:"Executive",ic:"OW",prompts:[
@@ -2683,7 +2727,7 @@ function buildLibrary(){const lib=document.getElementById("library");
   lib.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{const p=PERSONAS.find(x=>x.key===b.dataset.p);ask(p,p.prompts[+b.dataset.q],b);});}
 const DOCTRINE="You are a senior BIM manager accountable for the whole project outcome — on time, on budget, minimal rework and RFIs. Reason like an owner, not a reporter. RULES: (1) Size every recommendation to the SCALE of the problem — use proportions, percentages and fair-share targets, never arbitrary fixed counts; fixing 10 of 10,000 is noise. (2) Prefer root-cause fixes that stop the inflow (clash automation, workflow/stamp discipline, fix-once-close-many on shared objects) over symptom triage, and rank root cause first. (3) When triaging, order by severity x buildability impact x age, not raw count. (4) Quantify BOTH the expected dent AND the residual that remains. (5) Be capacity-honest — never propose more than the team or tools can absorb; if work must be batched, say the batch size and cycles. (6) If load is concentrated but no teammate sits below the fair-share line, say plainly it is a capacity/scope problem, not a reassignment one. Keep it specific and numeric. ";
 function context(){const C=DATA.counts;const tot=C?C.total:Object.values(DATA.status).reduce((a,b)=>a+b,0);
-  return {project:DATA.meta.name,region:(typeof regionCfg==="function"?(regionCfg().label+(regionCfg().env==="prod"?" (production)":" (stage)")):(DATA.meta.region||"")),lastActivity:DATA.meta.lastActive,modelRevision:DATA.meta.revNum,totalIssues:tot,countsReconciled:(C?C.reconciled:true),detailComplete:(DATA.sample?DATA.sample.complete:false),detailSampleN:(DATA.sample?DATA.sample.n:0),statusCounts:DATA.status,priorityCounts:DATA.priority,
+  return {project:DATA.meta.name,region:(typeof dispRegion==="function"?(dispRegion()+(connCfg().env==="prod"?" (production)":" (stage)")):(DATA.meta.region||"")),lastActivity:DATA.meta.lastActive,modelRevision:DATA.meta.revNum,totalIssues:tot,countsReconciled:(C?C.reconciled:true),detailComplete:(DATA.sample?DATA.sample.complete:false),detailSampleN:(DATA.sample?DATA.sample.n:0),statusCounts:DATA.status,priorityCounts:DATA.priority,
     resolutionRatePct:Math.round(100*(DATA.status.Solved+DATA.status.Closed)/tot),last90d:{opened:DATA.trend.opened.reduce((a,b)=>a+b,0),resolved:DATA.trend.resolved.reduce((a,b)=>a+b,0),weekly:DATA.trend},
     drawingSheets:(DATA.sheetsNote?("unavailable — "+DATA.sheetsNote):DATA.sheets),clashTestsConfigured:DATA.clashTests,stampTemplates:DATA.stamps,
     topAuthors:DATA.reporters.map(r=>({email:r[0],issues:r[1],resolvedPct:Math.round(100*r[2]/r[1])})),assigneeLoad:DATA.assignees.map(r=>({email:r[0],assigned:r[1],open:r[2]})),
@@ -3707,10 +3751,10 @@ async function changeScale(mutate){
   btn.addEventListener("click",()=>{pop.hidden?open():close();});
 })();
 /* ===== Terms & Conditions — mandatory acceptance gate + review (client-side record) ===== */
-const TCS_VERSION=(typeof CONFIG!=="undefined"&&CONFIG&&CONFIG.tcsVersion)||"1.0";const TCS_LEGACY_KEY="rvz_tcs_accept";function TCS_KEYF(){return "rvz_tcs_accept@"+(typeof REGION!=="undefined"?REGION:"default");}/* WS20: acceptance is PER REGION (+version); the legacy un-suffixed key is honoured for the default region only */let TCS_GATE=false;let _tcsReturn=null;
+const TCS_VERSION=(typeof CONFIG!=="undefined"&&CONFIG&&CONFIG.tcsVersion)||"1.0";function TCS_KEYF(p){return "rvz_tcs_accept@"+(p||(typeof CONN!=="undefined"?CONN:"default"));}/* WS21: acceptance is PER CONNECTION (+version); ONE gate covers all configured connections and stamps each — adding a connection or bumping tcsVersion re-gates */let TCS_GATE=false;let _tcsReturn=null;
 function tcsEsc(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
-function tcsRecord(){try{var raw=localStorage.getItem(TCS_KEYF());if(!raw&&typeof CONFIG!=="undefined"&&REGION===CONFIG.defaultRegion)raw=localStorage.getItem(TCS_LEGACY_KEY);var r=JSON.parse(raw||"null");return (r&&typeof r==="object")?r:null;}catch(e){return null;}}
-function tcsAccepted(){var r=tcsRecord();return !!(r&&r.v===TCS_VERSION);}
+function tcsRecord(){try{var raw=localStorage.getItem(TCS_KEYF());var r=JSON.parse(raw||"null");return (r&&typeof r==="object")?r:null;}catch(e){return null;}}
+function tcsAccepted(){var a=(typeof CONFIG!=="undefined"&&CONFIG.connectors)||[];if(!a.length)return true;return a.every(function(c){try{var r=JSON.parse(localStorage.getItem(TCS_KEYF(c.prefix))||"null");return !!(r&&r.v===TCS_VERSION);}catch(e){return false;}});}
 function tcsFmtWhen(iso){try{var d=new Date(iso);if(isNaN(d.getTime()))return String(iso||"");var loc=d.toLocaleString(undefined,{year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"});return loc+" · "+d.toISOString().slice(0,16).replace("T"," ")+" UTC";}catch(e){return String(iso||"");}}
 function tcsFocusable(){var c=document.getElementById("tcsCard");if(!c)return [];return Array.prototype.slice.call(c.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')).filter(function(e){return !e.disabled&&!e.hidden&&e.offsetParent!==null;});}
 function tcsInert(on){var wrap=document.querySelector(".wrap");var sc=document.getElementById("tcsScrim");if(!wrap)return;Array.prototype.forEach.call(wrap.children,function(el){if(el===sc)return;if(on){el.setAttribute("aria-hidden","true");try{el.inert=true;}catch(e){}}else{el.removeAttribute("aria-hidden");try{el.inert=false;}catch(e){}}});}
@@ -3726,7 +3770,7 @@ function tcsRenderFoot(gate){
       '</div>'+
       '<label class="tcs-agree"><input type="checkbox" id="tcsChk"><span>I have read and agree to these Terms and Conditions. I understand the Blueprint is an experimental demonstration and that access to and use of it is conditional on my acceptance.</span></label>'+
       '<div class="tcs-actions"><button class="tcs-accept" id="tcsAccept" type="button">Agree and continue</button>'+
-      '<span class="tcs-note">v'+tcsEsc(TCS_VERSION)+_bs+' · region: '+tcsEsc(typeof regionCfg==="function"?((regionCfg().label||"")+(regionCfg().env==="prod"?" (production)":" (stage)")):"")+' · your acceptance is recorded on this device for this region</span></div>'+
+      '<span class="tcs-note">v'+tcsEsc(TCS_VERSION)+_bs+' · covers your '+((CONFIG.connectors||[]).length)+' configured Revizto MCP connection(s) · recorded on this device</span></div>'+
       '<p class="tcs-warn" id="tcsWarn" role="alert" hidden></p>';
     var chk=document.getElementById("tcsChk"),nm=document.getElementById("tcsName"),acc=document.getElementById("tcsAccept"),warn=document.getElementById("tcsWarn");
     function clearWarn(){if(warn){warn.hidden=true;warn.textContent="";}if(nm)nm.classList.remove("tcs-input-bad");}
@@ -3741,7 +3785,7 @@ function tcsRenderFoot(gate){
 }
 function openTcs(gate){var sc=document.getElementById("tcsScrim");if(!sc)return;TCS_GATE=!!gate;sc.classList.toggle("tcs-scrim--gate",!!gate);var _su=document.getElementById("tcsSumm");if(_su)_su.hidden=!gate;_tcsReturn=document.activeElement;tcsRenderFoot(TCS_GATE);sc.hidden=false;document.body.style.overflow="hidden";tcsInert(true);var bd=document.getElementById("tcsBody");if(bd)bd.scrollTop=0;var f=tcsFocusable();if(f.length)setTimeout(function(){try{f[0].focus();}catch(e){}},20);}
 function closeTcs(){if(TCS_GATE)return;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);var r=_tcsReturn;_tcsReturn=null;if(r&&r.focus){try{r.focus();}catch(e){}}}
-function tcsAccept(){var nmEl=document.getElementById("tcsName"),chk=document.getElementById("tcsChk"),warn=document.getElementById("tcsWarn");var nm=(nmEl&&nmEl.value)||"";function warnMsg(m,f){if(warn){warn.textContent=m;warn.hidden=false;}if(f){if(f===nmEl&&nmEl)nmEl.classList.add("tcs-input-bad");try{f.focus();}catch(e){}}}if(!nm.trim()){warnMsg("Add your name to sign the agreement.",nmEl);return;}if(!chk||!chk.checked){warnMsg("Tick the box to confirm you agree to the Terms.",chk);return;}var rec={v:TCS_VERSION,name:nm.trim(),at:new Date().toISOString(),ua:(typeof navigator!=="undefined"&&navigator.userAgent)||""};try{localStorage.setItem(TCS_KEYF(),JSON.stringify(rec));}catch(e){}try{if(typeof ME!=="undefined"&&ME){ME.name=rec.name;}localStorage.setItem("rvz_actor",rec.name);}catch(e){}TCS_GATE=false;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);if(typeof renderHeader==="function"){try{renderHeader();}catch(e){}}if(typeof tcsPostAccept==="function")tcsPostAccept();}
+function tcsAccept(){var nmEl=document.getElementById("tcsName"),chk=document.getElementById("tcsChk"),warn=document.getElementById("tcsWarn");var nm=(nmEl&&nmEl.value)||"";function warnMsg(m,f){if(warn){warn.textContent=m;warn.hidden=false;}if(f){if(f===nmEl&&nmEl)nmEl.classList.add("tcs-input-bad");try{f.focus();}catch(e){}}}if(!nm.trim()){warnMsg("Add your name to sign the agreement.",nmEl);return;}if(!chk||!chk.checked){warnMsg("Tick the box to confirm you agree to the Terms.",chk);return;}var rec={v:TCS_VERSION,name:nm.trim(),at:new Date().toISOString(),ua:(typeof navigator!=="undefined"&&navigator.userAgent)||""};try{(CONFIG.connectors||[]).forEach(function(c){try{localStorage.setItem(TCS_KEYF(c.prefix),JSON.stringify(rec));}catch(x){}});}catch(e){}try{if(typeof ME!=="undefined"&&ME){ME.name=rec.name;}localStorage.setItem("rvz_actor",rec.name);}catch(e){}TCS_GATE=false;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);if(typeof renderHeader==="function"){try{renderHeader();}catch(e){}}if(typeof tcsPostAccept==="function")tcsPostAccept();}
 document.addEventListener("keydown",function(e){var sc=document.getElementById("tcsScrim");if(!sc||sc.hidden)return;if(e.key==="Escape"){e.preventDefault();if(!TCS_GATE)closeTcs();return;}if(e.key==="Tab"){var f=tcsFocusable();if(!f.length)return;var first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();try{last.focus();}catch(err){}}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();try{first.focus();}catch(err){}}}},true);
 
 /* demo dataset — defined unconditionally so it can paint behind the T&Cs gate (Cowork) and drive standalone mode */
@@ -3784,7 +3828,7 @@ if(!(window.cowork&&window.cowork.callMcpTool)){demoSeed();}            /* stand
 else if(typeof tcsAccepted==="function"&&!tcsAccepted()){demoSeed();}   /* Cowork + gate ahead: paint demo behind the gate; refresh() replaces it on accept */
 function tcsPostAccept(){if(tcsPostAccept._d){if(window.cowork&&window.cowork.callMcpTool)refresh();return;}/* WS20: a later acceptance (new region) re-loads live — tour/resume stay once-only */tcsPostAccept._d=true;if(window.cowork&&window.cowork.callMcpTool){refresh();}offerResume();Tour.maybeAutoStart();}
 /* mandatory T&Cs gate: block the dashboard until accepted for the current version; deferred first-run tour follows acceptance */
-renderRegionPicker();refreshAboutBuild();
+renderConnHealth();refreshAboutBuild();
 if(tcsAccepted()){tcsPostAccept();}else{openTcs(true);}
 </script>
 </body>
