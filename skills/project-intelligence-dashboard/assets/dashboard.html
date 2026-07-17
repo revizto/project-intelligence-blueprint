@@ -67,7 +67,7 @@ h1{font-weight:500;font-size:var(--fs-5);letter-spacing:-.01em;margin:2px 0 0}
 @media(max-width:640px){.brandttl{flex-wrap:wrap;gap:4px 12px}.brandttl-dv{display:none}.brandcred{flex-basis:100%}}
 .logo{height:28px;width:auto;display:block}
 .dv{width:1px;height:32px;background:var(--line)}
-.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:var(--fs-1);font-weight:500;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--white);white-space:nowrap;justify-content:flex-start}
+.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:var(--fs-1);font-weight:500;padding:4px 12px;min-height:34px;box-sizing:border-box;border-radius:999px;border:1px solid var(--line);background:var(--white);white-space:nowrap;justify-content:flex-start}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan-dark)}
 /* tab bar */
 .tabrow{position:sticky;top:0;z-index:20;background:var(--paper);padding:8px 0 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
@@ -397,12 +397,18 @@ tr:last-child td{border-bottom:0}
 /* coffee brief */
 .prjpick{display:flex;align-items:center;gap:8px}
 .prjpick label{font-family:var(--mono);font-size:var(--fs-1);color:var(--muted)}
-.prjpick select{font-family:var(--sans);font-size:var(--fs-2);min-height:34px;border:1px solid var(--line);border-radius:8px;padding:4px 32px 4px 12px;background-color:var(--white);color:var(--ink);width:300px;max-width:60vw;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E6E6E' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+.prjpick select{font-family:var(--sans);font-size:var(--fs-2);min-height:34px;border:1px solid var(--line);border-radius:8px;padding:4px 32px 4px 12px;background-color:var(--white);color:var(--ink);width:clamp(240px,24vw,340px);max-width:60vw;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E6E6E' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
 .prjpick select:hover{border-color:var(--teal-deep)}
-.controlbar{display:grid;grid-template-areas:"lic samp . act" "prj tot . stat";grid-template-columns:fit-content(760px) fit-content(360px) 1fr max-content;/* WS21.5: cap > worst-case line (label+380px select+badge+ⓘ ≈ 700px) — the licence zone wraps ONLY under true space pressure, never with free space *//* data column capped — long totals text wraps instead of forcing overflow */column-gap:16px;row-gap:12px;align-items:center;margin:0 0 12px}/* WS21.4: ZONE GRID — six named areas, three explicit layouts (base / <=1024 / <=640). Layout is designed per breakpoint, never emergent. */
-.cb-lic{grid-area:lic}.cb-prj{grid-area:prj}.cb-samp{grid-area:samp}.cb-tot{grid-area:tot}
-.cb-actions{grid-area:act;display:flex;gap:12px;align-items:center;justify-content:flex-end}
-.cb-status{grid-area:stat;display:flex;align-items:center;justify-content:flex-end}
+.controlbar{display:flex;flex-direction:column;gap:12px;margin:0 0 16px}/* WS22: ROW LAYOUT — two explicit flex rows replace the WS21 zone grid (which overflowed at the 1072px content width and wrapped the licence badge onto a phantom third row). Row 1: licence context + session actions. Row 2: project scope + sample control with its coverage caption + live status. Controls top-align on a shared 34px line; captions hang beneath. Designed, never emergent. */
+.cb-row{display:flex;align-items:flex-start;gap:16px;min-width:0}
+.cb-row1{align-items:center}
+.cb-lic{flex:1 1 auto}
+.cb-prj{flex:0 0 auto;display:flex;align-items:center}
+.cb-mid{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.cb-samp{flex:0 0 auto}
+.cb-tot{min-width:0;max-width:100%}
+.cb-actions{flex:0 0 auto;margin-left:auto;display:flex;gap:12px;align-items:center;justify-content:flex-end}
+.cb-status{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;justify-content:flex-end}
 .coffee-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .persona-pick{display:flex;flex-wrap:wrap;gap:8px}
 .persona-pick .fbtn{flex:1 1 0;min-width:0;padding:8px 8px;text-align:center;white-space:nowrap}
@@ -590,9 +596,8 @@ tr:last-child td{border-bottom:0}
 .resume-banner .rb-txt b{font-weight:500}
 @media (prefers-reduced-motion:reduce){.spin,.jd-dotpulse{animation:none}.jd-track i{transition:none}}
 @media(max-width:640px){.bulk-grid{grid-template-columns:1fr}}
-.controlbar{align-items:center}
-@media(max-width:1024px){.controlbar{grid-template-areas:"lic act" "prj stat" "samp tot";grid-template-columns:minmax(0,1fr) max-content}.tabs{justify-content:flex-start}}
-@media(max-width:640px){.controlbar{grid-template-areas:none;grid-template-columns:1fr}.cb-lic,.cb-prj,.cb-samp,.cb-tot,.cb-actions,.cb-status{grid-column:1;grid-row:auto}.cb-actions,.cb-status{justify-content:flex-start}.cb-lic{flex-wrap:wrap}.regbadge{width:auto;max-width:60vw}}
+@media(max-width:1024px){.cb-row{flex-wrap:wrap;row-gap:12px}.tabs{justify-content:flex-start}}
+@media(max-width:640px){.cb-row{flex-direction:column;align-items:flex-start;gap:12px}.cb-actions,.cb-status{margin-left:0;justify-content:flex-start}.cb-lic{flex-wrap:wrap}.regbadge{width:auto;max-width:60vw}}
 .ctl-left{display:flex;flex-direction:column;gap:8px;align-items:flex-start;flex:0 0 auto;min-width:0}
 .ctl-mid{display:flex;align-items:flex-start;gap:16px;flex:0 0 auto}
 .sample-stack{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
@@ -607,7 +612,7 @@ tr:last-child td{border-bottom:0}
 .licmeta{display:inline-flex;gap:8px;align-items:center;flex:0 0 auto;white-space:nowrap;min-height:34px}
 .combo{display:flex;align-items:center;gap:8px;position:relative}
 .combo>label{font-family:var(--mono);font-size:var(--fs-1);color:var(--muted)}
-.combo-btn{display:flex;align-items:center;gap:12px;min-height:34px;width:clamp(240px,24vw,380px);justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--ink);font-family:var(--sans);font-size:var(--fs-2);padding:8px 12px;cursor:pointer}
+.combo-btn{display:flex;align-items:center;gap:12px;min-height:34px;width:clamp(240px,24vw,340px);justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--ink);font-family:var(--sans);font-size:var(--fs-2);padding:8px 12px;cursor:pointer}
 .combo-btn:hover{border-color:var(--teal-deep)}
 .combo-caret{flex:0 0 auto;width:12px;height:12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E6E6E' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center/12px no-repeat;font-size:0;transition:transform .15s ease}
 .combo-btn[aria-expanded="true"] .combo-caret{transform:rotate(180deg)}
@@ -929,13 +934,21 @@ th{white-space:nowrap}
     </div>
   </header>
   <div class="controlbar">
+   <div class="cb-row cb-row1">
     <div class="cb-lic"><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div><span class="licmeta"><span class="regbadge" id="regBadge" hidden></span><div class="connwrap" id="connWrap" hidden title="Revizto MCP connections"><button class="proof-i" id="connI" type="button" data-proof-i aria-label="Connections — status" data-proof-def="Checking your Revizto MCP connections…"><span aria-hidden="true">&#9432;</span></button><span class="connlbl" id="connLbl" aria-hidden="true"></span></div></span></div>
+    <div class="cb-actions">
+      <label class="ro-toggle" id="roPill" title="Read-only mode hides every write action — ideal for demos"><input type="checkbox" id="roToggle"><span>Read-only</span></label>
+      <button class="rfrsh" id="refreshBtn" title="Re-query live data from the Revizto MCP Server" aria-label="Refresh — re-query live data from the Revizto MCP Server"><svg class="rfrsh-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg><span>Refresh</span></button>
+    </div>
+   </div>
+   <div class="cb-row cb-row2">
     <div class="cb-prj"><div class="combo" id="prjCombo"><label>Project</label>
         <button class="combo-btn" id="prjBtn" aria-haspopup="listbox" aria-expanded="false"><span id="prjBtnLabel">Loading…</span><span class="combo-caret">▾</span></button>
         <button class="proof-i" id="prjFactsI" type="button" data-proof-i aria-label="Project details — created, last activity, model revision" hidden><span aria-hidden="true">&#9432;</span></button>
         <div class="combo-pop" id="prjPop" hidden><input class="combo-search" id="prjSearch" type="text" placeholder="Search projects…" aria-label="Search projects" autocomplete="off"><div class="combo-list" id="prjList" role="listbox" aria-label="Projects"></div></div>
       </div>
     </div>
+    <div class="cb-mid">
     <div class="cb-samp">
       <div class="sample-ctl" id="sampleCtl">
         <button class="sample-btn" id="sampleBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="samplePop" title="How much of the project is read for sampled analytics (totals stay exact)"><span class="sample-k">Detail sample</span><span class="sample-v" id="sampleBtnLabel">10%</span><span class="combo-caret">▾</span></button>
@@ -970,11 +983,9 @@ th{white-space:nowrap}
       </div>
     </div>
     <div class="cb-tot"><div class="ctxmeta" id="ctxState" aria-live="polite"></div></div>
-    <div class="cb-actions">
-      <label class="ro-toggle" id="roPill" title="Read-only mode hides every write action — ideal for demos"><input type="checkbox" id="roToggle"><span>Read-only</span></label>
-      <button class="rfrsh" id="refreshBtn" title="Re-query live data from the Revizto MCP Server" aria-label="Refresh — re-query live data from the Revizto MCP Server"><svg class="rfrsh-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg><span>Refresh</span></button>
     </div>
     <div class="cb-status"><span class="badge"><span class="dot" id="srcdot"></span><span id="srctext" aria-live="polite">snapshot</span></span></div>
+   </div>
   </div>
   <div id="loadbar" class="loadbar" role="status" aria-live="polite" aria-atomic="true" hidden></div>
   <div id="noproj" class="noproj" role="status" hidden><b>No projects in this licence.</b><br>Nothing to display — all project insights are cleared. Switch licence above to view a project.</div>
@@ -1259,7 +1270,7 @@ const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
     prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
     Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.8"};
+],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.9"};
 /* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
    be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
    LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
@@ -1597,7 +1608,7 @@ async function refresh(){
     if(my!==reqSeq)return;
     PROJECTS=arr;if(arr.length&&!arr.find(p=>p.uuid===PRJ)){const _mr=arr.slice().sort((a,b)=>(b.lastActive||b.updated||"").localeCompare(a.lastActive||a.updated||""))[0];if(_mr)PRJ=_mr.uuid;}renderPicker();
     const prj=PRJ;
-    if(!PROJECTS.length||!prj){blankData();setNoProj(true);var _kk=_fk||DISC_ERR;const _nb=document.getElementById("noproj");if(_nb){_nb.innerHTML=(_forbidden||_kk)?("<b>"+((_kk&&_kk.t)||"This licence isn’t accessible via the MCP Server.")+"</b><br>"+((_kk&&_kk.d)||"The Revizto MCP could not read this licence from any of your connections. Nothing can be shown live; switch licence above.")):"<b>No projects in this licence.</b><br>Nothing to display — all project insights are cleared. Switch licence above to view a project.";}setSrc((_forbidden||_kk)?"Licence not accessible via MCP":"No projects in this licence",(_forbidden||_kk)?"#B42318":"#0097A7");renderHeader();renderPicker();renderTab(current);return;}
+    if(!PROJECTS.length||!prj){blankData();setNoProj(true);var _kk=_fk||DISC_ERR;const _nb=document.getElementById("noproj");if(_nb){_nb.innerHTML=(_forbidden||_kk)?("<b>"+((_kk&&_kk.t)||"This licence isn’t accessible via the MCP Server.")+"</b><br>"+((_kk&&_kk.d)||"The Revizto MCP could not read this licence from any of your connections. Nothing can be shown live; switch licence above.")):"<b>No projects in this licence.</b><br>Nothing to display — all project insights are cleared. Switch licence above to view a project.";}var _noconn=!!(_kk&&_kk.k==="noconn");setSrc(_noconn?"Revizto MCP not connected":((_forbidden||_kk)?"Licence not accessible via MCP":"No projects in this licence"),_noconn?"#0097A7":((_forbidden||_kk)?"#B42318":"#0097A7"));renderHeader();renderPicker();renderTab(current);return;}
     setNoProj(false);
     const pj=arr.find(p=>p.uuid===prj)||arr[0];
     if(pj){DATA._projectId=pj.id||DATA._projectId;DATA.meta.name=pj.title||DATA.meta.name;DATA.meta.created=(pj.created||"").slice(0,10)||DATA.meta.created;DATA.meta.lastActive=pj.lastActive||DATA.meta.lastActive;DATA.meta.region=pj.region||DATA.meta.region;DATA.meta.has3d=(pj.has3d!==false);if(pj.revision){DATA.meta.revNum=pj.revision.number;DATA.meta.revBy=(pj.revision.author||{}).fullname||DATA.meta.revBy;DATA.meta.revDate=(pj.revision.created||"").slice(0,10);}}
@@ -1689,7 +1700,15 @@ async function discoverLicenses(seq){/* WS21: probe EVERY configured connection 
     (r.ents||[]).forEach(function(l){if(!l||!l.uuid)return;var ex=map.get(l.uuid);if(ex){ex._conns.push(r.c.prefix);ex._ids[r.c.prefix]=l.id;}else{l._conns=[r.c.prefix];l._ids={};l._ids[r.c.prefix]=l.id;map.set(l.uuid,l);}});
   });
   LICENSES=Array.from(map.values()).sort(function(a,b){return String(a.name||"").localeCompare(String(b.name||""));});
-  if(!LICENSES.length){var _bad=Object.keys(CONNSTATE).map(function(p){return CONNSTATE[p];}).filter(function(x){return !x.ok;});DISC_ERR=(_bad[0]&&_bad[0].kind)||{k:"nolic",t:"No licences visible through your MCP connections",d:"Every configured connection answered, but your Revizto user sees no licences on any of them. Check you signed in with the right Revizto account, and that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal)."};}
+  if(!LICENSES.length){var _all=Object.keys(CONNSTATE);var _bad=_all.map(function(p){return CONNSTATE[p];}).filter(function(x){return !x.ok;});
+    /* WS23 GRACEFUL ZERO-CONNECTION STATE — the Blueprint must never demand connections it doesn't have. Three cases:
+       (a) no connectors configured at all (fresh install / release build ships connectors:[]) → friendly connect CTA;
+       (b) every configured connection failed with only generic bridge errors (connector not set up in this Cowork install — the customer-import case) → same CTA;
+       (c) a SPECIFIC failure cause exists (appauth/rights/xregion/timeout) → keep the precise, actionable message. */
+    var _allFailed=_all.length>0&&_bad.length===_all.length;
+    var _specific=null;for(var _bi=0;_bi<_bad.length;_bi++){var _bk=_bad[_bi].kind;if(_bk&&_bk.k&&_bk.k!=="error"&&_bk.k!=="notfound"){_specific=_bk;break;}}
+    if(!_all.length||(_allFailed&&!_specific)){DISC_ERR={k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then press Refresh. Any Revizto MCP connection works — the Blueprint automatically uses whichever of your connections respond, and simply skips the rest."};}
+    else DISC_ERR=(_specific)||(_bad[0]&&_bad[0].kind)||{k:"nolic",t:"No licences visible through your MCP connections",d:"Every configured connection answered, but your Revizto user sees no licences on any of them. Check you signed in with the right Revizto account, and that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal)."};}
   if(LICENSES.length&&!LICENSES.find(function(x){return x.uuid===LIC;}))LIC=LICENSES[0].uuid;
   renderLicensePicker();renderConnHealth();}
 function renderLicensePicker(){const w=document.getElementById("licWrap"),sel=document.getElementById("licPick");if(!sel)return;
