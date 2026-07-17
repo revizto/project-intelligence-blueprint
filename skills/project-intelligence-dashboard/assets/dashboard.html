@@ -602,7 +602,8 @@ tr:last-child td{border-bottom:0}
 .regbadge{flex:0 0 auto;display:inline-block;width:150px;padding:3px 10px;border:1px solid #CBDDDD;border-radius:999px;font-size:var(--fs-1,11px);line-height:1.5;color:#1E2E2E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;box-sizing:border-box}
 .connwrap{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .connlbl{font-size:var(--fs-1,11px);color:#5b6b6b}
-.cb-lic{display:flex;gap:8px;flex-wrap:nowrap;align-items:center;min-width:0}/* WS21.2: geometry LOCKED — content length must never move the layout */
+.cb-lic{display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-width:0}/* WS21.3: the row may reflow at squeezed widths, but only between the select and the atomic badge+ⓘ group — no overlap, no orphaned ⓘ */
+.licmeta{display:inline-flex;gap:8px;align-items:center;flex:0 0 auto;white-space:nowrap}
 .combo{display:flex;align-items:center;gap:8px;position:relative}
 .combo>label{font-family:var(--mono);font-size:var(--fs-1);color:var(--muted)}
 .combo-btn{display:flex;align-items:center;gap:12px;min-height:34px;width:248px;max-width:46vw;justify-content:space-between;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--ink);font-family:var(--sans);font-size:var(--fs-2);padding:8px 12px;cursor:pointer}
@@ -616,7 +617,7 @@ tr:last-child td{border-bottom:0}
 .combo-opt:hover{background:var(--paper)}
 .combo-opt.sel{color:var(--teal-ink);font-weight:500}
 .combo-tick{color:var(--teal-ink)}
-.ro-toggle{display:flex;align-items:center;gap:8px;min-height:34px;font-family:var(--mono);font-size:var(--fs-1);font-weight:500;color:var(--muted);cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:8px 12px;background:var(--white);transition:.12s}
+.ro-toggle{display:flex;align-items:center;gap:8px;min-height:34px;white-space:nowrap;flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-1);font-weight:500;color:var(--muted);cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:8px 12px;background:var(--white);transition:.12s}
 .ro-toggle:hover{border-color:var(--red)}
 .ro-toggle input{accent-color:var(--red);width:14px;height:14px;flex:0 0 auto}
 .ro-toggle.on{background:var(--red);border-color:var(--red);color:#fff}
@@ -927,7 +928,7 @@ th{white-space:nowrap}
     </div>
   </header>
   <div class="controlbar">
-    <div class="cb-lic"><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div><span class="regbadge" id="regBadge" hidden></span><div class="connwrap" id="connWrap" hidden title="Revizto MCP connections"><button class="proof-i" id="connI" type="button" data-proof-i aria-label="Connections — status" data-proof-def="Checking your Revizto MCP connections…"><span aria-hidden="true">&#9432;</span></button><span class="connlbl" id="connLbl" aria-hidden="true"></span></div></div>
+    <div class="cb-lic"><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div><span class="licmeta"><span class="regbadge" id="regBadge" hidden></span><div class="connwrap" id="connWrap" hidden title="Revizto MCP connections"><button class="proof-i" id="connI" type="button" data-proof-i aria-label="Connections — status" data-proof-def="Checking your Revizto MCP connections…"><span aria-hidden="true">&#9432;</span></button><span class="connlbl" id="connLbl" aria-hidden="true"></span></div></span></div>
     <div class="cb-prj"><div class="combo" id="prjCombo"><label>Project</label>
         <button class="combo-btn" id="prjBtn" aria-haspopup="listbox" aria-expanded="false"><span id="prjBtnLabel">Loading…</span><span class="combo-caret">▾</span></button>
         <button class="proof-i" id="prjFactsI" type="button" data-proof-i aria-label="Project details — created, last activity, model revision" hidden><span aria-hidden="true">&#9432;</span></button>
@@ -1257,7 +1258,7 @@ const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
     prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
     Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.5"};
+],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.6"};
 /* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
    be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
    LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
