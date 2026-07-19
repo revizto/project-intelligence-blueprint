@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased (post-rc.1)
+## 1.0.0-rc.2 — 2026-07-20 (licence-first release candidate; build `2026-07-17.9`)
+
+Second release candidate. Consolidates all post-rc.1 work (WS20 → WS23) into a shippable cut. The headline change since rc.1 is the **connector model**: rc.1 configured a single `CONFIG.server` prefix that the installer rewrote; rc.2 is **licence-first / connector-agnostic** — you list one entry per connected region in `CONFIG.connectors` and the Blueprint routes each licence to its serving connection automatically. Release posture unchanged: production deep-links (`ws.revizto.com`), `readOnly:true`, ships `connectors:[]` (empty) and a synthetic demo snapshot, zero PII / stage identifiers (scrub verified).
+
+Docs brought back into line with the shipped build in this cut: README rewritten for licence-first with a step-by-step **MCP Region & Licensing** section and worked one-/multi-region examples; install `SKILL.md` corrected (artifact id `revizto-project-intelligence-blueprint`, `CONFIG.connectors` population, per-connector tool declaration); `CONNECTORS.md` gained connector-prefix discovery. Product name is **Project Intelligence Blueprint** throughout.
+
+Still open at rc.2 (flagged in README): the by-name connector-resolution question, and the placeholder Terms & Conditions URL (its publication will bump `tcsVersion`, re-prompting acceptance on every connection).
 
 - **Graceful zero-connection state (WS23):** the Blueprint never demands connections it doesn't have. It probes every configured Revizto MCP connection, uses whichever respond, and skips the rest. With no connectors configured (fresh install) or none reachable, it shows a calm first-run state — "Connect the Revizto MCP Server to enable live project intelligence" with plain-language setup guidance — instead of an error; specific failure causes (account not enabled in the Developer Portal, insufficient rights, wrong region, timeout) keep their precise, actionable messages. The live status pill reads "Revizto MCP not connected" in a calm setup tone, not an error red.
 - **Control bar rebuilt as two designed rows (WS22):** replaces the zone grid, which overflowed at the fixed content width and wrapped the licence badge onto a phantom row while breaking the totals line mid-phrase. Row 1: licence context + session actions (Read-only, Refresh). Row 2: project scope + Detail sample with its coverage caption beneath + live status. Licence and project controls share one width formula so edges align between rows; all controls sit on a shared 34px line; breakpoints (1024/640) rebuilt to match. Build 2026-07-17.9.

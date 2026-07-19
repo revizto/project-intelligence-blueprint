@@ -25,6 +25,12 @@ The dashboard is **licence-first**: it probes every configured connection, aggre
 
 If a licence can't be read, the dashboard explains the actual cause: the account hasn't enabled the Revizto MCP server (Developer Portal), your licence role is insufficient, or the licence lives on a regional instance you haven't connected.
 
+## Finding a connector's prefix
+
+Each connection exposes its tools with a unique `mcp__<connector-id>__` prefix — that string goes in the `prefix` field above. To read it, in the Cowork session (with the connector connected) ask Claude to *"list the Revizto MCP tool names you can call"*; the leading segment up to and including the trailing `__` (e.g. `mcp__1a2b3c4d-5e6f-7890-abcd-ef1234567890__`) is the prefix. Multiple connected regions show multiple distinct prefixes. The install skill reads these automatically; do it by hand only to verify or when configuring outside a Cowork install.
+
+> **Open item:** `.mcp.json` matches the connector **by name** while the dashboard routes by prefix. How `callMcpTool` resolves a by-name server in plugin context is not yet confirmed, so configure `CONFIG.connectors` with the real per-install prefix meanwhile. Flag it if a clearly-connected connection won't resolve.
+
 ## Admin network allowlist (Team/Enterprise)
 
 Allow the Revizto MCP connector domain(s) and `cdn.jsdelivr.net` (Chart.js). Fonts are embedded in the dashboard — no font CDN required. A missing allowlist entry is the most common silent install failure.
