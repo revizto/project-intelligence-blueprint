@@ -87,14 +87,14 @@ In Claude: **Settings → Connectors** → add the **Revizto MCP** connector for
 
 ### Step 2 — Add the marketplace and install the plugin
 
-**Desktop plugin browser:** open the plugin browser → **Add marketplace** → enter `jhowden-revizto/revizto-project-intelligence` → **turn "Sync automatically" OFF** → **Sync** → install **revizto-project-intelligence**.
+**Desktop plugin browser:** open the plugin browser → **Add marketplace** → enter `revizto/project-intelligence-blueprint` → **turn "Sync automatically" OFF** → **Sync** → install **revizto-project-intelligence**.
 
 > 🔴 **Turn "Sync automatically" OFF — this is required, not optional.** Leaving it on makes Claude set up auto-update-on-push, which needs the **Claude GitHub App** installed on this repository; without it the add fails with `github_repo_not_accessible` ("Automatic sync on push requires the Claude GitHub App…"). With the toggle **off**, Claude reads the public repo anonymously — no GitHub App, no interaction with your other connected repos, and you stay in control of updates. When a new build ships, re-open the marketplace and click **Sync/Update** once, manually.
 
 **Or, if the `/plugin` CLI is available:**
 
 ```
-/plugin marketplace add jhowden-revizto/revizto-project-intelligence
+/plugin marketplace add revizto/project-intelligence-blueprint
 /plugin install revizto-project-intelligence@revizto
 /reload-plugins
 ```
@@ -216,7 +216,7 @@ Every tool call inherits your own Revizto role and project membership — the da
 
 If the plugin keeps showing an **old version** after we've published a newer one — and re-syncing the marketplace, or uninstalling and reinstalling the plugin, doesn't change it — Claude is reading a **cached** copy. (Known issue: the plugin cache doesn't always refresh, anthropics/claude-code#17361.) The plugin cache and marketplace registry live on disk under `~/.claude/plugins/`; you must clear them.
 
-Verify first that the new version is actually published: open `https://github.com/jhowden-revizto/revizto-project-intelligence/blob/main/.claude-plugin/marketplace.json` in a browser and check the `"version"`. If that's the version you want but the app shows an older one, it's a cache — clear it:
+Verify first that the new version is actually published: open `https://github.com/revizto/project-intelligence-blueprint/blob/main/.claude-plugin/marketplace.json` in a browser and check the `"version"`. If that's the version you want but the app shows an older one, it's a cache — clear it:
 
 **macOS**
 
@@ -230,7 +230,7 @@ Verify first that the new version is actually published: open `https://github.co
    ```
 
    To fully reset the registry as well, delete the `revizto` entry from `~/.claude/plugins/known_marketplaces.json` (or delete that file to reset every marketplace — they rebuild when re-added). If `~/.claude/plugins` doesn't exist, locate the cache with `find ~/Library -ipath "*laude*plugins*" -name known_marketplaces.json 2>/dev/null` and clear the `cache` folder beside it.
-3. **Reopen Claude** → Settings → Plugins → **Add ▾ → Add marketplace** → `jhowden-revizto/revizto-project-intelligence` → **Sync automatically OFF** → **Sync**.
+3. **Reopen Claude** → Settings → Plugins → **Add ▾ → Add marketplace** → `revizto/project-intelligence-blueprint` → **Sync automatically OFF** → **Sync**.
 4. **Confirm the version now matches GitHub** before installing, then install.
 
 **Windows:** the equivalent path is `%USERPROFILE%\.claude\plugins\` — quit Claude, delete the `cache` and `marketplaces\revizto` folders there (and the `revizto` entry in `known_marketplaces.json`), reopen, and re-add the marketplace.

@@ -10,9 +10,9 @@ Work through the steps in order. Each has an explicit expected result. If any st
 
 ## 0. Precondition (Revizto/Jason confirms before you start)
 
-- rc.3 is pushed to `github.com/jhowden-revizto/revizto-project-intelligence` (branch `main`).
+- rc.3 is pushed to `github.com/revizto/project-intelligence-blueprint` (branch `main`).
 - The file is reachable in a browser at:
-  `https://github.com/jhowden-revizto/revizto-project-intelligence/blob/main/.claude-plugin/marketplace.json`
+  `https://github.com/revizto/project-intelligence-blueprint/blob/main/.claude-plugin/marketplace.json`
 
 Don't start until that URL loads.
 
@@ -37,7 +37,7 @@ In an ordinary Claude chat (not an artifact), type:
 ## 3. Add the marketplace and install the plugin
 
 **Desktop plugin browser (your path):**
-1. Open the plugin browser → **Add marketplace** → enter `jhowden-revizto/revizto-project-intelligence`.
+1. Open the plugin browser → **Add marketplace** → enter `revizto/project-intelligence-blueprint`.
 2. 🔴 **Turn "Sync automatically" OFF** before clicking Sync. **This is mandatory.** Leaving it on makes Claude set up auto-update-on-push, which needs the Claude GitHub App installed on the repo, and the add fails with `github_repo_not_accessible`. With it off, Claude reads the public repo anonymously — no GitHub App, no clash with your other connected repos.
 3. Click **Sync** — it should succeed.
 4. Install **revizto-project-intelligence**.
