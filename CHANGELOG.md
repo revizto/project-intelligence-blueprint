@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-rc.9 — 2026-07-20 (Read-only pill is a live toggle; approval-gated writes enabled; build `2026-07-20.1`)
+
+Requested change: the header **Read-only** pill was hard-locked on (`CONFIG.readOnly:true`); it is now a working per-session toggle.
+
+- **`CONFIG.readOnly` flipped `true` → `false`** in the release build, activating the existing toggle logic (no app-code change — the toggle branch was already there). Safety defaults are unchanged and deliberate: the Blueprint **opens read-only every session** (WS17) and **re-asserts read-only when the artifact is reopened/re-shown** (WS18). Turning writes on is an explicit, per-session action.
+- **`update_issues` now declared on the artifact allowlist at install** (install `SKILL.md`: declare ten tools per connector prefix — the nine reads + `update_issues`). This lets an *approved* write actually execute when the user toggles read-only off. **`update_issues` is declared but never called during install** — it is a write, and only a user-approved 06 action ever invokes it.
+- **The approval pipeline is unchanged.** Every write still runs through count-first targeting → diff + sample preview → name + reason approval modal → audit note → reversible, with connection-stamped staged jobs. The two-wall model still holds: your approval gate (in-app) + the Cowork allowlist (host). rc.9 opens the host wall for `update_issues` so approved writes land.
+- Docs updated across README (status, six-views note, Configuration `readOnly:false` row, trust posture, tool allowlist, install step, verify step), `CONNECTORS.md`, and the in-file `CONFIG` comment.
+- Version `1.0.0-rc.8` → `1.0.0-rc.9` (plugin + marketplace + skill). Dashboard change is the one `CONFIG.readOnly` value + a comment; `node --check` + div-balance pass; build stays `2026-07-20.1`. To revert to a hard read-only build: set `CONFIG.readOnly:true` and drop `update_issues` from the install declaration.
+
 ## 1.0.0-rc.8 — 2026-07-20 (confirmed working end-to-end; local-session step made prominent; build `2026-07-20.1`)
 
 **First fully-working install confirmed.** Running the install in a session **on the user's computer** (not the cloud) bound the nine read tools to the artifact, and the Blueprint went live — header "Live", licence "Jason Howden License — North America (USA)", a real project loaded. The whole chain is now proven: marketplace → plugin → verbatim deploy → tool allowlist → licence/region discovery → live data.

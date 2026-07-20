@@ -2,7 +2,9 @@
 
 Live, read-only project intelligence over the **Revizto MCP Server**, delivered as a Claude Cowork dashboard. It is **licence-first**: on load it probes every Revizto MCP region you have connected, aggregates the licences your own Revizto account can see into a single picker, and lets you pick a **licence** — never a connector or a region — then lands on your most-recently-active project. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" representative sample. Nothing is cached, assumed or hardcoded — every figure is re-derived live from the MCP on load and on every Refresh.
 
-**Status: v1.0.0-rc.8 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+**Status: v1.0.0-rc.9 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), **opens read-only every session with a user-controlled write toggle**, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+
+> **rc.9 — the Read-only pill is now a working toggle, and writes are enabled behind it.** rc.8 hard-locked the pill on. rc.9 sets `CONFIG.readOnly:false` so the pill is a **live per-session toggle**, and the install declares `update_issues` so that when a user switches read-only **off**, real changes to Revizto can be made — every one of them still governed by the full count-first + name/reason + preview + confirm **approval pipeline** (unchanged). Safety defaults are deliberate: the Blueprint **opens read-only every session** and **re-asserts read-only whenever the artifact is reopened/re-shown**; turning writes on is an explicit, per-session action.
 
 > **rc.8 — confirmed working end to end.** The full chain is verified live: marketplace → plugin → verbatim deploy → tool allowlist bound → licence/region discovered → live project data. The one non-obvious requirement, now proven, is that the install **must run in a session on your computer, not in the cloud** — see the critical step below.
 
@@ -42,7 +44,7 @@ Cloning the repo and "selecting the folder", or creating the artifact through th
 
 ## The six views
 
-`01 Morning brief` · `02 Project checklist` · `03 Cross-project intelligence` · `04 Coordination analytics` · `05 Ask anything` · `06 Action anything` (the plain-language write surface — **disabled in this build**, see [Configuration](#configuration-deploy-time-constants)).
+`01 Morning brief` · `02 Project checklist` · `03 Cross-project intelligence` · `04 Coordination analytics` · `05 Ask anything` · `06 Action anything` (the plain-language write surface — **disabled while read-only is on**, which is the default every session; toggle the header pill off to enable it, see [Configuration](#configuration-deploy-time-constants)).
 
 ## Repository layout
 
@@ -105,7 +107,7 @@ In a Cowork session with the plugin installed, say:
 
 > Open the Revizto Project Intelligence Blueprint — follow the `project-intelligence-dashboard` skill.
 
-The skill **copies the bundled `dashboard.html` verbatim** (it does not author or rebuild a dashboard — the Blueprint is a finished ~879 KB file), inserts your live connector prefix into the one `CONFIG.connectors` line, and registers the Cowork artifact (id `revizto-project-intelligence-blueprint`) **declaring the nine read tools** — this is the step that populates the artifact's `mcp_tools` allowlist (gate 2). It ships read-only; it does not declare `update_issues`.
+The skill **copies the bundled `dashboard.html` verbatim** (it does not author or rebuild a dashboard — the Blueprint is a finished ~879 KB file), inserts your live connector prefix into the one `CONFIG.connectors` line, and registers the Cowork artifact (id `revizto-project-intelligence-blueprint`) **declaring the nine read tools plus `update_issues`** — this is the step that populates the artifact's `mcp_tools` allowlist (gate 2). The Blueprint opens read-only; `update_issues` is only ever invoked by a user-approved 06 action after they toggle read-only off.
 
 > If you watch Claude *designing or writing HTML for a dashboard* during this step, something is wrong — stop and re-run. The correct behaviour is a file copy plus a one-line edit. (This was rc.4's failure, fixed in rc.5.)
 
@@ -118,7 +120,7 @@ On first live load the Blueprint presents the **Terms & Conditions** gate — no
 - The status pill reads **live** — not "Snapshot · demo data" (not running in Cowork) and not "Revizto MCP not connected" (a gate is still closed).
 - The **licence picker** lists your licence(s), each showing its own region; the masthead badge matches the selected licence's region.
 - The project picker shows **your** projects and landed on your most-recently-active one; switching projects re-scores every view.
-- **06 Action anything shows disabled with a padlock.** Correct — this build ships read-only.
+- **06 Action anything shows disabled with a padlock on first load.** Correct — the Blueprint opens read-only every session. Toggle the **Read-only** pill off to enable 06 Action (writes then run through the approval pipeline).
 - Figures reconcile: headline totals are exact; any sampled panel says "sample of N of M" on the card.
 - **Negative check (optional):** if a tool isn't authorised for the artifact, rc.3 shows a "tools aren't authorised for this artifact" message that names the fix — **not** a bare "please connect".
 
@@ -242,7 +244,7 @@ One `CONFIG` object at the top of the dashboard script:
 | Constant | This build | Meaning |
 |---|---|---|
 | `connectors` | `[]` (skill fills it) | one entry per connected Revizto MCP region: `{prefix, env, wsHost, missing}`. See [MCP Region & Licensing](#mcp-region--licensing-the-connector-id-detail). |
-| `readOnly` | `true` | the 06 Action write surface is disabled AND the header Read-only pill is locked. Enabling writes is a deploy-time decision: set `readOnly:false` AND declare `update_issues` on the artifact. |
+| `readOnly` | `false` | the header Read-only pill is a **live per-session toggle**. The Blueprint always opens read-only (and re-asserts read-only when the artifact is re-shown); switching the pill off enables the 06 Action write surface for that session. Real writes also require `update_issues` on the artifact allowlist (declared at install). Set `readOnly:true` to hard-lock the pill on and disable writes entirely. |
 | `tcsVersion` | `"1.0"` | Terms & Conditions version. Bumping it re-prompts acceptance on every connection. |
 | `buildStamp` | `"2026-07-20.1"` | shown in About and the Terms footer for support/traceability. |
 
@@ -254,12 +256,12 @@ One `CONFIG` object at the top of the dashboard script:
 
 - **Count-first exact layer.** Headline totals come from exact counts; anything sampled is labelled "sample of N of M" on the card itself.
 - **Live, never cached.** Cache-busted reads, per-call timeouts, honest failure states, full state reset on every licence/project/connection switch. Loaders are sequence-guarded, so no stale response from a prior selection repopulates state after a switch.
-- **Read-only by default, in two independent layers.** Inner: `CONFIG.readOnly:true` disables the write surface and locks the header pill (re-asserted at every open and on re-show). Outer: the artifact's declared `mcp_tools` allowlist — this build declares only the nine read tools per connector, so even a tampered page cannot write; the Cowork host refuses any undeclared tool. (This same allowlist is gate 2 above — it's the security boundary, which is why it is strict by default.) Enabling writes means deliberately changing both. When enabled, every write is count-first-targeted, previewed with a diff and sample, approval-gated (name + reason required), audit-noted and reversible; staged jobs are connection-stamped and never resume on a different connection.
+- **Read-only by default, writes behind an explicit toggle and a full approval gate.** The Blueprint **opens read-only every session** (`READONLY` starts on regardless of `CONFIG`) and **re-asserts read-only whenever the artifact is reopened/re-shown** — writes are never the default and never sticky. Turning the header pill **off** is a deliberate, per-session action that enables the 06 Action write surface. Every write then runs through the full pipeline: count-first targeting, a diff + sample preview, a name + reason approval modal, an audit note, and reversibility; staged jobs are connection-stamped and never resume on a different connection. The artifact's `mcp_tools` allowlist is the outer security boundary — this build declares the nine read tools **plus `update_issues`** so approved writes can execute; `update_issues` is never invoked except by a user-approved 06 action. To ship a hard read-only build instead, set `CONFIG.readOnly:true` (locks the pill on) and omit `update_issues` at install.
 - **Your session, your permissions.** All calls run through the user's own authenticated MCP session. No escalation; `whoami` is not in the allowlist.
 - **Consent precedes access.** No live data is fetched until Terms are accepted; acceptance is recorded on-device per connection.
 - **AI answers** (05 Ask) send only the derived figures needed for the question to the model; project data is not stored server-side.
 
-Tool allowlist (per connected connector prefix): `list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates, list_license_members, list_project_members, list_workflows, list_issues` (+ `update_issues`, gated as above).
+Tool allowlist (per connected connector prefix): `list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates, list_license_members, list_project_members, list_workflows, list_issues` + `update_issues` (declared so approved writes execute when read-only is toggled off; never invoked except by a user-approved 06 action). `whoami` is never declared.
 
 ## Demo mode
 

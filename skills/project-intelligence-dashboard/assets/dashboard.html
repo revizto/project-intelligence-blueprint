@@ -1270,13 +1270,15 @@ const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
     prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
     Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
 /* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
    be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
    LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
    always the SELECTED LICENCE's own region. One entry keeps the UI single-connection; several add a Connections ⓘ.
-   readOnly:true — the write surface (06 Action anything) ships disabled; enabling it is a deploy-time decision,
-   never a runtime toggle. T&C acceptance is recorded per connection. */
+   readOnly:false — the Read-only pill is a live per-session toggle: the Blueprint always OPENS read-only
+   (WS17) and re-asserts read-only when re-shown (WS18); the user can switch writes on for the session, and
+   every write runs through the count-first + name/reason approval pipeline. Real writes also require
+   update_issues on the artifact's tool allowlist (declared at install). T&C acceptance is recorded per connection. */
 const REGION_NAMES={"us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland"};
 function regionName(c){return REGION_NAMES[c]||c||"—";}
 let CONN=(function(){try{var c=localStorage.getItem("rvz_conn");if(c&&CONFIG.connectors.some(function(x){return x.prefix===c;}))return c;}catch(e){}return (CONFIG.connectors[0]||{}).prefix||"";})();

@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.8"
+  version: "1.0.0-rc.9"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -116,7 +116,15 @@ has been invoked once so it can be declared. (Repeat per connector prefix if the
   each fully-qualified with the connector's `mcp__<connector-id>__` prefix (and repeat the set for every
   connected prefix). If you omit `mcp_tools` or pass an empty list, the artifact's allowlist stays empty
   and the dashboard can never read live data — it will show "tools aren't authorised for this artifact."
-  Do **not** include `update_issues` (this build ships `readOnly:true`) and do **not** include `whoami`.
+  **Also include `update_issues`** (per connector prefix) — this build ships `readOnly:false`, so the
+  Read-only pill is a live per-session toggle and, when a user switches it off, the count-first +
+  name/reason approval pipeline can execute real writes; `update_issues` must be on the allowlist for those
+  approved writes to go through. So declare **ten** tools per prefix: the nine reads **+ `update_issues`**.
+  Do **not** include `whoami` ("me/my" in 06 resolves to an explicitly chosen user).
+
+  > **Never call `update_issues` during install.** It is a write. In step 4 you call only the nine *read*
+  > tools; you *declare* `update_issues` here without ever invoking it. A real write only ever happens later,
+  > when a user toggles read-only off and approves it through the 06 gate.
 
 **6 — Verify you deployed the real thing AND the tools bound (mandatory).**
 
@@ -139,5 +147,8 @@ them at the in-product **About · Terms · Tour**.
 list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates,
 list_license_members, list_project_members, list_workflows, list_issues.
 
-`update_issues` (the 06 Action write surface) stays **off** in this build (`CONFIG.readOnly:true`).
-`whoami` is intentionally excluded ("me/my" in 06 resolves to an explicitly chosen user).
+Plus **`update_issues`** (the 06 Action write tool) — declared so approved writes can execute when the user
+toggles read-only off. This build ships `readOnly:false` (the pill is a live per-session toggle; the
+Blueprint still opens read-only every session). **Declare `update_issues` but never call it during install
+— it is a write; only user-approved writes through the 06 gate ever invoke it.** `whoami` is intentionally
+excluded ("me/my" in 06 resolves to an explicitly chosen user).

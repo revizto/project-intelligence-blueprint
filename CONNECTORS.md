@@ -8,7 +8,7 @@ This plugin needs the **Revizto MCP** connector, but it does **not** bundle it. 
 |---|---|---|
 | Revizto MCP (project data) | Settings → Connectors → add "Revizto MCP" for your region, sign in | OAuth 2.1 PKCE against the regional Revizto API. One connection per region. |
 
-The dashboard's reads are **read-only** by default; the write tool (`update_issues`) is inert while `CONFIG.readOnly` is `true`.
+The Blueprint **opens read-only every session**; the header Read-only pill is a live per-session toggle. Switching it off enables the 06 Action write surface, and approved writes (`update_issues`, declared on the artifact at install) run through the count-first + name/reason approval pipeline. Read-only re-asserts whenever the artifact is reopened. To ship a hard read-only build, set `CONFIG.readOnly:true` and omit `update_issues` at install.
 
 > **Two separate gates.** Connecting this connector is necessary but **not** sufficient. The dashboard artifact also has its own per-artifact `mcp_tools` allowlist, which the connector grant does **not** populate — the install-skill `create_artifact` declares the read tools into it (and only takes effect when run from an installed plugin, natively in Cowork). If the dashboard says "tools aren't authorised for this artifact," gate 2 is the empty one. See the README "Install — do this as a plugin".
 
