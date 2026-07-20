@@ -189,6 +189,29 @@ Two entries → the picker aggregates licences from both, each labelled with its
 
 Every tool call inherits your own Revizto role and project membership — the dashboard cannot see or do anything you can't do in Revizto itself.
 
+### Stuck on an old plugin version (clear the cache)
+
+If the plugin keeps showing an **old version** after we've published a newer one — and re-syncing the marketplace, or uninstalling and reinstalling the plugin, doesn't change it — Claude is reading a **cached** copy. (Known issue: the plugin cache doesn't always refresh, anthropics/claude-code#17361.) The plugin cache and marketplace registry live on disk under `~/.claude/plugins/`; you must clear them.
+
+Verify first that the new version is actually published: open `https://github.com/jhowden-revizto/revizto-project-intelligence/blob/main/.claude-plugin/marketplace.json` in a browser and check the `"version"`. If that's the version you want but the app shows an older one, it's a cache — clear it:
+
+**macOS**
+
+1. **Quit Claude completely** (⌘Q — not just the window).
+2. In **Terminal**:
+
+   ```bash
+   chflags -R nouchg ~/.claude/plugins 2>/dev/null   # clear macOS lock flags that block deletion (harmless if none)
+   rm -rf ~/.claude/plugins/cache                     # the cached plugin files
+   rm -rf ~/.claude/plugins/marketplaces/revizto      # the cloned marketplace copy
+   ```
+
+   To fully reset the registry as well, delete the `revizto` entry from `~/.claude/plugins/known_marketplaces.json` (or delete that file to reset every marketplace — they rebuild when re-added). If `~/.claude/plugins` doesn't exist, locate the cache with `find ~/Library -ipath "*laude*plugins*" -name known_marketplaces.json 2>/dev/null` and clear the `cache` folder beside it.
+3. **Reopen Claude** → Settings → Plugins → **Add ▾ → Add marketplace** → `jhowden-revizto/revizto-project-intelligence` → **Sync automatically OFF** → **Sync**.
+4. **Confirm the version now matches GitHub** before installing, then install.
+
+**Windows:** the equivalent path is `%USERPROFILE%\.claude\plugins\` — quit Claude, delete the `cache` and `marketplaces\revizto` folders there (and the `revizto` entry in `known_marketplaces.json`), reopen, and re-add the marketplace.
+
 ---
 
 ## Configuration (deploy-time constants)

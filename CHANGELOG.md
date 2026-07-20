@@ -7,6 +7,7 @@ After rc.4 installed cleanly, running the install skill in the user's Cowork ses
 - **Install `SKILL.md` rewritten as a strict copy-don't-author recipe.** Explicit prohibition on authoring/rebuilding/redesigning a dashboard; deterministic steps: `cp` the bundled `assets/dashboard.html` to scratch → make exactly one edit (insert the connector prefix into the empty `CONFIG.connectors` array) → `create_artifact` with `html_path` pointing at the copied file and the nine read tools declared per connector prefix → **verify** the deployed artifact is ≈ 879 KB / 3,857 lines and carries `buildStamp:"2026-07-20.1"` and the six-view chrome; if not, it was regenerated — discard and redo by copying. No dashboard code change (build stays `2026-07-20.1`).
 - **README:** rc.5 note + Install Step 3 caution — the skill copies the bundled file verbatim; if you see Claude *designing/writing* a dashboard, stop and re-run.
 - Version `1.0.0-rc.4` → `1.0.0-rc.5` (plugin + marketplace + skill). Re-sync the marketplace and update the plugin to pick up the corrected skill.
+- **README troubleshooting: "Stuck on an old plugin version (clear the cache)."** Re-syncing and reinstalling can keep serving a cached version (anthropics/claude-code#17361); added the on-disk cache-clear procedure (`~/.claude/plugins/cache` + `marketplaces/` + `known_marketplaces.json`, with the macOS `chflags -R nouchg` step and the Windows path), plus how to verify the published version on GitHub first.
 
 ## 1.0.0-rc.4 — 2026-07-20 (marketplace validation fix; build `2026-07-20.1`)
 
