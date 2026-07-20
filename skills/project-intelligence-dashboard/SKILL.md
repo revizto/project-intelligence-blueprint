@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.9"
+  version: "1.0.0-rc.10"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -73,7 +73,7 @@ of the copied file the connector array ships empty:
 ```js
 const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection ... */
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
 ```
 
 Read the installer's actual Revizto MCP tool prefix from the connected tool names in this session —
@@ -83,7 +83,7 @@ the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licen
 ```js
 const CONFIG={connectors:[
   {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
 ```
 
 Use a single targeted find-and-replace on that one region. **Do not touch anything else in the file** —

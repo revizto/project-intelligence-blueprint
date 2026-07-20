@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.10 — 2026-07-21 (Terms link published; repo relocated; build `2026-07-20.1`)
+
+- **Terms & Conditions link published.** The in-text link in the acceptance gate (and its review mode) now points to the canonical **`https://revizto.com/legal/revizto-mcp-server`** — the long-standing placeholder (`href="#"`, "Link to be provided") is gone. Applied to both canonical and release dashboards.
+- **`tcsVersion` bumped `1.0` → `1.1`.** A Terms change re-prompts acceptance: on next load every connection re-shows the gate once and re-records consent against v1.1 (this is the intended, built-in behaviour). No other T&C text changed.
+- **Repository relocated** to `github.com/revizto/project-intelligence-blueprint` (from `jhowden-revizto/revizto-project-intelligence`): all install commands, marketplace-add references and doc URLs updated; git remote repointed. Install identifier unchanged (`revizto-project-intelligence@revizto`).
+- Doc consistency: README/SKILL `CONFIG` examples corrected to the shipped values (`readOnly:false, tcsVersion:"1.1"`); Configuration table + Known-open-items T&C entry updated (now resolved).
+- Version `1.0.0-rc.9` → `1.0.0-rc.10` (plugin + marketplace + skill). Dashboard change is the Terms `href` + `tcsVersion` value; `node --check` + div-balance pass; build stays `2026-07-20.1`.
+
 ## 1.0.0-rc.9 — 2026-07-20 (Read-only pill is a live toggle; approval-gated writes enabled; build `2026-07-20.1`)
 
 Requested change: the header **Read-only** pill was hard-locked on (`CONFIG.readOnly:true`); it is now a working per-session toggle.

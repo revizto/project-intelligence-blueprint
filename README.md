@@ -2,7 +2,9 @@
 
 Live, read-only project intelligence over the **Revizto MCP Server**, delivered as a Claude Cowork dashboard. It is **licence-first**: on load it probes every Revizto MCP region you have connected, aggregates the licences your own Revizto account can see into a single picker, and lets you pick a **licence** — never a connector or a region — then lands on your most-recently-active project. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" representative sample. Nothing is cached, assumed or hardcoded — every figure is re-derived live from the MCP on load and on every Refresh.
 
-**Status: v1.0.0-rc.9 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), **opens read-only every session with a user-controlled write toggle**, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+**Status: v1.0.0-rc.10 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), **opens read-only every session with a user-controlled write toggle**, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+
+> **rc.10 — Terms link published.** The in-text Terms link now points to the canonical `https://revizto.com/legal/revizto-mcp-server`, and `tcsVersion` bumped `1.0` → `1.1` (this re-prompts Terms acceptance once on next load). Also relocated to `github.com/revizto/project-intelligence-blueprint`.
 
 > **rc.9 — the Read-only pill is now a working toggle, and writes are enabled behind it.** rc.8 hard-locked the pill on. rc.9 sets `CONFIG.readOnly:false` so the pill is a **live per-session toggle**, and the install declares `update_issues` so that when a user switches read-only **off**, real changes to Revizto can be made — every one of them still governed by the full count-first + name/reason + preview + confirm **approval pipeline** (unchanged). Safety defaults are deliberate: the Blueprint **opens read-only every session** and **re-asserts read-only whenever the artifact is reopened/re-shown**; turning writes on is an explicit, per-session action.
 
@@ -157,7 +159,7 @@ Open `skills/project-intelligence-dashboard/assets/dashboard.html` and find, nea
 
 ```js
 const CONFIG={connectors:[
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
 ```
 
 Add **one entry per connected region**. You only ever set `prefix`; leave the rest at these defaults unless you have a reason:
@@ -174,7 +176,7 @@ Add **one entry per connected region**. You only ever set `prefix`; leave the re
 ```js
 const CONFIG={connectors:[
   {prefix:"mcp__1a2b3c4d-5e6f-7890-abcd-ef1234567890__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
 ```
 
 One entry → no extra chrome; the picker just lists that region's licences.
@@ -185,7 +187,7 @@ One entry → no extra chrome; the picker just lists that region's licences.
 const CONFIG={connectors:[
   {prefix:"mcp__1a2b3c4d-5e6f-7890-abcd-ef1234567890__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
   {prefix:"mcp__9f8e7d6c-5b4a-3210-fedc-ba9876543210__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
 ```
 
 Two entries → the picker aggregates licences from both, each labelled with its own region, and a **Connections ⓘ** appears. Add each region's connector domain to the admin allowlist too (prerequisite 4).
@@ -245,7 +247,7 @@ One `CONFIG` object at the top of the dashboard script:
 |---|---|---|
 | `connectors` | `[]` (skill fills it) | one entry per connected Revizto MCP region: `{prefix, env, wsHost, missing}`. See [MCP Region & Licensing](#mcp-region--licensing-the-connector-id-detail). |
 | `readOnly` | `false` | the header Read-only pill is a **live per-session toggle**. The Blueprint always opens read-only (and re-asserts read-only when the artifact is re-shown); switching the pill off enables the 06 Action write surface for that session. Real writes also require `update_issues` on the artifact allowlist (declared at install). Set `readOnly:true` to hard-lock the pill on and disable writes entirely. |
-| `tcsVersion` | `"1.0"` | Terms & Conditions version. Bumping it re-prompts acceptance on every connection. |
+| `tcsVersion` | `"1.1"` | Terms & Conditions version. `1.1` published the canonical Revizto MCP Server Terms link (`https://revizto.com/legal/revizto-mcp-server`). Bumping it re-prompts acceptance on every connection. |
 | `buildStamp` | `"2026-07-20.1"` | shown in About and the Terms footer for support/traceability. |
 
 > `CONFIG.server` and `CONFIG.wsHost` still exist as **legacy mirrors** of the currently-selected connection, retargeted automatically on switch. Configure `CONFIG.connectors`, not these.
@@ -277,7 +279,7 @@ Opened outside Cowork (no `window.cowork`), the dashboard renders a clearly-labe
 
 - **Native allowlist declaration (being verified by first-user testing).** rc.3 ships `marketplace.json` so the install-skill `create_artifact` path can declare the nine read tools into the artifact's `mcp_tools` allowlist. Confirm on the current desktop build that a plugin-install + skill-run install actually populates the allowlist (the dashboard should reach the licence picker within one Refresh). If it still shows "tools aren't authorised for this artifact" after a proper plugin install, the create path isn't declaring tools on that build — capture it as a Revizto platform issue.
 - **Artifact-runtime prefix form.** The dashboard routes by the `mcp__<id>__` prefix, which is per-user and derived in the artifact runtime. Record the exact prefix form observed during the first native install. Secondary to the allowlist (gate 2 fails first). (The plugin no longer declares the connector, so the old "by-name `.mcp.json` resolution" question is moot — the connector is added by the user in Settings → Connectors.)
-- **Terms & Conditions URL.** The in-text link to the canonical Revizto MCP Server Terms is a **placeholder** pending the final URL; publishing it will bump `tcsVersion` (re-prompting acceptance on every connection).
+- ~~**Terms & Conditions URL.**~~ **Resolved (rc.10):** the in-text Terms link now points to `https://revizto.com/legal/revizto-mcp-server`, and `tcsVersion` bumped `1.0` → `1.1`, which re-prompts Terms acceptance on every connection on next load.
 
 ## Licence
 
