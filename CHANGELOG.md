@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.6 — 2026-07-20 (install skill binds the tool allowlist; build `2026-07-20.1`)
+
+rc.5 deployed the correct Blueprint verbatim, but it opened on "The Blueprint's tools aren't authorised for this artifact yet" — the artifact's `mcp_tools` allowlist was empty. Root cause: Cowork's `create_artifact` only adds a tool to the artifact allowlist **if that tool was actually called in the same session** (per the tool's own contract). The rc.5 skill declared the nine read tools without calling them first, so nothing bound. (This also answers the long-standing open question — the native `create_artifact` *can* populate the allowlist; it just requires the tools to have been exercised in-session.)
+
+- **Install `SKILL.md`: call-then-declare.** New mandatory step 4 — for each connected connector prefix, call each of the nine read tools once (`list_licenses` → `list_projects` → project-scoped reads), which both verifies the licence is MCP-accessible and registers the tools for the session. Step 5 (`create_artifact`) now stresses `mcp_tools` is REQUIRED and lists all nine per prefix. Step 6 adds a tools-bound check (must reach Terms/licence picker, not the allowlist panel). The rc.5 copy-verbatim recipe is unchanged and confirmed working (deploys the real ~879 KB Blueprint).
+- **README:** rc.6 note + rewritten "tools aren't authorised" troubleshooting row (real cause + call-then-declare fix).
+- Version `1.0.0-rc.5` → `1.0.0-rc.6` (plugin + marketplace + skill). Clear the plugin cache / re-sync so the desktop picks up rc.6 (see the cache-clear troubleshooting). No dashboard code change (build stays `2026-07-20.1`).
+
 ## 1.0.0-rc.5 — 2026-07-20 (install skill deploys the dashboard verbatim; build `2026-07-20.1`)
 
 After rc.4 installed cleanly, running the install skill in the user's Cowork session **rebuilt a dashboard from scratch** instead of deploying the bundled Blueprint. Root cause: `create_artifact` takes an `html_path` (a file you write), and the rc.4 skill said "read the bundled HTML and create the artifact from it" — which the model interpreted as licence to author its own dashboard. The bundled `dashboard.html` is a finished, approved ~879 KB / 3,857-line artifact; it must be **copied**, not regenerated.

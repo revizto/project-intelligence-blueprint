@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.5"
+  version: "1.0.0-rc.6"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -75,23 +75,46 @@ no reformatting, no other edits. Read the real prefix; never guess it. (If you g
 a prefix, you may leave `connectors:[]` and deploy anyway — the Blueprint will show the connect CTA —
 but it won't load live data, so prefer inserting the prefix.)
 
-**4 — Register the artifact from the copied file.** Call `create_artifact` with:
+**4 — Call the nine read tools once in this session (mandatory — this is what makes the allowlist bind).**
+`create_artifact` will only put a tool on the artifact's `mcp_tools` allowlist if you **actually called
+that tool in this session** — declaring a tool you never called does nothing, and the dashboard then
+shows "The Blueprint's tools aren't authorised for this artifact yet." So, for **each** connected
+connector prefix, call each of the nine read tools at least once before creating the artifact:
+
+1. `mcp__<prefix>__list_licenses` → confirm your licence is returned (this also proves the licence is
+   MCP-accessible). Take a `licenseId` from the result.
+2. `mcp__<prefix>__list_license_members` (with that `licenseId`), `mcp__<prefix>__list_projects` (with
+   that `licenseId`) → take a `projectId` from the result.
+3. With that `projectId`, call `list_project_members`, `list_workflows`, `list_issues`,
+   `list_sheets`, `list_clash_tests`, `list_stamp_templates`.
+
+If any call returns empty or errors for lack of data, that's fine — it still counts as "called this
+session," which is all the allowlist binding needs. The goal is simply that every one of the nine tools
+has been invoked once so it can be declared. (Repeat per connector prefix if the user has more than one region.)
+
+**5 — Register the artifact from the copied file.** Call `create_artifact` with:
 
 - `id`: **`revizto-project-intelligence-blueprint`** (reuse this exact id; never invent a new one).
 - `html_path`: the path to your copied `./pi-blueprint.html` (the file from steps 2–3 — **not** any newly authored file).
-- `mcp_tools`: for **each** connected connector prefix, the nine read tools below (each fully-qualified with that `mcp__<connector-id>__` prefix). This declaration is what populates the artifact's tool allowlist — the gate that lets the dashboard read live data. Do **not** include `update_issues` (this build ships `readOnly:true`) and do **not** include `whoami`.
+- `mcp_tools`: **REQUIRED — this is the whole point of the install.** List all nine read tools below,
+  each fully-qualified with the connector's `mcp__<connector-id>__` prefix (and repeat the set for every
+  connected prefix). If you omit `mcp_tools` or pass an empty list, the artifact's allowlist stays empty
+  and the dashboard can never read live data — it will show "tools aren't authorised for this artifact."
+  Do **not** include `update_issues` (this build ships `readOnly:true`) and do **not** include `whoami`.
 
-**5 — Verify you deployed the real thing (mandatory).** After creating, confirm the artifact is the
-bundled Blueprint, not a regeneration:
+**6 — Verify you deployed the real thing AND the tools bound (mandatory).**
 
-- the deployed HTML is ≈ 879 KB / ≈ 3,857 lines (a dashboard you "built" will be far smaller);
-- it contains `buildStamp:"2026-07-20.1"` and the six-view chrome (panel ids incl. `panel-issues`,
-  `panel-health`, `panel-compare`, `panel-ask`).
+- Content: the deployed HTML is ≈ 879 KB / ≈ 3,857 lines (a dashboard you "built" will be far smaller)
+  and contains `buildStamp:"2026-07-20.1"` and the six-view chrome (panel ids incl. `panel-issues`,
+  `panel-health`, `panel-compare`, `panel-ask`). If size/markers are off, you regenerated it — discard
+  and redo from step 2 by copying the file.
+- Tools: after the artifact opens, it must reach the Terms gate → licence picker, **not** the
+  "tools aren't authorised for this artifact yet" panel. If it shows that panel, the `mcp_tools` did not
+  bind — confirm you (a) *called* each of the nine tools in step 4 and (b) *declared* all nine in step 5,
+  then re-create. If it still fails after both, the artifact-creation path on this build is not binding
+  the allowlist — report that to Revizto (capture the desktop version).
 
-If the size is wildly off or these markers are missing, you regenerated it — **discard and redo from
-step 2 by copying the file.**
-
-**6 — Hand off to the user.** Tell them the Blueprint is open; on first live load it shows the Terms
+**7 — Hand off to the user.** Tell them the Blueprint is open; on first live load it shows the Terms
 gate (accept to proceed), then a licence picker; it lands on their most-recently-active project. Point
 them at the in-product **About · Terms · Tour**.
 
