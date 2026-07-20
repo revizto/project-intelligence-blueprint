@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.5 — 2026-07-20 (install skill deploys the dashboard verbatim; build `2026-07-20.1`)
+
+After rc.4 installed cleanly, running the install skill in the user's Cowork session **rebuilt a dashboard from scratch** instead of deploying the bundled Blueprint. Root cause: `create_artifact` takes an `html_path` (a file you write), and the rc.4 skill said "read the bundled HTML and create the artifact from it" — which the model interpreted as licence to author its own dashboard. The bundled `dashboard.html` is a finished, approved ~879 KB / 3,857-line artifact; it must be **copied**, not regenerated.
+
+- **Install `SKILL.md` rewritten as a strict copy-don't-author recipe.** Explicit prohibition on authoring/rebuilding/redesigning a dashboard; deterministic steps: `cp` the bundled `assets/dashboard.html` to scratch → make exactly one edit (insert the connector prefix into the empty `CONFIG.connectors` array) → `create_artifact` with `html_path` pointing at the copied file and the nine read tools declared per connector prefix → **verify** the deployed artifact is ≈ 879 KB / 3,857 lines and carries `buildStamp:"2026-07-20.1"` and the six-view chrome; if not, it was regenerated — discard and redo by copying. No dashboard code change (build stays `2026-07-20.1`).
+- **README:** rc.5 note + Install Step 3 caution — the skill copies the bundled file verbatim; if you see Claude *designing/writing* a dashboard, stop and re-run.
+- Version `1.0.0-rc.4` → `1.0.0-rc.5` (plugin + marketplace + skill). Re-sync the marketplace and update the plugin to pick up the corrected skill.
+
 ## 1.0.0-rc.4 — 2026-07-20 (marketplace validation fix; build `2026-07-20.1`)
 
 rc.3 could not be added as a marketplace at all. The first user's log gave the exact server-side cause (repeated on every Sync attempt):

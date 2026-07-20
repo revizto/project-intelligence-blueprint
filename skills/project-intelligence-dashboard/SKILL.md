@@ -4,87 +4,101 @@ description: >
   This skill should be used when the user wants to "open the Revizto dashboard",
   "set up project intelligence", "show my Revizto projects", "open the Project
   Intelligence Blueprint", or just installed the Revizto Project Intelligence plugin
-  and needs the dashboard created. It deploys the live, read-only Project Intelligence
-  Blueprint as a Cowork artifact that discovers the installing user's own Revizto
-  licences (across every connected region) and most-recently-active project.
+  and needs the dashboard created. It deploys the pre-built, read-only Project
+  Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
+  as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.4"
+  version: "1.0.0-rc.5"
 ---
 
 # Project Intelligence Blueprint — install action
 
-Deploy the Revizto Project Intelligence Blueprint as a live Cowork artifact for the user.
-The build is **licence-first**: the user picks a *licence*, never a connector or region. The
-dashboard probes every configured Revizto MCP connection, aggregates the licences the user can
-see into one picker ("Licence name — Region"), and resolves the serving connection automatically.
+Deploy the **pre-built** Revizto Project Intelligence Blueprint as a live Cowork artifact.
 
-## When this runs
+## 🚫 CRITICAL — deploy the bundled file verbatim. Do NOT build a dashboard.
 
-Trigger on first install of the plugin, or when the user asks to open / set up / re-create the
-dashboard.
+The Blueprint is a **finished, approved artifact**: a single self-contained HTML file
+(`assets/dashboard.html`, ≈ 879 KB, ≈ 3,857 lines) that ships inside this plugin. Your entire
+job is to **copy that exact file** and **insert the user's connector prefix into one line**, then
+register it as an artifact.
+
+You must **NOT**, under any circumstances:
+
+- author, write, generate, re-create, "rebuild", redesign, or improve a dashboard;
+- summarise the file and reproduce it from memory;
+- change the layout, styles, scripts, views, or any HTML/JS other than the single `CONFIG.connectors` line described below.
+
+If you find yourself *writing HTML/CSS/JS for a dashboard*, stop — you are doing the wrong thing.
+The correct action is a **byte-for-byte file copy** plus one tiny edit. A regenerated dashboard is
+an automatic failure.
 
 ## Steps
 
-1. **Confirm a Revizto MCP connector is connected.** If `callMcpTool` is unavailable, tell the
-   user to add the **Revizto MCP** connector for their region (Settings → Connectors) and approve
-   read-only tool access, then stop. The dashboard will still open in this state — it shows a calm
-   "Connect the Revizto MCP Server to enable live project intelligence" first-run panel rather than
-   an error — but it has nothing live to read until a connection exists.
+**1 — Confirm a Revizto MCP connector is connected.** If `callMcpTool` is unavailable, tell the user
+to add the **Revizto MCP** connector for their region (Settings → Connectors) and approve read-only
+tool access, then stop. (The Blueprint still opens without one — it shows a calm "Connect the Revizto
+MCP Server" first-run panel — but has nothing live to read.)
 
-2. **Read the bundled dashboard HTML** at
-   `${CLAUDE_PLUGIN_ROOT}/skills/project-intelligence-dashboard/assets/dashboard.html`.
-   It is a self-contained artifact: embedded fonts, Chart.js via the allowed CDN, no hardcoded
-   licence/project IDs. It discovers the user's own licences and most-recently-active project at
-   runtime.
+**2 — Copy the bundled dashboard verbatim into your scratch workspace.** Do not open it to reproduce
+it — just copy it:
 
-3. **Populate `CONFIG.connectors` — one entry per connected Revizto MCP region.** Near the top of
-   the inline script the release ships an **empty** connector set:
+```bash
+cp "$CLAUDE_PLUGIN_ROOT/skills/project-intelligence-dashboard/assets/dashboard.html" ./pi-blueprint.html
+wc -c ./pi-blueprint.html   # sanity check: expect ~879000 bytes. If it's a few KB, you have the wrong file — do not proceed.
+```
 
-   ```js
-   const CONFIG={connectors:[
-   ],readOnly:true,tcsVersion:"1.0",buildStamp:"..."};
-   ```
+(If `$CLAUDE_PLUGIN_ROOT` isn't set in this environment, locate the plugin's
+`skills/project-intelligence-dashboard/assets/dashboard.html` on disk and copy that. Never substitute
+a hand-written file.)
 
-   For **each** Revizto MCP connection the user has added to this AI tool, read its actual tool
-   prefix from the connected tool names visible in this session — the leading `mcp__<connector-id>__`
-   segment (e.g. `mcp__1a2b3c4d-…__list_licenses` → prefix `mcp__1a2b3c4d-…__`). Add one entry:
+**3 — Make EXACTLY ONE edit: insert the connector prefix(es) into `CONFIG.connectors`.** Near the top
+of the copied file the connector array ships empty:
 
-   ```js
-   connectors:[
-     {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-     // …one line per connected region; any subset works
-   ]
-   ```
+```js
+const CONFIG={connectors:[
+ /* Add ONE entry per Revizto MCP connection ... */
+],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+```
 
-   Do **not** guess the id — read the real prefix from the session. One entry behaves exactly like a
-   single-region build (no extra UI); several add a Connections ⓘ health panel. Regions and labels
-   are **not** baked in — the app derives each licence's region from Revizto at runtime, so you never
-   set a region here. `missing:[]` lists any read tools a given region's MCP build does not expose
-   (leave empty unless you know a specific gap). See `CONNECTORS.md` for finding the connector id.
+Read the installer's actual Revizto MCP tool prefix from the connected tool names in this session —
+the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licenses` → prefix
+`mcp__1a2b3c4d-…__`). For **each** connected Revizto region, add one entry, so the array becomes:
 
-4. **Create the Cowork artifact** from that HTML (`create_artifact`), id
-   **`revizto-project-intelligence-blueprint`**, declaring for **each** connected connector the read
-   tools listed below (each tool prefixed with that connector's own `mcp__<connector-id>__`). Do
-   **not** enable write tools — this build ships `readOnly:true`.
+```js
+const CONFIG={connectors:[
+  {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
+],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
+```
 
-   > **This declaration is load-bearing.** The `mcp_tools` you declare here become the artifact's
-   > tool allowlist — the gate the Cowork runtime checks on every call. If it is empty the dashboard
-   > can't read anything and shows "tools aren't authorised for this artifact." Connecting the
-   > connector does **not** fill this allowlist; only this `create_artifact` declaration does, and it
-   > only takes effect when run natively in a Cowork session with the plugin installed (the cloud/remote
-   > artifact path cannot declare `mcp_tools`). So this skill must run from an installed plugin.
+Use a single targeted find-and-replace on that one region. **Do not touch anything else in the file** —
+no reformatting, no other edits. Read the real prefix; never guess it. (If you genuinely cannot obtain
+a prefix, you may leave `connectors:[]` and deploy anyway — the Blueprint will show the connect CTA —
+but it won't load live data, so prefer inserting the prefix.)
 
-5. **Tell the user the Blueprint is open.** On first live load it presents the Terms & Conditions
-   gate (acceptance is recorded per connection, on-device); after they accept, it aggregates their
-   licences into the picker and lands on their most-recently-active project. Point them at the
-   in-product **About · Terms · Tour** for data handling and a guided walkthrough.
+**4 — Register the artifact from the copied file.** Call `create_artifact` with:
 
-## Read tools the dashboard uses (declare exactly these, per connector prefix)
+- `id`: **`revizto-project-intelligence-blueprint`** (reuse this exact id; never invent a new one).
+- `html_path`: the path to your copied `./pi-blueprint.html` (the file from steps 2–3 — **not** any newly authored file).
+- `mcp_tools`: for **each** connected connector prefix, the nine read tools below (each fully-qualified with that `mcp__<connector-id>__` prefix). This declaration is what populates the artifact's tool allowlist — the gate that lets the dashboard read live data. Do **not** include `update_issues` (this build ships `readOnly:true`) and do **not** include `whoami`.
+
+**5 — Verify you deployed the real thing (mandatory).** After creating, confirm the artifact is the
+bundled Blueprint, not a regeneration:
+
+- the deployed HTML is ≈ 879 KB / ≈ 3,857 lines (a dashboard you "built" will be far smaller);
+- it contains `buildStamp:"2026-07-20.1"` and the six-view chrome (panel ids incl. `panel-issues`,
+  `panel-health`, `panel-compare`, `panel-ask`).
+
+If the size is wildly off or these markers are missing, you regenerated it — **discard and redo from
+step 2 by copying the file.**
+
+**6 — Hand off to the user.** Tell them the Blueprint is open; on first live load it shows the Terms
+gate (accept to proceed), then a licence picker; it lands on their most-recently-active project. Point
+them at the in-product **About · Terms · Tour**.
+
+## Read tools to declare (per connected connector prefix)
 
 list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates,
 list_license_members, list_project_members, list_workflows, list_issues.
 
-`update_issues` (the 06 Action write surface) stays **off** in this build (`CONFIG.readOnly:true`);
-enabling it per engagement is a deploy-time decision requiring governance sign-off — writes are
-count-first-targeted, previewed, approval-gated and reversible. Do not declare `whoami` (excluded by
-design; "me/my" in 06 resolves to an explicitly chosen user).
+`update_issues` (the 06 Action write surface) stays **off** in this build (`CONFIG.readOnly:true`).
+`whoami` is intentionally excluded ("me/my" in 06 resolves to an explicitly chosen user).

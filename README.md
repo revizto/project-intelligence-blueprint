@@ -2,7 +2,9 @@
 
 Live, read-only project intelligence over the **Revizto MCP Server**, delivered as a Claude Cowork dashboard. It is **licence-first**: on load it probes every Revizto MCP region you have connected, aggregates the licences your own Revizto account can see into a single picker, and lets you pick a **licence** — never a connector or a region — then lands on your most-recently-active project. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" representative sample. Nothing is cached, assumed or hardcoded — every figure is re-derived live from the MCP on load and on every Refresh.
 
-**Status: v1.0.0-rc.4 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+**Status: v1.0.0-rc.5 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+
+> **rc.5 — the install skill now deploys the bundled dashboard verbatim.** The dashboard is a finished ~879 KB HTML artifact bundled in the plugin; the install skill must *copy* it and insert your connector prefix, not author one. rc.4's skill wording let Claude "rebuild" a dashboard from scratch instead. rc.5 rewrites the skill as a strict copy-don't-author recipe (copy the file → edit only the `CONFIG.connectors` line → register via `create_artifact` `html_path` → verify size/build stamp). If you see Claude *designing or writing* a dashboard during install, stop and re-run — it should be copying a file.
 
 > **rc.4 — the marketplace now installs.** rc.3 could not be added as a marketplace: Cowork's server-side validator rejected the plugin with `MCP server 'Revizto MCP' must have a 'url' field`. The plugin had bundled the Revizto MCP connector in `.mcp.json` with no URL (it's a regional, OAuth, user-added connector — there is no static URL to give). Fix: the plugin **no longer bundles the connector**. It ships skills only; you add the Revizto MCP connector yourself in Settings → Connectors (a prerequisite, Install Step 1). Nothing in the working flow depended on the plugin declaring it — the artifact's tool allowlist comes from the install skill's `create_artifact`, and the connector comes from your own connection.
 >
@@ -82,7 +84,9 @@ In a Cowork session with the plugin installed, say:
 
 > Open the Revizto Project Intelligence Blueprint — follow the `project-intelligence-dashboard` skill.
 
-The skill reads the bundled `dashboard.html`, fills `CONFIG.connectors` from your live connector(s), and creates the Cowork artifact (id `revizto-project-intelligence-blueprint`) **declaring the nine read tools** — this is the step that populates the artifact's `mcp_tools` allowlist (gate 2). It ships read-only; it does not declare `update_issues`.
+The skill **copies the bundled `dashboard.html` verbatim** (it does not author or rebuild a dashboard — the Blueprint is a finished ~879 KB file), inserts your live connector prefix into the one `CONFIG.connectors` line, and registers the Cowork artifact (id `revizto-project-intelligence-blueprint`) **declaring the nine read tools** — this is the step that populates the artifact's `mcp_tools` allowlist (gate 2). It ships read-only; it does not declare `update_issues`.
+
+> If you watch Claude *designing or writing HTML for a dashboard* during this step, something is wrong — stop and re-run. The correct behaviour is a file copy plus a one-line edit. (This was rc.4's failure, fixed in rc.5.)
 
 ### Step 4 — First run: accept Terms, pick a licence
 
