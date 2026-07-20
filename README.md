@@ -2,9 +2,11 @@
 
 Live, read-only project intelligence over the **Revizto MCP Server**, delivered as a Claude Cowork dashboard. It is **licence-first**: on load it probes every Revizto MCP region you have connected, aggregates the licences your own Revizto account can see into a single picker, and lets you pick a **licence** — never a connector or a region — then lands on your most-recently-active project. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" representative sample. Nothing is cached, assumed or hardcoded — every figure is re-derived live from the MCP on load and on every Refresh.
 
-**Status: v1.0.0-rc.3 — private release candidate (build `2026-07-20.1`).** Production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+**Status: v1.0.0-rc.4 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
 
-> **rc.3 — what changed and why it matters for install.** rc.2's first live install failed with a misleading "Connect the Revizto MCP Server" panel *even though the connector was connected*. Root cause: a Cowork artifact has its **own per-artifact tool allowlist** (`mcp_tools`), separate from the connector grant, and it was empty — so every call was refused, and the dashboard mis-reported that as "not connected." rc.3 fixes this two ways: **(1)** the package now ships `.claude-plugin/marketplace.json`, so it installs as a proper plugin — and the install skill's `create_artifact` is what declares the read tools **into the artifact allowlist** (the step that was missing); **(2)** the dashboard now surfaces the allowlist error with an actionable message instead of the "please connect" dead-end. **If you deployed rc.2, install rc.3 as a plugin (below) — do not just clone the folder.**
+> **rc.4 — the marketplace now installs.** rc.3 could not be added as a marketplace: Cowork's server-side validator rejected the plugin with `MCP server 'Revizto MCP' must have a 'url' field`. The plugin had bundled the Revizto MCP connector in `.mcp.json` with no URL (it's a regional, OAuth, user-added connector — there is no static URL to give). Fix: the plugin **no longer bundles the connector**. It ships skills only; you add the Revizto MCP connector yourself in Settings → Connectors (a prerequisite, Install Step 1). Nothing in the working flow depended on the plugin declaring it — the artifact's tool allowlist comes from the install skill's `create_artifact`, and the connector comes from your own connection.
+>
+> **Carried from rc.3 (still in this build):** the package ships `.claude-plugin/marketplace.json` so it installs as a plugin; the install skill's `create_artifact` declares the read tools **into the artifact's `mcp_tools` allowlist** (the gate that was empty in rc.2's failed install); and the dashboard surfaces an allowlist error with an actionable message instead of a false "please connect". **If you tried rc.2 or rc.3, remove the old marketplace entry and re-add rc.4 — do not just clone the folder.**
 
 ---
 
@@ -28,7 +30,6 @@ Cloning the repo and "selecting the folder", or creating the artifact through th
 ```
 .claude-plugin/plugin.json                          plugin manifest
 .claude-plugin/marketplace.json                     one-plugin marketplace (makes it installable)
-.mcp.json                                           Revizto MCP connector reference (by name)
 skills/
   project-intelligence-dashboard/                   install action + the dashboard artifact
     SKILL.md
@@ -71,7 +72,7 @@ In Claude: **Settings → Connectors** → add the **Revizto MCP** connector for
 /reload-plugins
 ```
 
-The install detail view should list **3 skills + 1 MCP server**. (Cloning the repo and selecting the folder is for inspecting or editing the code only — it will **not** authorise the artifact's tools, so it can't produce a working live dashboard. Use the plugin path.)
+The install detail view should list **3 skills** (the plugin ships skills only; the Revizto MCP connector is the one you added yourself in Step 1, not bundled by the plugin). (Cloning the repo and selecting the folder is for inspecting or editing the code only — it will **not** authorise the artifact's tools, so it can't produce a working live dashboard. Use the plugin path.)
 
 ### Step 3 — Create the dashboard through the install skill
 
@@ -119,7 +120,7 @@ To read it, in the Cowork session (connector connected) ask Claude:
 
 You'll see names like `mcp__1a2b3c4d-5e6f-7890-abcd-ef1234567890__list_licenses`; the part up to and including the trailing `__` is the prefix. Multiple connected regions show multiple distinct prefixes. The install skill reads these automatically — use this only to verify or to configure by hand.
 
-> ⚠️ **Runtime caveat.** The dashboard executes in the **Cowork artifact runtime**, not the chat session; the prefix the artifact uses is not guaranteed identical to the chat-session prefix, and `.mcp.json` references the connector **by name** (`"Revizto MCP"`) rather than by id. rc.3 makes this a *secondary* concern — the artifact tool allowlist (gate 2) is enforced *before* any prefix is evaluated, so an unauthorised tool fails first and the dashboard now says so. Confirm the exact artifact-runtime prefix form during your first native install and record it here.
+> ⚠️ **Runtime caveat.** The dashboard executes in the **Cowork artifact runtime**, not the chat session; the prefix the artifact uses is not guaranteed identical to the chat-session prefix. This is a *secondary* concern — the artifact tool allowlist (gate 2) is enforced *before* any prefix is evaluated, so an unauthorised tool fails first and the dashboard now says so. Confirm the exact artifact-runtime prefix form during your first native install and record it here.
 
 ### Configure `CONFIG.connectors` by hand (only if not using the skill)
 
@@ -221,7 +222,7 @@ Opened outside Cowork (no `window.cowork`), the dashboard renders a clearly-labe
 ## Known open items
 
 - **Native allowlist declaration (being verified by first-user testing).** rc.3 ships `marketplace.json` so the install-skill `create_artifact` path can declare the nine read tools into the artifact's `mcp_tools` allowlist. Confirm on the current desktop build that a plugin-install + skill-run install actually populates the allowlist (the dashboard should reach the licence picker within one Refresh). If it still shows "tools aren't authorised for this artifact" after a proper plugin install, the create path isn't declaring tools on that build — capture it as a Revizto platform issue.
-- **By-name connector resolution / artifact-runtime prefix.** `.mcp.json` references the connector by name; the dashboard routes by `mcp__<id>__` prefix, which is per-user. Record the exact artifact-runtime prefix form during the first native install. Secondary to the allowlist (gate 2 fails first).
+- **Artifact-runtime prefix form.** The dashboard routes by the `mcp__<id>__` prefix, which is per-user and derived in the artifact runtime. Record the exact prefix form observed during the first native install. Secondary to the allowlist (gate 2 fails first). (The plugin no longer declares the connector, so the old "by-name `.mcp.json` resolution" question is moot — the connector is added by the user in Settings → Connectors.)
 - **Terms & Conditions URL.** The in-text link to the canonical Revizto MCP Server Terms is a **placeholder** pending the final URL; publishing it will bump `tcsVersion` (re-prompting acceptance on every connection).
 
 ## Licence

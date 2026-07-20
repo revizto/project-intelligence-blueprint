@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0-rc.4 — 2026-07-20 (marketplace validation fix; build `2026-07-20.1`)
+
+rc.3 could not be added as a marketplace at all. The first user's log gave the exact server-side cause (repeated on every Sync attempt):
+
+```
+MARKETPLACE_ERROR:REMOTE_SYNC_FAILED [remoteMarketplaceOps] status: failed_content
+{"plugins":[{"name":"revizto-project-intelligence",
+  "error":"MCP server 'Revizto MCP' must have a 'url' field that is a string"}],
+ "message":"1 plugins found, 1 failed validation"}
+```
+
+Cowork's marketplace validator runs server-side and requires every plugin-declared MCP server to carry a `url` string. The plugin bundled the Revizto MCP connector in `.mcp.json` as `{"type":"sse"}` with no URL — deliberately, because it's a regional, OAuth, user-added connector with no static endpoint. The validator rejected it, and the desktop UI surfaced only the generic "Marketplace sync failed. Check the repository URL" (a red herring — the repo is public and was parsed fine).
+
+- **Removed the plugin's bundled MCP-server declaration.** Deleted `.mcp.json` and the `mcpServers` key from `plugin.json`. The plugin now ships **skills only** and validates. Nothing in the working flow depended on the plugin declaring the connector: the artifact's `mcp_tools` allowlist is populated by the install skill's `create_artifact`, and the Revizto MCP connector is added by the user in Settings → Connectors (already a documented prerequisite). No dashboard code change (build stays `2026-07-20.1`).
+- **Docs aligned:** README status → rc.4 with the fix note; repo layout drops `.mcp.json`; install detail now reads "3 skills" (no bundled MCP server); the by-name `.mcp.json` resolution open item is retired (moot — the plugin doesn't declare the connector); `CONNECTORS.md` reframed (connector is user-added, not bundled); `TEST` guide updated. README now states the repo must be **public** for the desktop install path (Cowork sync is anonymous + server-side, per anthropics/claude-code#61271).
+
+Confirmed en route: the repo is public and the marketplace manifest is valid and anonymously reachable — repo visibility was never the blocker (the validator parsed it and rejected the plugin's MCP entry).
+
 ## 1.0.0-rc.3 — 2026-07-20 (installable + self-explaining; build `2026-07-20.1`)
 
 Fixes the first-user install failure: the Blueprint showed "Connect the Revizto MCP Server" while the connector *was* connected. Root cause (traced from runtime evidence): a Cowork artifact enforces its **own per-artifact `mcp_tools` allowlist**, separate from the connector grant, and it was empty — every MCP call was refused with `Tool "…" is not in this artifact's mcp_tools allowlist`, which `mcpFailKind()` didn't recognise, so the graceful zero-connection block funnelled it into the "please connect" CTA (a false negative). Connecting/granting the connector does not populate that allowlist; only the install-skill `create_artifact` declaration does, and only when run natively from an installed plugin.

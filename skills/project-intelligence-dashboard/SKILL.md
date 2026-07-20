@@ -8,7 +8,7 @@ description: >
   Blueprint as a Cowork artifact that discovers the installing user's own Revizto
   licences (across every connected region) and most-recently-active project.
 metadata:
-  version: "1.0.0-rc.3"
+  version: "1.0.0-rc.4"
 ---
 
 # Project Intelligence Blueprint — install action

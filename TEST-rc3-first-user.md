@@ -1,4 +1,4 @@
-# Test guide — Project Intelligence Blueprint v1.0.0-rc.3
+# Test guide — Project Intelligence Blueprint v1.0.0-rc.4
 
 **For:** first-user validation on Claude Cowork desktop, single region (Virginia / US-East).
 **Goal:** confirm that installing as a plugin and creating the dashboard through the install skill populates the artifact's `mcp_tools` allowlist — the gate that was empty in rc.2 — and the dashboard loads live data.
@@ -47,7 +47,7 @@ In an ordinary Claude chat (not an artifact), type:
 /reload-plugins
 ```
 
-**Expected:** the install detail view lists **3 skills + 1 MCP server**. This is the step that was impossible in rc.2 (no `marketplace.json`).
+**Expected:** the install detail view lists **3 skills** (the plugin ships skills only — the Revizto MCP connector is the one you connected in step 2, not bundled by the plugin). This whole marketplace-add path was impossible in rc.2 (no `marketplace.json`) and failed validation in rc.3 (the bundled connector had no URL); rc.4 fixes both.
 
 ## 4. Create the dashboard through the install skill (gate 2 — the actual test)
 

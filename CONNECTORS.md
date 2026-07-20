@@ -2,13 +2,13 @@
 
 ## Required connector
 
-This plugin needs the **Revizto MCP** connector. It is a directory connector with a dynamic, per-region endpoint, so `.mcp.json` references it **by name** (name-match is treated the same as a URL match).
+This plugin needs the **Revizto MCP** connector, but it does **not** bundle it. The connector is a directory connector with a dynamic, per-region endpoint and OAuth sign-in, so there is no static URL to declare — and the marketplace validator rejects a plugin MCP server without a `url`. So the plugin ships **skills only**; you add the Revizto MCP connector yourself in **Settings → Connectors** (a prerequisite — see the README "Install" Step 1), one connection per region you use.
 
-| Category | Server name in `.mcp.json` | Notes |
+| Connector | How you add it | Notes |
 |---|---|---|
-| Revizto MCP (project data) | `Revizto MCP` | The production directory-entry name for the installer's region. |
+| Revizto MCP (project data) | Settings → Connectors → add "Revizto MCP" for your region, sign in | OAuth 2.1 PKCE against the regional Revizto API. One connection per region. |
 
-Auth is OAuth 2.1 PKCE against the regional Revizto API; the user signs in on connect. The dashboard's reads are **read-only** by default; the write tool (`update_issues`) is inert while `CONFIG.readOnly` is `true`.
+The dashboard's reads are **read-only** by default; the write tool (`update_issues`) is inert while `CONFIG.readOnly` is `true`.
 
 > **Two separate gates.** Connecting this connector is necessary but **not** sufficient. The dashboard artifact also has its own per-artifact `mcp_tools` allowlist, which the connector grant does **not** populate — the install-skill `create_artifact` declares the read tools into it (and only takes effect when run from an installed plugin, natively in Cowork). If the dashboard says "tools aren't authorised for this artifact," gate 2 is the empty one. See the README "Install — do this as a plugin".
 
@@ -31,7 +31,7 @@ If a licence can't be read, the dashboard explains the actual cause: the account
 
 Each connection exposes its tools with a unique `mcp__<connector-id>__` prefix — that string goes in the `prefix` field above. To read it, in the Cowork session (with the connector connected) ask Claude to *"list the Revizto MCP tool names you can call"*; the leading segment up to and including the trailing `__` (e.g. `mcp__1a2b3c4d-5e6f-7890-abcd-ef1234567890__`) is the prefix. Multiple connected regions show multiple distinct prefixes. The install skill reads these automatically; do it by hand only to verify or when configuring outside a Cowork install.
 
-> **Open item:** `.mcp.json` matches the connector **by name** while the dashboard routes by prefix. How `callMcpTool` resolves a by-name server in plugin context is not yet confirmed, so configure `CONFIG.connectors` with the real per-install prefix meanwhile. Flag it if a clearly-connected connection won't resolve.
+> **Note:** the dashboard routes by the `mcp__<id>__` prefix, which is per-user and derived in the artifact runtime. Configure `CONFIG.connectors` with the real per-install prefix (the install skill reads it for you). Flag it if a clearly-connected connection won't resolve.
 
 ## Admin network allowlist (Team/Enterprise)
 

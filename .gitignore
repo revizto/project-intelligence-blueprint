@@ -1,1 +1,4 @@
 .fuse_hidden*
+
+# rc.4: connector is user-added, not plugin-bundled (marketplace validator rejects url-less MCP server)
+.mcp.json
