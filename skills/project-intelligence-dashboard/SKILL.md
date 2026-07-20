@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.7"
+  version: "1.0.0-rc.8"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -41,9 +41,12 @@ and shows "The Blueprint's tools aren't authorised for this artifact yet" / "Lic
 MCP" / "No projects", no matter how correctly everything else is done.
 
 Before you start: confirm the session is running **on this computer** (local), not in the cloud. In the
-Cowork app the header shows a **cloud icon** for cloud sessions and a **computer/laptop icon** for local
-ones. If this is a cloud session, tell the user to re-run the install in a session that runs **on their
-computer**, and stop — proceeding in the cloud will produce a dashboard that cannot read data.
+Claude app the header shows a **cloud icon** for cloud sessions and a **computer/laptop icon** for local
+ones. To switch: use the **run-location control at the top-right of the window** and choose **"On your
+computer"** (or set the default under **Settings → Cowork → turn OFF "Run new tasks in the cloud"**). If
+this is a cloud session, tell the user to switch to on-your-computer and re-run — proceeding in the cloud
+produces a dashboard that cannot read data ("tools aren't authorised for this artifact"). Confirmed: a
+local session binds the allowlist and the Blueprint loads live data.
 
 ## Steps
 

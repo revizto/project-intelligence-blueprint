@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0-rc.8 — 2026-07-20 (confirmed working end-to-end; local-session step made prominent; build `2026-07-20.1`)
+
+**First fully-working install confirmed.** Running the install in a session **on the user's computer** (not the cloud) bound the nine read tools to the artifact, and the Blueprint went live — header "Live", licence "Jason Howden License — North America (USA)", a real project loaded. The whole chain is now proven: marketplace → plugin → verbatim deploy → tool allowlist → licence/region discovery → live data.
+
+- **README:** the local-vs-cloud requirement is promoted to a 🔴 **CRITICAL FIRST STEP** at the top, plus an explicit **Step 0** in the install flow, with the exact control: the **run-location picker at the top-right of the Claude window → "On your computer"** (laptop icon, not cloud), and the default toggle at **Settings → Cowork → "Run new tasks in the cloud" (off)**.
+- **Install `SKILL.md`:** prerequisite updated with the same exact control and a note that a local session is confirmed to bind the allowlist and load live data.
+- Version `1.0.0-rc.7` → `1.0.0-rc.8` (plugin + marketplace + skill). No dashboard code change (build stays `2026-07-20.1`).
+
 ## 1.0.0-rc.7 — 2026-07-20 (local-session requirement; build `2026-07-20.1`)
 
 rc.6 ran the skill correctly — copied the real Blueprint verbatim, inserted the connector prefix, and called all nine read tools in-session (confirmed: `list_licenses` returned "Jason Howden License", region us-east-1) — yet the dashboard still showed "Licence not accessible via MCP / tools aren't authorised for this artifact / No projects". Runtime logs settled it: the session was a **cloud** Cowork session (`cse_…`, `remote_cowork.sign_for_session_header`, remote `/artifacts/cse_…/versions`). The cloud→desktop artifact bridge **does not bind the `mcp_tools` allowlist**, so the artifact opens empty regardless of everything upstream.

@@ -2,9 +2,22 @@
 
 Live, read-only project intelligence over the **Revizto MCP Server**, delivered as a Claude Cowork dashboard. It is **licence-first**: on load it probes every Revizto MCP region you have connected, aggregates the licences your own Revizto account can see into a single picker, and lets you pick a **licence** — never a connector or a region — then lands on your most-recently-active project. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" representative sample. Nothing is cached, assumed or hardcoded — every figure is re-derived live from the MCP on load and on every Refresh.
 
-**Status: v1.0.0-rc.7 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
+**Status: v1.0.0-rc.8 — private release candidate (build `2026-07-20.1`).** Public repo (required for the desktop install path), production deep-links (`ws.revizto.com`), read-only by default, ships with an empty connector set and a synthetic demo snapshot. Not for public distribution until sign-off.
 
-> **rc.7 — run the install in a LOCAL session (not a cloud one).** rc.6 copied the real Blueprint and called all nine read tools correctly, yet the dashboard still showed "Licence not accessible via MCP / tools aren't authorised". Runtime logs confirmed why: the session was a **cloud** Cowork session (`cse_…`, `remote_cowork`), and the cloud→desktop artifact bridge **cannot bind the `mcp_tools` allowlist**. The tools only bind when `create_artifact` runs **on your computer** (a local session). This is a platform constraint, not a config error — your connector, prefix, licence and region are all correct (proven: the same connector answers "what is my licence" with full detail in chat). rc.7 makes the local-session requirement an explicit prerequisite in the install skill and here. **Fix: re-run the install in a session that runs on your computer** (computer/laptop icon), not the cloud (cloud icon).
+> **rc.8 — confirmed working end to end.** The full chain is verified live: marketplace → plugin → verbatim deploy → tool allowlist bound → licence/region discovered → live project data. The one non-obvious requirement, now proven, is that the install **must run in a session on your computer, not in the cloud** — see the critical step below.
+
+## 🔴 CRITICAL FIRST STEP — run the install ON YOUR COMPUTER, not in the cloud
+
+**This is the single most important step. Skip it and the Blueprint will open but show "tools aren't authorised for this artifact" / "Licence not accessible via MCP" / "No projects" — even with everything else perfect.**
+
+In Claude, each task runs either **on your computer** (local) or **in the cloud** (Anthropic's servers). The Blueprint's read tools are bound to its artifact only when the install's `create_artifact` runs **locally** — a cloud session registers the artifact through a bridge that cannot bind the tool allowlist.
+
+Before you run the install:
+
+- Use the **run-location control at the top-right of the Claude window** and choose **"On your computer"**. The window then shows a **laptop/computer icon** (local); a **cloud icon** means it's still cloud — switch it.
+- To make it the default: **Settings → Cowork → turn OFF "Run new tasks in the cloud."**
+
+You'll know it worked when, after the install, the header pill reads **Live** and the licence/project populate — not "Licence not accessible via MCP". (Confirmed on a local session: build `2026-07-20.1`, licence "… — North America (USA)", live project data.)
 
 > **rc.6 — the install skill now *calls* the read tools before declaring them, so the artifact allowlist actually binds.** rc.5 deployed the real Blueprint but it opened on "tools aren't authorised for this artifact yet": the Cowork `create_artifact` tool only adds a tool to the artifact's allowlist if that tool was **actually called in the same session**, and the skill declared the nine read tools without calling them first. rc.6 has the skill call each read tool once (which also verifies the licence is MCP-accessible) and then declare all nine in `create_artifact`'s `mcp_tools` — so the allowlist populates and the dashboard can read live data.
 
@@ -61,6 +74,10 @@ CHANGELOG.md
 ## Install — do this as a plugin
 
 This is the path that opens **both** gates. Follow it in order.
+
+### Step 0 — Run this task on your computer (not the cloud)
+
+Before anything else, switch the session to run **on your computer** (top-right run-location control → "On your computer"; laptop icon, not cloud). This is mandatory — see [the critical step above](#-critical-first-step--run-the-install-on-your-computer-not-in-the-cloud).
 
 ### Step 1 — Connect the Revizto MCP connector(s)
 
