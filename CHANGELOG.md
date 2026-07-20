@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-rc.7 — 2026-07-20 (local-session requirement; build `2026-07-20.1`)
+
+rc.6 ran the skill correctly — copied the real Blueprint verbatim, inserted the connector prefix, and called all nine read tools in-session (confirmed: `list_licenses` returned "Jason Howden License", region us-east-1) — yet the dashboard still showed "Licence not accessible via MCP / tools aren't authorised for this artifact / No projects". Runtime logs settled it: the session was a **cloud** Cowork session (`cse_…`, `remote_cowork.sign_for_session_header`, remote `/artifacts/cse_…/versions`). The cloud→desktop artifact bridge **does not bind the `mcp_tools` allowlist**, so the artifact opens empty regardless of everything upstream.
+
+Not a config bug. The `CONFIG.connectors` prefix (`mcp__Revizto_Virginia_MCP__`), the licence-first model (no region/licence baked in), and the licence/region discovery are all correct and proven — the same connector answers "what is my licence" with full detail (licence 38327, uuid `9b5c3796-…`, Super-administrator, us-east-1) in chat.
+
+- **Install `SKILL.md`: local-session prerequisite.** New up-front block — the install must run in a **local (on-your-computer)** Cowork session; the skill checks for a cloud session and stops with guidance rather than producing a dashboard that can't read. call-then-declare (rc.6) and copy-verbatim (rc.5) unchanged.
+- **README:** rc.7 note + rewritten "tools aren't authorised / licence not accessible" troubleshooting row (cloud-session cause + local-session fix), and an explicit statement that the config/prefix/licence are correct.
+- Version `1.0.0-rc.6` → `1.0.0-rc.7` (plugin + marketplace + skill). No dashboard code change (build stays `2026-07-20.1`).
+
+**Open for Revizto/Anthropic:** confirm whether a cloud-created artifact can ever be granted the `mcp_tools` allowlist (e.g. a per-artifact tool-permission grant in the desktop UI), or whether local creation is mandatory. Until then, local install is the supported path.
+
 ## 1.0.0-rc.6 — 2026-07-20 (install skill binds the tool allowlist; build `2026-07-20.1`)
 
 rc.5 deployed the correct Blueprint verbatim, but it opened on "The Blueprint's tools aren't authorised for this artifact yet" — the artifact's `mcp_tools` allowlist was empty. Root cause: Cowork's `create_artifact` only adds a tool to the artifact allowlist **if that tool was actually called in the same session** (per the tool's own contract). The rc.5 skill declared the nine read tools without calling them first, so nothing bound. (This also answers the long-standing open question — the native `create_artifact` *can* populate the allowlist; it just requires the tools to have been exercised in-session.)

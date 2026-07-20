@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.6"
+  version: "1.0.0-rc.7"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -31,6 +31,19 @@ You must **NOT**, under any circumstances:
 If you find yourself *writing HTML/CSS/JS for a dashboard*, stop — you are doing the wrong thing.
 The correct action is a **byte-for-byte file copy** plus one tiny edit. A regenerated dashboard is
 an automatic failure.
+
+## ⚠️ Prerequisite — this install MUST run in a LOCAL (on-your-computer) session, not a cloud session
+
+The read tools are authorised for the dashboard artifact only when `create_artifact` runs **locally on
+the user's computer**. In a **cloud** Cowork session the artifact is registered through the cloud→desktop
+bridge, which **cannot bind the `mcp_tools` allowlist** — so the dashboard opens with an empty allowlist
+and shows "The Blueprint's tools aren't authorised for this artifact yet" / "Licence not accessible via
+MCP" / "No projects", no matter how correctly everything else is done.
+
+Before you start: confirm the session is running **on this computer** (local), not in the cloud. In the
+Cowork app the header shows a **cloud icon** for cloud sessions and a **computer/laptop icon** for local
+ones. If this is a cloud session, tell the user to re-run the install in a session that runs **on their
+computer**, and stop — proceeding in the cloud will produce a dashboard that cannot read data.
 
 ## Steps
 
