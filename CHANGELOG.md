@@ -18,6 +18,8 @@ Cowork's marketplace validator runs server-side and requires every plugin-declar
 
 Confirmed en route: the repo is public and the marketplace manifest is valid and anonymously reachable — repo visibility was never the blocker (the validator parsed it and rejected the plugin's MCP entry).
 
+- **Install docs: "Sync automatically" must be OFF (required).** After rc.4 validated and the marketplace added, the first user hit `github_repo_not_accessible` — "Automatic sync on push requires the Claude GitHub App to be installed on this repository." That's the auto-update toggle, not a repo conflict. README Install Step 2 and the test guide now make turning **"Sync automatically" OFF** a mandatory step (manual sync reads the public repo anonymously; no GitHub App, no interaction with the user's other connected repos), with matching troubleshooting rows. Docs-only; package unchanged at rc.4.
+
 ## 1.0.0-rc.3 — 2026-07-20 (installable + self-explaining; build `2026-07-20.1`)
 
 Fixes the first-user install failure: the Blueprint showed "Connect the Revizto MCP Server" while the connector *was* connected. Root cause (traced from runtime evidence): a Cowork artifact enforces its **own per-artifact `mcp_tools` allowlist**, separate from the connector grant, and it was empty — every MCP call was refused with `Tool "…" is not in this artifact's mcp_tools allowlist`, which `mcpFailKind()` didn't recognise, so the graceful zero-connection block funnelled it into the "please connect" CTA (a false negative). Connecting/granting the connector does not populate that allowlist; only the install-skill `create_artifact` declaration does, and only when run natively from an installed plugin.

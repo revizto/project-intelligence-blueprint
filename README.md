@@ -62,7 +62,9 @@ In Claude: **Settings → Connectors** → add the **Revizto MCP** connector for
 
 ### Step 2 — Add the marketplace and install the plugin
 
-**Desktop plugin browser:** open the plugin browser → **Add marketplace** → `jhowden-revizto/revizto-project-intelligence` → install **revizto-project-intelligence**.
+**Desktop plugin browser:** open the plugin browser → **Add marketplace** → enter `jhowden-revizto/revizto-project-intelligence` → **turn "Sync automatically" OFF** → **Sync** → install **revizto-project-intelligence**.
+
+> 🔴 **Turn "Sync automatically" OFF — this is required, not optional.** Leaving it on makes Claude set up auto-update-on-push, which needs the **Claude GitHub App** installed on this repository; without it the add fails with `github_repo_not_accessible` ("Automatic sync on push requires the Claude GitHub App…"). With the toggle **off**, Claude reads the public repo anonymously — no GitHub App, no interaction with your other connected repos, and you stay in control of updates. When a new build ships, re-open the marketplace and click **Sync/Update** once, manually.
 
 **Or, if the `/plugin` CLI is available:**
 
@@ -169,6 +171,8 @@ Two entries → the picker aggregates licences from both, each labelled with its
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| Adding the marketplace fails: `github_repo_not_accessible` / "Automatic sync on push requires the Claude GitHub App…" | "Sync automatically" was left **on** — auto-update needs the Claude GitHub App on the repo | Remove the entry, re-add with **"Sync automatically" OFF** (Install Step 2). Manual sync reads the public repo anonymously — no GitHub App needed |
+| Adding the marketplace fails: generic "Marketplace sync failed. Check the repository URL" | Server-side validation rejected the plugin (e.g. pre-rc.4 builds) or the repo isn't public | Use rc.4+; confirm the repo is public. The real cause is in `~/Library/Logs/Claude/claude.ai-web.log` (search `MARKETPLACE_ERROR`) |
 | "Snapshot · demo data" + fictional "Riverside Medical Centre" / "Hillcrest Aquatic Centre" | Not running inside Cowork | Open as a Cowork artifact created by the install skill (Install Step 3) |
 | **"The Blueprint's tools aren't authorised for this artifact yet"** | Gate 2: the artifact's `mcp_tools` allowlist is empty — usually the dashboard was cloned/selected or created via the cloud/remote path, which doesn't declare tools | **Install as a plugin and create the dashboard through the install skill** (Install Steps 2–3). Connecting the connector alone does not authorise the artifact's tools |
 | Calm "Revizto MCP not connected" first-run panel | Gate 1: no connector connected, or `CONFIG.connectors` empty and none reachable | Connect the Revizto MCP (Install Step 1); create via the skill so `CONFIG.connectors` is filled |

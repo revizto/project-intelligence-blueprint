@@ -38,14 +38,11 @@ In an ordinary Claude chat (not an artifact), type:
 
 **Desktop plugin browser (your path):**
 1. Open the plugin browser → **Add marketplace** → enter `jhowden-revizto/revizto-project-intelligence`.
-2. Install **revizto-project-intelligence**.
+2. 🔴 **Turn "Sync automatically" OFF** before clicking Sync. **This is mandatory.** Leaving it on makes Claude set up auto-update-on-push, which needs the Claude GitHub App installed on the repo, and the add fails with `github_repo_not_accessible`. With it off, Claude reads the public repo anonymously — no GitHub App, no clash with your other connected repos.
+3. Click **Sync** — it should succeed.
+4. Install **revizto-project-intelligence**.
 
-**Or, if the `/plugin` CLI is available:**
-```
-/plugin marketplace add jhowden-revizto/revizto-project-intelligence
-/plugin install revizto-project-intelligence@revizto
-/reload-plugins
-```
+(When a future build ships, re-open the marketplace and click **Sync/Update** once, manually — that's the trade for keeping auto-sync off.)
 
 **Expected:** the install detail view lists **3 skills** (the plugin ships skills only — the Revizto MCP connector is the one you connected in step 2, not bundled by the plugin). This whole marketplace-add path was impossible in rc.2 (no `marketplace.json`) and failed validation in rc.3 (the bundled connector had no URL); rc.4 fixes both.
 
