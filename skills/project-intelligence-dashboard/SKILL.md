@@ -8,7 +8,7 @@ description: >
   Blueprint as a Cowork artifact that discovers the installing user's own Revizto
   licences (across every connected region) and most-recently-active project.
 metadata:
-  version: "1.0.0-rc.2"
+  version: "1.0.0-rc.3"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -66,6 +66,13 @@ dashboard.
    **`revizto-project-intelligence-blueprint`**, declaring for **each** connected connector the read
    tools listed below (each tool prefixed with that connector's own `mcp__<connector-id>__`). Do
    **not** enable write tools — this build ships `readOnly:true`.
+
+   > **This declaration is load-bearing.** The `mcp_tools` you declare here become the artifact's
+   > tool allowlist — the gate the Cowork runtime checks on every call. If it is empty the dashboard
+   > can't read anything and shows "tools aren't authorised for this artifact." Connecting the
+   > connector does **not** fill this allowlist; only this `create_artifact` declaration does, and it
+   > only takes effect when run natively in a Cowork session with the plugin installed (the cloud/remote
+   > artifact path cannot declare `mcp_tools`). So this skill must run from an installed plugin.
 
 5. **Tell the user the Blueprint is open.** On first live load it presents the Terms & Conditions
    gate (acceptance is recorded per connection, on-device); after they accept, it aggregates their

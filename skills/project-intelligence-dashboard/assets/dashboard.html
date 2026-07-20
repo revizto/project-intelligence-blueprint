@@ -1270,7 +1270,7 @@ const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
     prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
     Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
-],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-17.9"};
+],readOnly:true,tcsVersion:"1.0",buildStamp:"2026-07-20.1"};
 /* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
    be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
    LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
@@ -1707,7 +1707,7 @@ async function discoverLicenses(seq){/* WS21: probe EVERY configured connection 
        (c) a SPECIFIC failure cause exists (appauth/rights/xregion/timeout) → keep the precise, actionable message. */
     var _allFailed=_all.length>0&&_bad.length===_all.length;
     var _specific=null;for(var _bi=0;_bi<_bad.length;_bi++){var _bk=_bad[_bi].kind;if(_bk&&_bk.k&&_bk.k!=="error"&&_bk.k!=="notfound"){_specific=_bk;break;}}
-    if(!_all.length||(_allFailed&&!_specific)){DISC_ERR={k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then press Refresh. Any Revizto MCP connection works — the Blueprint automatically uses whichever of your connections respond, and simply skips the rest."};}
+    if(!_all.length||(_allFailed&&!_specific)){DISC_ERR={k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then press Refresh. Any Revizto MCP connection works — the Blueprint automatically uses whichever of your connections respond, and simply skips the rest. If the connector is already connected, its tools may not be authorised for THIS artifact yet — re-create the Blueprint through the install skill (install the plugin, then run the dashboard skill). See the README “tools not authorised for this artifact” troubleshooting."};}
     else DISC_ERR=(_specific)||(_bad[0]&&_bad[0].kind)||{k:"nolic",t:"No licences visible through your MCP connections",d:"Every configured connection answered, but your Revizto user sees no licences on any of them. Check you signed in with the right Revizto account, and that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal)."};}
   if(LICENSES.length&&!LICENSES.find(function(x){return x.uuid===LIC;}))LIC=LICENSES[0].uuid;
   renderLicensePicker();renderConnHealth();}
@@ -1729,6 +1729,7 @@ function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
   if(/direct api access is forbidden/i.test(m))return{k:"xregion",t:"Licence not reachable through this connection",d:"The Revizto MCP returned “direct API access is forbidden” — this licence lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
   if(/entity not found/i.test(m))return{k:"notfound",t:"Not found on this regional instance",d:"The Revizto MCP couldn’t find this entity on this connection — it likely lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
   if(/timeout/i.test(m))return{k:"timeout",t:"The Revizto MCP didn’t answer in time",d:"The call timed out — the connection may be broken or the region unreachable. Reload to retry, or check the connector under Settings → Connectors."};
+  if(/not in this artifact'?s? mcp_tools allowlist/i.test(m))return{k:"allowlist",t:"The Blueprint’s tools aren’t authorised for this artifact yet",d:"The Revizto MCP is connected, but this artifact’s own tool allowlist is empty — connecting the connector and authorising its tools for this artifact are two separate steps. Re-create the Blueprint through the install skill (install the plugin, then run the project-intelligence-dashboard skill), which declares the read tools into the artifact. See the README “tools not authorised for this artifact” troubleshooting row."};
   return{k:"error",t:"The Revizto MCP couldn’t serve the request",d:"The call failed"+(m?" — “"+m.slice(0,160)+"”":"")+". Reload to retry, or check the connector connection."};}
 let CONNSTATE={};/* prefix → {ok,count} | {ok:false,kind} — per-connection health for the Connections ⓘ */
 function renderConnHealth(){var b=document.getElementById("connI");var w=document.getElementById("connWrap");if(!b)return;

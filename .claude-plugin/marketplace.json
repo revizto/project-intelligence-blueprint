@@ -1,0 +1,21 @@
+{
+  "name": "revizto",
+  "owner": {
+    "name": "Revizto"
+  },
+  "metadata": {
+    "description": "Revizto plugin marketplace — live project intelligence and curated Revizto platform skills over the Revizto MCP Server."
+  },
+  "plugins": [
+    {
+      "name": "revizto-project-intelligence",
+      "source": "./",
+      "description": "Live, read-only project intelligence over the Revizto MCP Server — a six-view Cowork dashboard plus the curated Revizto platform skills. Discovers the installing user's own licence and project at runtime; headline totals are exact, sampled detail is always labelled.",
+      "version": "1.0.0-rc.3",
+      "author": {
+        "name": "Revizto"
+      },
+      "keywords": ["revizto", "bim", "coordination", "mcp", "project-intelligence", "aeco"]
+    }
+  ]
+}
