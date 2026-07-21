@@ -2,7 +2,7 @@
 
 Live, read-only project intelligence over the **Revizto MCP Server**, delivered as a Claude Cowork dashboard. It is **licence-first**: on load it probes every Revizto MCP region you've connected, aggregates the licences your own Revizto account can see into a single picker, and lets you pick a **licence** — never a connector or a region — then lands on your most-recently-active project. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" sample. Nothing is cached or hardcoded — every figure is re-derived live on load and on every Refresh.
 
-**Status:** `v1.0.0-rc.10` — private release candidate (build `2026-07-20.1`). Opens read-only every session with a user-controlled write toggle. Full version history in [CHANGELOG.md](CHANGELOG.md). Not for public distribution until sign-off.
+**Status:** `v1.0.0-rc.11` — private release candidate (build `2026-07-22.1`). Opens read-only every session with a user-controlled write toggle. Full version history in [CHANGELOG.md](CHANGELOG.md). Not for public distribution until sign-off.
 
 ---
 

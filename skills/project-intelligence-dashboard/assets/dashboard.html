@@ -1270,7 +1270,7 @@ const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
     prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
     Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-22.1"};
 /* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
    be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
    LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
@@ -1286,6 +1286,7 @@ CONFIG.server=CONN;CONFIG.wsHost=(CONFIG.connectors.find(function(x){return x.pr
 let LIC=localStorage.getItem("rvz_lic2")||"";/* global — the licence picker aggregates every connection */ /* no seed: discoverLicenses() lands on the user's first/own licence on a fresh install */
 let PRJ=localStorage.getItem("rvz_prj2")||""; /* no seed: refresh() lands on the most-recently-active project of the discovered licence */
 let LICENSES=[],PROJECTS=[],COMPARE=[],cmpLoading=false,cmpPivot="projects",cmpFcast=3,cmpOutlook=1,cmpTeamSrc="company",cmpLoad=null,cmpDoneAt="",cmpSort="attention",cmpSigFilter="all",cmpKeyOpen=false;
+let cmpSeq=0;/* WS24: per-view load token for 03 Cross-project — leaving the view bumps this to ABORT the multi-project fan-out so it can't keep saturating the shared connection the single-project views depend on */
 let STATUSES=[],TYPES=[],PMEMBERS=[],WORK=[],workSel=new Set(),PENDING=null;let PORTM={};
 let ME={name:localStorage.getItem("rvz_actor")||"",email:localStorage.getItem("rvz_me_email")||""};/* email = who "my"/"me"/"I" resolves to in 06 Action; set explicitly (no whoami in the allowlist) */
 let READONLY=true;/* WS17: force read-only at EVERY start — the toggle is per-session only; the last state is never remembered (was CONFIG.readOnly||localStorage rvz_readonly). CONFIG.readOnly:true still hard-locks the toggle. */let LAST=null;let NOPROJ=false;
@@ -1604,6 +1605,11 @@ async function refresh(){
     await discoverLicenses(my);if(my!==reqSeq)return;const lic=LIC;
     let arr=[],_forbidden=false,_fk=null;
     const _rc=await resolveConn(lic,my);if(my!==reqSeq)return;
+    if(_rc&&_rc.hold){/* WS24: transient failure on the pinned connection — never wipe good data, never re-home */
+      setLoad(null);
+      if(DATA&&DATA.counts){setSrc("Couldn't refresh — showing last live data. Reload to retry.","#B54708");}
+      else{setSrc(((_rc.fail&&_rc.fail.t)||"Couldn't reach the Revizto MCP")+" — Reload to retry","#B42318");}
+      renderHeader();renderTab(current);return;}
     if(_rc&&_rc.projects){arr=_rc.projects;const _le=LICENSES.find(l=>l.uuid===lic)||{};const _lid=(_le._ids&&_le._ids[_rc.conn]!=null)?_le._ids[_rc.conn]:_le.id;/* WS21.1: numeric licence ids are instance-scoped — filter with the SERVING connection's id */if(_lid!=null)arr=arr.filter(p=>p&&p.license_id===_lid);}
     else if(_rc&&_rc.fail){_forbidden=true;_fk=_rc.fail;}
     else if(!_rc){_forbidden=!!DISC_ERR;_fk=DISC_ERR;}
@@ -1663,7 +1669,9 @@ async function refresh(){
     renderHeader();renderTab(current);
     setLoad(null);
     setSrc("Live · "+new Date().toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}),"#009999");
-  }catch(e){sampling=false;{const _lh=document.getElementById("tlLoadAll");if(_lh)_lh.disabled=false;}if(my!==reqSeq)return;setLoad(null);blankData();setNoProj(false);setSrc("Couldn't load live data — Reload to retry","#B42318");renderHeader();renderTab(current);}
+  }catch(e){sampling=false;{const _lh=document.getElementById("tlLoadAll");if(_lh)_lh.disabled=false;}if(my!==reqSeq)return;setLoad(null);
+    if(DATA&&DATA.counts){/* WS24: a transient mid-load failure must not wipe good data — hold last-good, offer reload */setSrc("Couldn't refresh — showing last live data. Reload to retry.","#B54708");renderHeader();renderTab(current);}
+    else{blankData();setNoProj(false);setSrc("Couldn't load live data — Reload to retry","#B42318");renderHeader();renderTab(current);}}
 }
 /* fold EXACT open-load into the sample-derived assignee rows (open = exact; assigned stays sample) */
 function applyExactAssignees(){if(!DATA.assigneesExact)return;
@@ -1755,20 +1763,39 @@ function setConn(prefix){var e=connCfg(prefix);if(!e.prefix)return;var changed=p
     if(typeof offerResume==="function")offerResume();/* the new connection may hold its own pending job */
   }
   if(typeof refreshAboutBuild==="function")refreshAboutBuild();}
-async function resolveConn(licUuid,seq){/* find the connection that actually SERVES this licence: cached winner first, then the other candidates; cache on success, honest kind on total failure */
+/* WS24 fatal-cause set — only these justify re-homing a licence to a DIFFERENT connection.
+   A timeout / generic bridge error is TRANSIENT and must NEVER flip the pinned connection (that flip
+   was the "licence disconnected on view switch / refresh" bug — stage-connector timeouts fell through
+   to another candidate and setConn() silently re-homed + re-locked read-only + re-stamped the region). */
+const CONN_FATAL={appauth:1,rights:1,xregion:1,notfound:1};
+async function resolveConn(licUuid,seq){/* resolve + PIN the connection that serves this licence; hold the pin through transient failures, only re-home on a fatal cause */
   var lic=(LICENSES||[]).find(function(l){return l.uuid===licUuid;});if(!lic)return null;
   var cached=null;try{cached=localStorage.getItem("rvz_conn4lic:"+licUuid);}catch(e){}
-  var cands=(lic._conns||[]).slice();var ci=cands.indexOf(cached);if(ci>0){cands.splice(ci,1);cands.unshift(cached);}
-  var lastKind=null;
-  for(var i=0;i<cands.length;i++){var p=cands[i];
-    if(typeof jobActive==="function"&&jobActive()&&p!==CONN)continue;/* WS21.1: the serving connection is PINNED while a job is active — a transient probe failure must not flip connections mid-job */
+  var all=(lic._conns||[]).slice();
+  /* the current pin = cached winner if still a candidate, else the live CONN if it serves this licence */
+  var pin=(cached&&all.indexOf(cached)>=0)?cached:((all.indexOf(CONN)>=0)?CONN:null);
+  async function probe(p){
     try{const projs=await call(p+"list_projects",{licenseUuid:licUuid,include:["revision","lastActive","has3d"]});
-      if(seq!=null&&seq!==reqSeq)return null;
-      if(projs&&projs.error){lastKind=mcpFailKind({mcpMsg:String(projs.error)});continue;}
+      if(seq!=null&&seq!==reqSeq)return {abort:true};
+      if(projs&&projs.error)return {kind:mcpFailKind({mcpMsg:String(projs.error)})};
       var arr=Array.isArray(projs&&projs.entities)?projs.entities:(Array.isArray(projs)?projs:[]);
-      setConn(p);try{localStorage.setItem("rvz_conn4lic:"+licUuid,p);}catch(e){}
-      return {conn:p,projects:arr};
-    }catch(e){if(seq!=null&&seq!==reqSeq)return null;lastKind=mcpFailKind(e);if(cached===p){try{localStorage.removeItem("rvz_conn4lic:"+licUuid);}catch(x){}}}
+      return {ok:true,arr:arr};
+    }catch(e){if(seq!=null&&seq!==reqSeq)return {abort:true};return {kind:mcpFailKind(e)};}}
+  var lastKind=null;
+  /* 1) try the PIN alone first */
+  if(pin){var r=await probe(pin);if(r.abort)return null;
+    if(r.ok){setConn(pin);try{localStorage.setItem("rvz_conn4lic:"+licUuid,pin);}catch(e){}return {conn:pin,projects:r.arr};}
+    lastKind=r.kind;
+    if(!(r.kind&&CONN_FATAL[r.kind.k])){return {hold:true,fail:r.kind};}/* transient → HOLD the pin, preserve state, don't probe others */
+    try{localStorage.removeItem("rvz_conn4lic:"+licUuid);}catch(x){}/* fatal → the pin is stale; re-resolve below */
+  }
+  /* 2) no valid pin (or the pin fatally can't serve) → probe the remaining candidates */
+  var cands=all.filter(function(p){return p!==pin;});
+  for(var i=0;i<cands.length;i++){var p=cands[i];
+    if(typeof jobActive==="function"&&jobActive()&&p!==CONN)continue;/* WS21.1: connection PINNED while a job is active */
+    var rr=await probe(p);if(rr.abort)return null;
+    if(rr.ok){setConn(p);try{localStorage.setItem("rvz_conn4lic:"+licUuid,p);}catch(e){}return {conn:p,projects:rr.arr};}
+    lastKind=rr.kind;
   }
   return {fail:lastKind};}
 function refreshAboutBuild(){var b=document.getElementById("aboutBuild");if(b&&typeof CONFIG!=="undefined"&&CONFIG){var c=connCfg();b.textContent="Build "+(CONFIG.buildStamp||"—")+" · Terms v"+(CONFIG.tcsVersion||"1.0")+" · read live from the Revizto MCP Server ("+dispRegion()+(c.env==="prod"?" · production":" · staging")+")";}}
@@ -2179,12 +2206,14 @@ function refreshCmpControls(){cmpInit();const q=((document.getElementById("cmpSe
     else{st.className="cmp-status";st.textContent=window._cmpSel.size>6?"Tip: comparison reads best at 2–4 projects.":"";}}}
 async function loadCompare(uuids){if(cmpLoading||!(window.cowork&&window.cowork.callMcpTool)||!uuids||uuids.length<2)return;cmpLoading=true;
   const _sq=reqSeq;/* QA WS20.1: abandon the whole load if a region/licence/project switch invalidates it */
+  const cs=++cmpSeq;/* WS24: this load's own token — leaving 03 bumps cmpSeq and stops the fan-out */
+  const _dead=()=>_sq!==reqSeq||cs!==cmpSeq;/* invalidated by a licence/project switch OR by leaving the compare view */
   cmpLoad={order:uuids.slice(),i:0,phase:"load"};cmpDoneAt="";COMPARE=[];window._cmpExp=new Set();refreshCmpControls();renderResults();
   for(let i=0;i<uuids.length;i++){cmpLoad.i=i;cmpLoad.phase="load";refreshCmpControls();
-    const m=await projectMetrics(uuids[i]);if(_sq!==reqSeq){cmpLoad=null;cmpLoading=false;return;}COMPARE.push(m);renderResults();
+    const m=await projectMetrics(uuids[i]);if(_dead()){cmpLoad=null;cmpLoading=false;return;}COMPARE.push(m);renderResults();
     if(m._err){continue;}/* WS21.1: unreachable project — no sampling, row renders as unavailable */
     cmpLoad.phase="sample";refreshCmpControls();
-    const t=await cmpTrend(uuids[i],m.tot,reqSeq);if(t){m.net90=t.net90;m.o90=t.o90;m.r90=t.r90;m.sampleN=t.n;m.sampleComplete=t.complete;m.weeks=t.weeks;m._rows=t.rows;}m._memMap=await cmpMemMap(uuids[i]);if(_sq!==reqSeq){cmpLoad=null;cmpLoading=false;return;}renderResults();refreshCmpControls();}
+    const t=await cmpTrend(uuids[i],m.tot,reqSeq);if(t){m.net90=t.net90;m.o90=t.o90;m.r90=t.r90;m.sampleN=t.n;m.sampleComplete=t.complete;m.weeks=t.weeks;m._rows=t.rows;}m._memMap=await cmpMemMap(uuids[i]);if(_dead()){cmpLoad=null;cmpLoading=false;return;}renderResults();refreshCmpControls();}
   cmpDoneAt=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});cmpLoad=null;cmpLoading=false;refreshCmpControls();}
 async function cmpTrend(uuid,total,seq){
   const P=total>0?Math.ceil(total/200):1;const cap=2000;/* fixed compare-sample cap: bounded + fast per project, independent of the single-view detail-sample setting */
@@ -3547,6 +3576,7 @@ function renderTab(name){hideTip();if(name==="coffee")renderCoffee();else if(nam
 function isTabDisabled(name){return name==="action"&&writesOff();}
 function showTab(name){
   if(isTabDisabled(name))return;/* 06 Action is gated when writes are off (read-only / no connector) */
+  if(current==="compare"&&name!=="compare"&&cmpLoading){cmpSeq++;/* WS24: leaving 03 aborts its multi-project fan-out so it stops saturating the shared connection */}
   current=name;
   PANELS.forEach(t=>{const tab=document.getElementById("tab-"+t),pan=document.getElementById("panel-"+t);
     const on=t===name;if(pan)pan.hidden=!on;

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0-rc.11 — 2026-07-22 (WS24 multi-licence connection hardening; build `2026-07-22.1`)
+
+Fixes a fault where a licence's serving connection could be dropped on view switches or a transient timeout — the dashboard would blank or appear "disconnected." Surfaced on the multi-connection staging test bed; the fix applies to every install.
+
+- **Connection is pinned per licence and only re-homes on a *fatal* cause** (`appauth` / `rights` / `xregion` / `notfound`). A timeout or generic bridge error is treated as **transient** and holds the pinned connection — it no longer falls through to another candidate and silently re-homes (the flip that also re-locked read-only and re-stamped the region). Single-connection installs are unaffected by design; multi-connection installs stop flipping on a blip.
+- **Transient failures preserve last-good data.** A mid-load timeout no longer wipes the view — it holds the last live data and shows "Couldn't refresh — showing last live data. Reload to retry." Only a genuine no-data state blanks.
+- **Leaving the 03 Cross-project view aborts its multi-project fan-out** (new per-view load token), so it can't keep saturating the shared connection the single-project views depend on.
+- Health-probing remains observation-only (no connection side effects).
+- Verification: `node --check` + div-balance pass; 14/14 logic harness (timeout-holds-pin, fatal-re-homes, compare-abort); independent QA review PASS, no regressions. Scrub gates pass — 0 stage/PII markers; diff vs rc.10 is exactly the WS24 app-code hunks (byte-identical scrub otherwise).
+- Version `1.0.0-rc.10` → `1.0.0-rc.11` (plugin + marketplace + skill). Dashboard app code updated; `CONFIG` unchanged (`connectors:[]`, `readOnly:false`, `tcsVersion:"1.1"`); build `2026-07-20.1` → `2026-07-22.1`.
+
 ## 1.0.0-rc.10 — 2026-07-21 (Terms link published; repo relocated; build `2026-07-20.1`)
 
 - **Terms & Conditions link published.** The in-text link in the acceptance gate (and its review mode) now points to the canonical **`https://revizto.com/legal/revizto-mcp-server`** — the long-standing placeholder (`href="#"`, "Link to be provided") is gone. Applied to both canonical and release dashboards.
