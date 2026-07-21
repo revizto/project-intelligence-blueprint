@@ -7,6 +7,7 @@
 - **Repository relocated** to `github.com/revizto/project-intelligence-blueprint` (from `jhowden-revizto/revizto-project-intelligence`): all install commands, marketplace-add references and doc URLs updated; git remote repointed. Install identifier unchanged (`revizto-project-intelligence@revizto`).
 - Doc consistency: README/SKILL `CONFIG` examples corrected to the shipped values (`readOnly:false, tcsVersion:"1.1"`); Configuration table + Known-open-items T&C entry updated (now resolved).
 - Version `1.0.0-rc.9` → `1.0.0-rc.10` (plugin + marketplace + skill). Dashboard change is the Terms `href` + `tcsVersion` value; `node --check` + div-balance pass; build stays `2026-07-20.1`.
+- **README restructured (install-first).** The `rc.4`–`rc.10` release-note blockquotes are consolidated here in CHANGELOG and removed from the README top. The README now leads with a clean, per-user, **no-admin install** (Personal scope — add-by-URL *or* ZIP local upload), states the run-on-your-computer step first, and pushes all reference/advanced material (two-gates, Region & Licensing, Configuration, Trust, Demo, Repo layout) below a `# Reference` divider. Added an **Admin / org-wide rollout** section (Owner path + the private-repo caveat + the Cowork/Skills prerequisite). Docs-only; no version bump.
 
 ## 1.0.0-rc.9 — 2026-07-20 (Read-only pill is a live toggle; approval-gated writes enabled; build `2026-07-20.1`)
 
