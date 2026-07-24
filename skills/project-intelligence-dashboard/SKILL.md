@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.0-rc.12"
+  version: "1.0.0-rc.13"
 ---
 
 # Project Intelligence Blueprint — install action

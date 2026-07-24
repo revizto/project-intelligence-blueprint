@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0-rc.13 — 2026-07-24 (WS25 follow-up: Connections ⓘ help copy for Re-check + Add connector; build `2026-07-24.1`)
+
+- **Connection controls get their own ⓘ.** The status popover was overloaded, so control help is split into a second icon: the existing ⓘ now shows connection **status** only, and a new ⓘ beside Re-check/Add explains just those controls — **Re-check** (re-probes every connection to recover a dropped link; works whether or not read-only is on) and **Add connector** (paste a connector id / `mcp__…__` prefix to add a connection at runtime; remembered next session; two-gate caveat — tools return data only once authorised for the artifact via the install skill).
+- Copy-only change to `renderConnHealth()`'s proof definition. No logic, CONFIG, or allowlist change. `node --check` + div-balance pass; scrub gates pass (0 connector ids, 0 stage markers). Build stamp unchanged (`2026-07-24.1`).
+- Version `1.0.0-rc.12` → `1.0.0-rc.13` (plugin + marketplace + skill).
+
 ## 1.0.0-rc.12 — 2026-07-24 (WS25 connection resilience: rate-limit taming + runtime connector management; build `2026-07-24.1`)
 
 Addresses the dominant real-world failure — "Artifact MCP rate limit exceeded" — and makes MCP connections self-serviceable inside the running Blueprint without re-running the install skill.
