@@ -935,7 +935,7 @@ th{white-space:nowrap}
   </header>
   <div class="controlbar">
    <div class="cb-row cb-row1">
-    <div class="cb-lic"><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div><span class="licmeta"><span class="regbadge" id="regBadge" hidden></span><div class="connwrap" id="connWrap" hidden title="Revizto MCP connections"><button class="proof-i" id="connI" type="button" data-proof-i aria-label="Connections — status" data-proof-def="Checking your Revizto MCP connections…"><span aria-hidden="true">&#9432;</span></button><span class="connlbl" id="connLbl" aria-hidden="true"></span></div></span></div>
+    <div class="cb-lic"><div class="prjpick" id="licWrap" hidden><label for="licPick">Licence</label><select id="licPick" aria-label="Select licence" title="Switch the Revizto licence — changes which projects are available"></select></div><span class="licmeta"><span class="regbadge" id="regBadge" hidden></span><div class="connwrap" id="connWrap" hidden title="Revizto MCP connections"><button class="proof-i" id="connI" type="button" data-proof-i aria-label="Connections — status" data-proof-def="Checking your Revizto MCP connections…"><span aria-hidden="true">&#9432;</span></button><span class="connlbl" id="connLbl" aria-hidden="true"></span><button id="connRecheck" type="button" title="Re-check all Revizto MCP connections — re-probes every connector to self-heal a transient drop" aria-label="Re-check connections" style="margin-left:6px;font:inherit;font-size:11px;line-height:1;padding:3px 7px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;cursor:pointer">Re-check</button><input id="connAdd" type="text" placeholder="add connector id / mcp__…__" aria-label="Add a Revizto MCP connector prefix" style="margin-left:6px;font:inherit;font-size:11px;width:150px;padding:3px 6px;border:1px solid #d0d5dd;border-radius:6px"><button id="connAddBtn" type="button" title="Add this connector prefix and re-check — persists across sessions" style="margin-left:4px;font:inherit;font-size:11px;line-height:1;padding:3px 7px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;cursor:pointer">Add</button><span id="connAddMsg" style="margin-left:6px;font-size:11px"></span></div></span></div>
     <div class="cb-actions">
       <label class="ro-toggle" id="roPill" title="Read-only mode hides every write action — ideal for demos"><input type="checkbox" id="roToggle"><span>Read-only</span></label>
       <button class="rfrsh" id="refreshBtn" title="Re-query live data from the Revizto MCP Server" aria-label="Refresh — re-query live data from the Revizto MCP Server"><svg class="rfrsh-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg><span>Refresh</span></button>
@@ -1270,16 +1270,20 @@ const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection you have added to this AI tool (the install steps fill these in).
     prefix = your connector id in the form "mcp__<connector-id>__" — see CONNECTORS.md for how to find it.
     Example: {prefix:"mcp__your-connector-id__",env:"prod",wsHost:"ws.revizto.com",missing:[]}, */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-22.1"};
-/* CONNECTOR SET — ids only, no regions or labels baked (connector ids are per-install; a connector's region cannot
-   be known at build time). The app is LICENCE-FIRST: it probes every connection for licences, the user picks a
-   LICENCE, and the serving connection is resolved automatically (probe + on-device cache). The displayed region is
-   always the SELECTED LICENCE's own region. One entry keeps the UI single-connection; several add a Connections ⓘ.
-   readOnly:false — the Read-only pill is a live per-session toggle: the Blueprint always OPENS read-only
-   (WS17) and re-asserts read-only when re-shown (WS18); the user can switch writes on for the session, and
-   every write runs through the count-first + name/reason approval pipeline. Real writes also require
-   update_issues on the artifact's tool allowlist (declared at install). T&C acceptance is recorded per connection. */
-const REGION_NAMES={"us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-24.1"};
+/* WS25: runtime connector store. User-added connector prefixes persist across sessions and MERGE with the baked
+   set BEFORE CONN is resolved, so a session can re-home onto a user-added connector. Works in read-only AND
+   normal mode (connector management is independent of the read-only 'action anything' gate). Two-gate honesty:
+   an added prefix is probed + remembered, but its tools are only CALLABLE once they're in this artifact's host
+   mcp_tools allowlist (rebind / rebuild) — until then it surfaces via the allowlist branch of mcpFailKind. */
+function loadUserConns(){try{var a=JSON.parse(localStorage.getItem("rvz_userconns")||"[]");return Array.isArray(a)?a.filter(function(x){return typeof x==="string"&&x.indexOf("mcp__")===0;}):[];}catch(e){return [];}}
+function saveUserConns(a){try{localStorage.setItem("rvz_userconns",JSON.stringify(a));}catch(e){}}
+function normPrefix(s){s=String(s||"").trim();if(!s)return"";var m=s.match(/mcp__(.+?)__/);if(m)return"mcp__"+m[1]+"__";if(/^[0-9a-fA-F-]{8,}$/.test(s))return"mcp__"+s+"__";return"";}
+(function(){loadUserConns().forEach(function(p){if(!CONFIG.connectors.some(function(c){return c.prefix===p;}))CONFIG.connectors.push({prefix:p,env:"prod",wsHost:"ws.revizto.com",missing:[],user:true});});})();
+let CONN_SEEN=(function(){try{return JSON.parse(localStorage.getItem("rvz_connstate")||"{}")||{};}catch(e){return {};}})();/* last-seen per-connection health, restored so the panel shows continuity instead of a blank start */
+function saveConnState(){try{var o={};Object.keys(CONNSTATE||{}).forEach(function(p){var s=CONNSTATE[p];o[p]={ok:!!(s&&s.ok),count:(s&&s.count)||0,t:Date.now(),kt:(s&&s.kind&&s.kind.t)||""};});localStorage.setItem("rvz_connstate",JSON.stringify(o));CONN_SEEN=o;}catch(e){}}
+function addUserConn(raw){var p=normPrefix(raw);if(!p)return{err:"Enter a connector id, or a full mcp__…__ prefix"};if((CONFIG.connectors||[]).some(function(c){return c.prefix===p;}))return{err:"That connection is already configured"};var a=loadUserConns();if(a.indexOf(p)<0){a.push(p);saveUserConns(a);}CONFIG.connectors.push({prefix:p,env:"prod",wsHost:"ws.revizto.com",missing:[],user:true});return{ok:p};}
+const REGION_NAMES={"us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland","eu-south-1-barcelona":"Barcelona (stage)"};
 function regionName(c){return REGION_NAMES[c]||c||"—";}
 let CONN=(function(){try{var c=localStorage.getItem("rvz_conn");if(c&&CONFIG.connectors.some(function(x){return x.prefix===c;}))return c;}catch(e){}return (CONFIG.connectors[0]||{}).prefix||"";})();
 CONFIG.server=CONN;CONFIG.wsHost=(CONFIG.connectors.find(function(x){return x.prefix===CONN;})||{}).wsHost||"ws.revizto.com";/* legacy mirrors — retargeted by setConn() so every existing CONFIG.server / CONFIG.wsHost read stays correct */
@@ -1422,19 +1426,19 @@ function actResolveDate(expr,now){if(expr==null)return null;now=now||new Date();
   const WD={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6,sun:0,mon:1,tue:2,tues:2,wed:3,weds:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
   const isNext=/\bnext\b/.test(s);let wname=null;for(const w in WD){if(new RegExp("\\b"+w+"\\b").test(s)){if(wname==null||w.length>wname.length)wname=w;}}
   if(wname!=null){const tw=WD[wname];let diff=(tw-base.getDay()+7)%7;if(isNext)diff+=7;return add(diff);}
-  return null;}const SNAPDATE="demo data";
+  return null;}const SNAPDATE="16 Jun 2026";
 let DATA={
- meta:{name:"Riverside Medical Centre — demo",region:"demo",created:"2026-03-02",lastActive:"2026-05-18 09:12:44",revNum:4,revBy:"Alex Rivera",revDate:"2026-05-15"},
- status:{Open:412,"In progress":186,Solved:97,Closed:143},
- priority:{blocker:2,critical:41,major:388,minor:167,trivial:8,none:232},
- sheets:12,clashTests:6,stamps:24,
- trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[18,26,11,29,17,22,9,31,14,7],resolved:[2,5,3,8,6,9,11,14,17,21]},
+ meta:{name:"A project at BCN",region:"eu-south-1-barcelona",created:"2026-05-05",lastActive:"2026-05-20 10:49:19",revNum:1,revBy:"Ahmed Abdelmeguid",revDate:"2026-05-13"},
+ status:{Open:1137,"In progress":648,Solved:170,Closed:219},
+ priority:{blocker:3,critical:166,major:1431,minor:302,trivial:10,none:262},
+ sheets:3,clashTests:0,stamps:30,
+ trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[24,34,7,35,21,25,3,62,9,3],resolved:[0,2,0,1,0,0,0,1,0,58]},
  delta:{d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}},
- _projectId:0,_sheetUuid:"",_issueUuid:"",tested:{},
- reporters:[["a.rivera@example.com",162,31],["s.okafor@example.com",121,24],["m.lindqvist@example.com",98,19],["j.tanaka@example.com",84,12],["p.mercier@example.com",71,9],["d.walsh@example.com",58,14],["k.novak@example.com",42,6],["l.fernandez@example.com",29,3]],
- assignees:[["a.rivera@example.com",188,141],["m.lindqvist@example.com",117,92],["s.okafor@example.com",104,71],["d.walsh@example.com",88,64],["j.tanaka@example.com",76,58],["k.novak@example.com",61,49],["p.mercier@example.com",47,38],["l.fernandez@example.com",33,27]],
- team:[["Alex Rivera","a.rivera@example.com","BIM Manager","2026-05-18 08:47:02",true],["Sarah Okafor","s.okafor@example.com","MEP Coordinator","2026-05-17 16:20:11",true],["Mia Lindqvist","m.lindqvist@example.com","Structural Lead","2026-05-16 11:03:55",true],["Jun Tanaka","j.tanaka@example.com","Architectural Coordinator","2026-05-15 14:31:40",true],["Dara Walsh","d.walsh@example.com","Site Engineer","2026-05-12 10:15:27",true],["Kris Novak","k.novak@example.com","Invited — never activated","",false]],
- reporterCount:8,assigneeCount:8,
+ _projectId:41197,_sheetUuid:"8de284f505fb4f92a8f5d29804597821",_issueUuid:"d76b73a9-8040-4a54-b1b4-7662ee204783",tested:{},
+ reporters:[["e.ferraro@revizto.com",516,59],["t.schaefer@revizto.com",364,77],["l.bertenbreiter@revizto.com",352,97],["p.ferreira@revizto.com",201,10],["l.guy@revizto.com",179,7],["p.cordier@revizto.com",162,76],["n.araman@revizto.com",142,25],["c.philipson@revizto.com",70,0]],
+ assignees:[["e.ferraro@revizto.com",680,623],["n.araman@revizto.com",223,207],["r.lewis@revizto.com",209,116],["p.cordier@revizto.com",155,74],["s.kuehner@revizto.com",129,110],["m.funkner@revizto.com",120,100],["m.liechti@revizto.com",112,105],["a.abdelmeguid@revizto.com",58,50]],
+ team:[["Ahmed Abdelmeguid","a.abdelmeguid@revizto.com","Licence administrator","2026-05-20 09:51:30",true],["Jason Howden","j.howden@revizto.com","Licence admin (not on project)","2026-05-07 10:40:32",false],["Alex-mcp-bcn Komissarov","a.komissarov+mcp-bcn@revizto.com","Owner","2026-05-05 21:12:13",true],["tmp-alex1","a.komissarov+bcn-tmp1@revizto.com","04_BIM Technician","2026-05-05 16:15:49",true],["Alex-bcn-tmp2 Komissarov","a.komissarov+bcn-tmp2@revizto.com","Invited — never activated","",false],["(unnamed)","a.komissarov+33@revizto.com","Invited — never activated","",false]],
+ reporterCount:28,assigneeCount:32,
  counts:null,sample:null,assigneesExact:null
 };
 const RES=new Set(["solved","closed"]);
@@ -1447,13 +1451,36 @@ function setSrc(t,c){document.getElementById("srctext").textContent=t;document.g
 
 let CB=Date.now().toString(36);
 function bumpCB(){CB=Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+/* WS25: global concurrency gate + rate-limit backoff. The Artifact MCP bridge rate-limits bursty parallel
+   fan-out — "Artifact MCP rate limit exceeded" was the dominant live failure (298 hits in the field log),
+   ahead of transient network drops. Callers keep their existing parallel Promise.all shape; this caps how many
+   bridge calls run at once and retries rate-limited / transient calls with exponential backoff + jitter, so the
+   fan-out stops stampeding the limiter. Writes pass through the gate but are NEVER auto-retried (a lost response
+   on a write that already applied server-side must not double-apply). */
+const MCP_MAX_CONC=5;let _mcpInflight=0;const _mcpQ=[];
+function _mcpAcquire(){return new Promise(function(res){if(_mcpInflight<MCP_MAX_CONC){_mcpInflight++;res();}else{_mcpQ.push(res);}});}
+function _mcpRelease(){if(_mcpQ.length){_mcpQ.shift()();}else{_mcpInflight--;}}
+function _rlKind(m){m=String(m||"");if(/rate limit/i.test(m))return"rl";if(/ERR_INTERNET_DISCONNECTED|Failed to parse SSE|timed out waiting for server/i.test(m))return"net";return"";}
+async function bridgeCall(name,a,isWrite){
+  await _mcpAcquire();
+  try{
+    for(var att=0;;att++){
+      var r=await window.cowork.callMcpTool(name,a||{});
+      if(r&&r.isError&&!isWrite&&att<4){
+        var _m=(r.content&&r.content[0]&&r.content[0].text)||"";var k=_rlKind(_m);
+        if(k){await new Promise(function(rs){setTimeout(rs,Math.min(2500,300*Math.pow(2,att))+Math.random()*200);});continue;}
+      }
+      return r;
+    }
+  }finally{_mcpRelease();}
+}
 async function call(name,args,opts){
   const isWrite=/(update|create|delete|change|add|remove|invite|set|restore|reorder)_/.test(name);
   const base=Object.assign({},args||{});
   const busted=Object.assign({},base);if(!isWrite)busted._cb=CB+"|"+name+"|"+JSON.stringify(base);
   const TMO=(opts&&opts.timeout)||20000;/* large fetches/writes pass a longer budget */
   async function once(a){
-    const r=await Promise.race([window.cowork.callMcpTool(name,a||{}),new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout:"+name)),TMO))]);
+    const r=await Promise.race([bridgeCall(name,a,isWrite),new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout:"+name)),TMO))]);
     if(r.isError){const _m=(r.content&&r.content[0]&&r.content[0].text)||"";const _e=new Error(name+(_m?": "+_m:""));_e.mcpMsg=_m;throw _e;}
     let p=r.structuredContent;if(p==null)p=JSON.parse(r.content[0].text);if(p&&p.structuredContent)p=p.structuredContent;return p;
   }
@@ -1720,6 +1747,7 @@ async function discoverLicenses(seq){/* WS21: probe EVERY configured connection 
     if(!_all.length||(_allFailed&&!_specific)){DISC_ERR={k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then press Refresh. Any Revizto MCP connection works — the Blueprint automatically uses whichever of your connections respond, and simply skips the rest. If the connector is already connected, its tools may not be authorised for THIS artifact yet — re-create the Blueprint through the install skill (install the plugin, then run the dashboard skill). See the README “tools not authorised for this artifact” troubleshooting."};}
     else DISC_ERR=(_specific)||(_bad[0]&&_bad[0].kind)||{k:"nolic",t:"No licences visible through your MCP connections",d:"Every configured connection answered, but your Revizto user sees no licences on any of them. Check you signed in with the right Revizto account, and that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal)."};}
   if(LICENSES.length&&!LICENSES.find(function(x){return x.uuid===LIC;}))LIC=LICENSES[0].uuid;
+  saveConnState();/* WS25: remember per-connection health for next session's panel continuity */
   renderLicensePicker();renderConnHealth();}
 function renderLicensePicker(){const w=document.getElementById("licWrap"),sel=document.getElementById("licPick");if(!sel)return;
   if(LICENSES.length>1){w.hidden=false;sel.innerHTML=LICENSES.map(l=>`<option value="${l.uuid}" ${l.uuid===LIC?"selected":""}>${tcsEsc(l.name||l.uuid)} — ${tcsEsc(regionName(l.region))}</option>`).join("");
@@ -1739,14 +1767,15 @@ function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
   if(/direct api access is forbidden/i.test(m))return{k:"xregion",t:"Licence not reachable through this connection",d:"The Revizto MCP returned “direct API access is forbidden” — this licence lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
   if(/entity not found/i.test(m))return{k:"notfound",t:"Not found on this regional instance",d:"The Revizto MCP couldn’t find this entity on this connection — it likely lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
   if(/timeout/i.test(m))return{k:"timeout",t:"The Revizto MCP didn’t answer in time",d:"The call timed out — the connection may be broken or the region unreachable. Reload to retry, or check the connector under Settings → Connectors."};
+  if(/rate limit/i.test(m))return{k:"ratelimit",t:"The Revizto MCP is rate-limiting this artifact",d:"Too many calls in a short window. The Blueprint now paces requests and retries automatically — wait a moment and press Refresh. If it persists, narrow the issue sample or reduce the number of projects compared at once."};
   if(/not in this artifact'?s? mcp_tools allowlist/i.test(m))return{k:"allowlist",t:"The Blueprint’s tools aren’t authorised for this artifact yet",d:"The Revizto MCP is connected, but this artifact’s own tool allowlist is empty — connecting the connector and authorising its tools for this artifact are two separate steps. Re-create the Blueprint through the install skill (install the plugin, then run the project-intelligence-dashboard skill), which declares the read tools into the artifact. See the README “tools not authorised for this artifact” troubleshooting row."};
   return{k:"error",t:"The Revizto MCP couldn’t serve the request",d:"The call failed"+(m?" — “"+m.slice(0,160)+"”":"")+". Reload to retry, or check the connector connection."};}
 let CONNSTATE={};/* prefix → {ok,count} | {ok:false,kind} — per-connection health for the Connections ⓘ */
 function renderConnHealth(){var b=document.getElementById("connI");var w=document.getElementById("connWrap");if(!b)return;
-  var n=(CONFIG.connectors||[]).length;if(w)w.hidden=n<2;/* single-connection installs stay clean */
+  var n=(CONFIG.connectors||[]).length;if(w)w.hidden=false;/* WS25: always reachable — the panel now hosts Re-check + Add connector, which must work even at 0/1 connections */
   var lines=[],okN=0;
-  (CONFIG.connectors||[]).forEach(function(c,i){var st=CONNSTATE[c.prefix];var nm="Connection "+(i+1)+(c.env==="stage"?" (stage)":"");
-    if(!st){lines.push(nm+": checking…");return;}
+  (CONFIG.connectors||[]).forEach(function(c,i){var st=CONNSTATE[c.prefix];var nm="Connection "+(i+1)+(c.env==="stage"?" (stage)":"")+(c.user?" (added)":"");
+    if(!st){var sv=CONN_SEEN[c.prefix];lines.push(nm+": "+(sv?(sv.ok?("last seen connected · "+sv.count+" licence"+(sv.count===1?"":"s")):("last seen: "+(sv.kt||"unreachable"))):"checking…"));return;}
     if(st.ok){okN++;lines.push(nm+": connected · "+st.count+" licence"+(st.count===1?"":"s")+" visible to you");}
     else{lines.push(nm+": "+((st.kind&&st.kind.t)||"unreachable"));}});
   b.setAttribute("data-proof-def","Your configured Revizto MCP connections — each Revizto region is its own connection, and the Blueprint automatically routes each licence to the connection that serves it. "+lines.join(" · "));
@@ -2339,7 +2368,7 @@ function renderCompare(){cmpInit();cmpPivotShell();cmpPickerShell();refreshCmpCo
   if(!COMPARE.length&&(window.cowork&&window.cowork.callMcpTool)&&!cmpLoading&&window._cmpSel.size>=2&&window._cmpSel.size<=4)loadCompare([...window._cmpSel]);
   renderResults();}
 /* Deep-link an issue back to the Revizto web workspace (format from live app "Copy link").
-   Host from CONFIG.wsHost (production ws.revizto.com); fallback = public. */
+   Host from CONFIG.wsHost — staging (ws.revizto-stage.com) vs public (ws.revizto.com); fallback = public. */
 function cmpIssueUrl(m,issueId){if(!m||!m.id||!m.lic||issueId==null)return null;return `https://${CONFIG.wsHost||"ws.revizto.com"}/redirect-app?url=revizto5://viewer/${m.id}/issue_tracker/${issueId}/0&licenseId=${m.lic}`;}
 /* Deep-link an issue in the CURRENTLY selected project back to Revizto (same builder + host as cross-project). Returns null (→ plain text) when the project/licence numeric ids are unavailable, e.g. demo mode. */
 function curIssueUrl(issueId){const p=(PROJECTS||[]).find(x=>x.uuid===PRJ)||{};const pid=p.id||DATA._projectId||0;const lic=p.license_id||(LICENSES.find(l=>l.uuid===LIC)||{}).id;return cmpIssueUrl({id:pid,lic:lic},issueId);}
@@ -3748,7 +3777,14 @@ const Tour=(function(){
 })();
 (function(){const tb=document.getElementById("tourBtn");if(tb)tb.addEventListener("click",()=>Tour.start(tb));})();
 
-buildFilters();initTabs();renderHeader();renderPicker();showTab("coffee");(function(){const _rb=document.getElementById("refreshBtn");if(_rb)_rb.onclick=()=>{_rb.classList.add("spinning");setSrc("Refreshing…","#0097A7");refresh();};})();
+buildFilters();initTabs();renderHeader();renderPicker();showTab("coffee");(function(){const _rb=document.getElementById("refreshBtn");if(_rb)_rb.onclick=()=>{_rb.classList.add("spinning");setSrc("Refreshing…","#0097A7");refresh();};
+  /* WS25: Connections re-check — reuses refresh() (which already re-runs discoverLicenses over every baked
+     connector), debounced so rapid clicks can't stampede the bridge rate-limiter. */
+  const _cr=document.getElementById("connRecheck");if(_cr)_cr.onclick=()=>{const nowT=Date.now();if(_cr._t&&nowT-_cr._t<2500)return;_cr._t=nowT;_cr.style.opacity="0.6";setSrc("Re-checking connections…","#0097A7");Promise.resolve(refresh()).finally(()=>{_cr.style.opacity="";});};
+  /* WS25: add a connector prefix at runtime — persists (rvz_userconns) and re-checks. Not gated by read-only. */
+  const _ca=document.getElementById("connAddBtn"),_ci=document.getElementById("connAdd"),_cm=document.getElementById("connAddMsg");
+  if(_ca&&_ci)_ca.onclick=()=>{const r=addUserConn(_ci.value);if(_cm){_cm.style.color=r.ok?"#067647":"#B54708";_cm.textContent=r.ok?"Added — re-checking…":(r.err||"");}if(r.ok){_ci.value="";setSrc("Re-checking connections…","#0097A7");Promise.resolve(refresh()).finally(()=>{if(typeof renderConnHealth==="function")renderConnHealth();});}};
+  if(_ci)_ci.addEventListener("keydown",e=>{if(e.key==="Enter"&&_ca)_ca.click();});})();
 (function(){const ro=document.getElementById("roToggle"),pill=document.getElementById("roPill");function syncRO(){if(pill)pill.classList.toggle("on",READONLY);}
   if(ro){if(CONFIG.readOnly){/* read-only DEPLOY: the pill is a visible, immutable statement — writes are a deploy-time decision (CONFIG.readOnly + the artifact tool allowlist), never a runtime toggle */ro.checked=true;ro.disabled=true;const _rl=ro.closest("label")||ro.parentElement;if(_rl){_rl.title="Read-only build — writes are disabled in this deployment. Enabling them is a deploy-time decision, not a switch.";_rl.style.opacity="0.75";_rl.style.cursor="default";}syncRO();}else{ro.checked=READONLY;syncRO();ro.onchange=()=>{READONLY=ro.checked;localStorage.setItem("rvz_readonly",READONLY?"1":"");if(READONLY&&JOB&&JOB.status==="running")pauseJob();syncRO();if(typeof syncActionTab==="function")syncActionTab();renderTab(current);};}}})();
 /* WS18: re-assert read-only whenever the artifact is re-shown (pop-out / reopen / bfcache restore) — a live view that was not reloaded keeps READONLY=false, so force it back on. Never interrupts an approved job mid-run; only ever tightens to read-only. */

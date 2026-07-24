@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-rc.12 — 2026-07-24 (WS25 connection resilience: rate-limit taming + runtime connector management; build `2026-07-24.1`)
+
+Addresses the dominant real-world failure — "Artifact MCP rate limit exceeded" — and makes MCP connections self-serviceable inside the running Blueprint without re-running the install skill.
+
+- **Rate-limit gate + backoff on the shared `call()` path.** A global concurrency cap (5) plus exponential backoff-with-jitter on rate-limit and transient bridge errors stops the parallel fan-out stampeding the Artifact MCP limiter (the top field failure, ahead of transient network drops). Writes pass the gate but are never auto-retried.
+- **Runtime connector management, independent of read-only.** The Connections panel gains a **Re-check** control (re-probes every configured connector to self-heal a transient drop, debounced) and an **Add connector** field (enter a connector id/prefix; persisted to `localStorage` and merged with the configured set *before* connection resolution). Both work in read-only and normal mode — read-only governs only the "action anything" write features, not connector management.
+- **Per-connection health persists** across sessions, so the Connections panel shows continuity (last-seen) instead of a blank start.
+- **Honest rate-limit messaging** added to the connection error mapper.
+- Two-gate honesty preserved: an added/newly-appeared connector is probed and remembered, but its tools are only callable once authorised into the artifact's allowlist (install-skill declaration / rebuild) — the panel says so.
+- Verification: `node --check` + div-balance pass; scrub gates pass — 0 connector ids, 0 stage markers (`5e21f9e7` / `internal:true`), 0 id leaks. Diff vs rc.11 is exactly the WS25 feature hunks + build stamp.
+- Version `1.0.0-rc.11` → `1.0.0-rc.12` (plugin + marketplace + skill). Release `CONFIG` unchanged (`connectors:[]`, `readOnly:false`, `tcsVersion:"1.1"`); build `2026-07-22.1` → `2026-07-24.1`.
+
 ## 1.0.0-rc.11 — 2026-07-22 (WS24 multi-licence connection hardening; build `2026-07-22.1`)
 
 Fixes a fault where a licence's serving connection could be dropped on view switches or a transient timeout — the dashboard would blank or appear "disconnected." Surfaced on the multi-connection staging test bed; the fix applies to every install.
