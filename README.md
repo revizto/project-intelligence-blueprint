@@ -57,12 +57,12 @@ In a Cowork session (running **on your computer**, plugin installed), say:
 
 > Open the Revizto Project Intelligence Blueprint — follow the `project-intelligence-dashboard` skill.
 
-It copies the bundled dashboard verbatim, calls your Revizto read tools, and registers the artifact with those tools authorised. Then: accept the **Terms** (name + tick + Agree), and **pick your licence**.
+It copies the bundled dashboard verbatim, calls your Revizto read tools, and registers the artifact with those tools authorised. Then: accept the **Terms** (name + tick + Agree), choose your **MCP Server**, and pick your **Licence**.
 
 ### Verify (60 seconds)
 
 - Status pill reads **live** — not "Snapshot · demo data", not "Revizto MCP not connected", not "tools aren't authorised".
-- The **licence picker** shows your licence with its region badge; it lands on your most-recently-active project.
+- The **MCP Server** control names the server you are reading from; the **Licence** picker below it lists that server's licences and lands on your most-recently-active project.
 - Headline totals are exact; sampled panels say "sample of N of M".
 - **06 Action anything shows a padlock on first load** — correct, the Blueprint opens read-only. Toggle the **Read-only** pill off to enable writes (they run through the approval pipeline).
 
@@ -76,7 +76,7 @@ It copies the bundled dashboard verbatim, calls your Revizto read tools, and reg
 | Plugin stuck on an old version after re-sync/reinstall | Cache — clear it: quit Claude, then `chflags -R nouchg ~/.claude/plugins 2>/dev/null; rm -rf ~/.claude/plugins/cache ~/.claude/plugins/marketplaces/revizto`, reopen, re-add. (Windows: `%USERPROFILE%\.claude\plugins\`.) |
 | Install starts *writing/designing* a dashboard | Wrong behaviour — it should copy a file. Stop and confirm the plugin is current, then re-run. |
 | "Snapshot · demo data" (fictional "Riverside Medical Centre") | Not running inside a Cowork artifact created by the install skill. |
-| Licence picker empty / a licence missing | The Blueprint names the cause: Revizto MCP not enabled in the Developer Portal, insufficient licence role, or the licence is on a region you haven't connected. |
+| Licence picker empty / a licence missing | Check the **MCP Server** panel first — the licence may live on a different server than the one selected. The Blueprint names the cause against each server: Revizto MCP not enabled in the Developer Portal, insufficient licence role, needs sign-in, or not authorised for this artifact. |
 | Blank charts, no error (Team/Enterprise) | A connector domain or `cdn.jsdelivr.net` isn't allowlisted — ask your Claude admin (Admin settings → Capabilities). |
 
 Every tool call inherits your own Revizto role and project membership — the dashboard can't see or do anything you can't do in Revizto itself.
