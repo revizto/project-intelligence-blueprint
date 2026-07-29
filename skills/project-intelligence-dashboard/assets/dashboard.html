@@ -1327,7 +1327,7 @@ const CONFIG={connectors:[
     MCP server is its own connection: the Blueprint reads from exactly ONE at a time and you choose
     which in the MCP Server panel. Leaving this empty is valid - the Blueprint shows a connect CTA and
     a connection can be added at runtime from that panel. */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-29.2"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.1"};
 /* (WS21 licence-first commentary removed 2026-07-29 — it asserted the opposite of the WS28 model above:
    "users pick a LICENCE, never a connector", every connection probed, serving connection auto-resolved.
    WS28 dedicates one connection explicitly. missing:[] still means recon-verified tool gaps. Consent is
@@ -1392,6 +1392,30 @@ let CONN=DEDCONN;/* WS28: the serving connection IS the dedicated one - never au
 CONFIG.server=CONN;CONFIG.wsHost=(CONFIG.connectors.find(function(x){return x.prefix===CONN;})||{}).wsHost||"ws.revizto.com";
 let LIC=(function(){try{return localStorage.getItem(LICKEY())||"";}catch(e){return "";}})();
 let PRJ=(function(){try{return localStorage.getItem(PRJKEY())||"";}catch(e){return "";}})();
+/* ===== WS33: LICENCE READABILITY IS VERIFIED, NEVER PREDICTED =====
+   The picker offered every licence list_licenses returned and defaulted to LICENSES[0] (alphabetical).
+   Measured live 2026-07-29 on the Sydney connector: 21 licences offered, 4 actually able to serve
+   projects. First open therefore landed on an unusable licence and showed "Licence not accessible via
+   MCP" before the user had touched anything.
+   THREE INDEPENDENT GATES decide whether list_projects will work for a licence, and only two are
+   visible without calling:
+     1. licence role   — in list_licenses. Verified boundary: role >= 4 works, role <= 3 returns
+                         "You don't have enough rights". 11 licences sampled across two regions
+                         (roles 1,2,3 blocked; 4,5 allowed), perfectly consistent.
+     2. expiry         — in list_licenses.
+     3. whether the licence's ACCOUNT has enabled the MCP OAuth app — NOT EXPOSED ANYWHERE. Only a
+                         real call reveals it: "OAuth2 application is not authorized to access this
+                         account".
+   Gate 3 is why a client-side rule is not acceptable. Licence 13275 is role 4 and works; 1493 and 15962
+   are ALSO role 4 and both fail on gate 3. Same role, opposite outcome — a role-based rule would mark
+   two dead licences as available and we would have shipped a confident lie.
+   So: role and expiry are used ONLY to order the verification queue (a claim about sequence, which is
+   safe), never to assert state. Every licence's state comes from its own probe. Until that probe
+   returns, the state is "checking" — an admission, not a guess. */
+let LICSTATE={};/* licUuid -> {state:"checking"|"ready"|"blocked", kind, n, pages, truncated, at} */
+let LICQ=[];            /* uuids awaiting background verification, in priority order */
+let LICQ_RUN=false;     /* single background worker — occupies at most 1 of MCP_MAX_CONC slots */
+let LICQ_SEQ=-1;        /* reqSeq this queue belongs to; a newer refresh abandons it */
 let LICENSES=[],PROJECTS=[],COMPARE=[],cmpLoading=false,cmpPivot="projects",cmpFcast=3,cmpOutlook=1,cmpTeamSrc="company",cmpLoad=null,cmpDoneAt="",cmpSort="attention",cmpSigFilter="all",cmpKeyOpen=false;
 let cmpSeq=0;/* WS24: per-view load token for 03 Cross-project — leaving the view bumps this to ABORT the multi-project fan-out so it can't keep saturating the shared connection the single-project views depend on */
 let STATUSES=[],TYPES=[],PMEMBERS=[],WORK=[],workSel=new Set(),PENDING=null;let PORTM={};
@@ -1581,6 +1605,8 @@ function bumpCB(){CB=Date.now().toString(36)+Math.random().toString(36).slice(2,
      - a higher backoff ceiling, which is safe precisely because the wait is shared rather than
        multiplied across workers.
    Writes still never auto-retry (a lost response on an applied write must not double-apply). */
+/* deterministic refusals — retrying one of these can only ever produce the same answer, at twice the cost */
+const CALL_NO_RETRY={rights:1,appauth:1,xregion:1,notfound:1,allowlist:1,gone:1};
 const MCP_MAX_CONC=5;const RL_WAIT_CEIL=12000;const RL_RECOVER_AFTER=12;
 let _mcpInflight=0;const _mcpQ=[];
 let _rlUntil=0,_rlConc=MCP_MAX_CONC,_rlOk=0;
@@ -1650,7 +1676,17 @@ async function call(name,args,opts){
   try{return await once(isWrite?base:busted);}
   /* WS27: the cache-bust retry exists for a stale-response race. A de-registered connector is not a
      race — retrying doubles the waste, so let it through untouched. */
-  catch(e){if(!isWrite&&!/^timeout:/.test(e.message||"")&&_rlKind(e.mcpMsg||"")!=="gone"){return await once(base);}throw e;}
+  /* WS33 (QA round 4): the cache-bust retry exists for a stale-response RACE. A permanent, deterministic
+     refusal is not a race — retrying it just doubles the call. Observed in the live debug log of build
+     2026-07-29.3: every blocked licence was probed TWICE (once with _cb, once without), so the background
+     verification of an estate with 17 unreadable licences cost 34 calls instead of 17, against the very
+     rate limiter this workstream exists to stay under. Skip the retry for causes that cannot change
+     between two calls a second apart: a de-registered connector, a role that lacks rights, an account
+     without the MCP app enabled, and a cross-region or not-found entity. */
+  catch(e){const _k=mcpFailKind(e).k;
+    if(!isWrite&&!/^timeout:/.test(e.message||"")&&_rlKind(e.mcpMsg||"")!=="gone"
+       &&!CALL_NO_RETRY[_k]){return await once(base);}
+    throw e;}
 }
 /* large-rebalance tuning: page the move-set in bounded pulls, write in chunks that fit the timeout budget */
 /* WS28d PAGE-SIZE CEILING. Every paginated Revizto MCP read declares `limit` as "1-100, default 100"
@@ -1663,6 +1699,87 @@ async function call(name,args,opts){
    have different ceilings and must not share a constant. */
 const MCP_PAGE_MAX=100;/* hard ceiling for every paginated READ */
 const REB_PAGE=MCP_PAGE_MAX,REB_TIMEOUT=35000,WRITE_BATCH=200,WRITE_TIMEOUT=240000;
+/* ===== WS33: list_projects PAGINATION + the count-semantics trap =====
+   resolveConn issued ONE unpaginated list_projects call. The tool defaults to limit=100/page=0, so any
+   licence with more than 100 projects was silently truncated to its first 100 — no error, no disclosure,
+   and the project picker simply omitted the rest.
+   The trap that makes the obvious fix wrong: `count` DOES NOT mean the same thing across this API.
+   Verified live 2026-07-29 on licence 17211 (52 projects):
+     list_projects limit=4            -> count:4   entities:4
+     list_projects limit=100          -> count:52  entities:52
+     list_projects limit=50 page=1    -> count:2   entities:2
+   so list_projects.count is the LENGTH OF THE PAGE RETURNED, not the total. By contrast
+   list_issues limit=1 returns count:2475 — the grand TOTAL. Same server, same session, opposite
+   contract. Anything that reads list_projects.count as a total is wrong, and anything that pages
+   "while fetched < count" terminates after one page. The only sound terminator is a SHORT PAGE.
+   PAGE_CAP bounds a pathological estate; hitting it sets truncated=true so the UI can say so rather
+   than quietly under-report. Every page goes through call(), so it inherits the shared rate-limit
+   pacer and the cache-bust. */
+const PRJ_PAGE_CAP=25;/* 25 x 100 = 2,500 projects per licence before we disclose truncation */
+async function listProjectsAll(pfx,licUuid,seq,opts){
+  const inc=(opts&&opts.include)||["revision","lastActive","has3d"];
+  const out=[];let truncated=false,pages=0;
+  for(let page=0;page<PRJ_PAGE_CAP;page++){
+    const r=await call(pfx+"list_projects",{licenseUuid:licUuid,limit:MCP_PAGE_MAX,page,include:inc});
+    if(seq!=null&&seq!==reqSeq)return {abort:true};
+    if(r&&r.error)throw Object.assign(new Error(String(r.error)),{mcpMsg:String(r.error)});
+    const arr=Array.isArray(r&&r.entities)?r.entities:(Array.isArray(r)?r:[]);
+    pages++;out.push.apply(out,arr);
+    /* SHORT PAGE is the only sound end-of-list signal — see the count-semantics note above */
+    if(arr.length<MCP_PAGE_MAX)return {arr:out,pages,truncated:false};
+    /* WS33 (QA): a licence with EXACTLY cap x 100 projects ends on a full page, which is indistinguishable
+       from "there is more" without asking. Reporting truncated=true there is the honest answer — we
+       genuinely do not know — but it must not be reported as fact that rows were dropped. The UI wording
+       says "showing the first N", which is true either way. */
+    if(page===PRJ_PAGE_CAP-1)truncated=true;
+  }
+  return {arr:out,pages,truncated};
+}
+/* ===== WS33: ACTIVE vs ARCHIVED projects =====
+   list_projects returns `archived` and `frozen` as booleans in its COMPACT shape — no `include` needed,
+   zero extra cost — and the Blueprint never read either. Licence 17211 returns 52 projects of which 7
+   are archived, and all 52 went into the picker as live work. Selecting an archived project produced a
+   dashboard that looked live and was not.
+   "Active" here means exactly: not archived and not frozen. Nothing is hidden — PROJECTS_ALL keeps the
+   full set and the picker's "Include archived" toggle reveals them, tagged. Every count, every default
+   selection and every cross-project fan-out reads the ACTIVE set. */
+function prjIsActive(p){return !!p&&p.archived!==true&&p.frozen!==true;}
+function prjTag(p){if(!p)return "";if(p.archived===true)return "Archived";if(p.frozen===true)return "Frozen";return "";}
+let PROJECTS_ALL=[];
+let PRJ_TRUNCATED=false;/* set when listProjectsAll hit PRJ_PAGE_CAP — disclosed, never silent */
+let SHOW_ARCHIVED=(function(){try{return localStorage.getItem("rvz_showarch")==="1";}catch(e){return false;}})();
+function setShowArchived(v){
+  /* WS33 (QA): this is a project-switch affordance in disguise — hiding archived projects while an
+     archived one is selected reassigns PRJ, blanks the data and starts a full load. switchProject() and
+     the picker's choose() both refuse that while a bulk write is running, because a job is pinned to the
+     project it was staged against; this path had no such guard and would move the view off the job's
+     project mid-write. */
+  if(typeof jobActive==="function"&&jobActive()){
+    /* WS33 (QA round 2): also refuse when PRJ is not in PROJECTS_ALL at all. In that state the block
+       below still reassigns PRJ, blanks and starts a full load — the guard has to cover "the toggle will
+       move the view off the job's project", not only "the selected project is archived". */
+    const _cur=PROJECTS_ALL.filter(function(p){return p.uuid===PRJ;});
+    const willHide=!v&&PRJ&&(!_cur.length||!prjIsActive(_cur[0]));
+    if(willHide){showModalMsg("Bulk update running","A bulk update is running on an archived project. Pause or stop it before hiding archived projects.");
+      const tg=document.getElementById("prjArchTgl");if(tg)tg.checked=true;return;}
+  }
+  SHOW_ARCHIVED=!!v;try{localStorage.setItem("rvz_showarch",SHOW_ARCHIVED?"1":"0");}catch(e){}
+  PROJECTS=projVisible();
+  /* a hidden selection must not survive the toggle closing over it */
+  if(PRJ&&!PROJECTS.some(function(p){return p.uuid===PRJ;})){const n=pickDefaultProject(PROJECTS);PRJ=n||"";try{localStorage.setItem(PRJKEY(),PRJ);}catch(e){}
+    if(typeof blankData==="function")blankData();
+    if(typeof renderPicker==="function")renderPicker();
+    if(typeof refresh==="function"&&PRJ)refresh();return;}
+  if(typeof renderPicker==="function")renderPicker();}
+function projVisible(){return SHOW_ARCHIVED?PROJECTS_ALL.slice():PROJECTS_ALL.filter(prjIsActive);}
+function projArchivedCount(){return PROJECTS_ALL.filter(function(p){return !prjIsActive(p);}).length;}
+/* most-recently-active ACTIVE project. Never returns an archived/frozen project as a default even when
+   the toggle is showing them — a default is an assertion about where the work is. */
+function pickDefaultProject(list){
+  const src=((list||[]).filter(prjIsActive));
+  if(!src.length)return "";
+  return src.slice().sort(function(a,b){
+    return String(b.lastActive||b.updated||"").localeCompare(String(a.lastActive||a.updated||""));})[0].uuid;}
 /* update_issues returns a map {issueUuid:[comment...]}. A real change shows as a data.type=="diff" entry with errors==[].
    Trust rule: count ONLY issues the server confirms — never assume a chunk succeeded because the call returned. */
 function verifyWrite(r,chunk,commentOnly){const applied=[],already=[],failed=[];
@@ -1696,8 +1813,18 @@ function setLoad(stage,pct,note){const el=loadEl();if(!el)return;
 /* ===== Tier 2: SAMPLED detail (newest pages) ===== */
 async function loadSample(prj,cap,onProgress,seq){
   const total=(DATA.counts&&DATA.counts.total>0)?DATA.counts.total:0;
-  const P=total>0?Math.ceil(total/200):1;
-  const wantPages=cap===Infinity?P:Math.min(Math.ceil(cap/200),P);
+  /* WS33 BLOCKER FIX. These two lines divided by 200 while the fetch below asks for MCP_PAGE_MAX (100).
+     The page size was clamped to 100 in WS28d and this arithmetic was not updated with it, so the page
+     PLAN was computed at 200 rows/page against a server returning 100. Consequence: for any project of
+     101–2×cap issues, `need>=P` was satisfied after fetching only half the rows, `full` was set, and
+     `DATA.sample.complete` reported TRUE on a half-covered project.
+     That was cosmetic while `complete` only drove a badge. It stopped being cosmetic when WS33's
+     contributor path began treating `complete` as proof that the sampled per-assignee open counts ARE
+     the exact counts — a 160-issue project reported one contributor's 40 open issues as 0, under a
+     "Complete" label, and offered a rebalance write off that figure.
+     Page arithmetic must be derived from the SAME constant the fetch uses. Never two literals. */
+  const P=total>0?Math.ceil(total/MCP_PAGE_MAX):1;
+  const wantPages=cap===Infinity?P:Math.min(Math.ceil(cap/MCP_PAGE_MAX),P);
   const need=Math.max(1,wantPages);
   const target=cap===Infinity?total:Math.min(cap,total||cap);
   /* Representative systematic sample: spread the loaded pages evenly across the WHOLE
@@ -1761,12 +1888,19 @@ function buildSampleAggregates(all){
   const start=new Date(TODAY);start.setDate(start.getDate()-90);const opw={},clw={};
   for(const i of all){const s=val(i,"status");const p=val(i,"priority")||"none";pr[p]=(pr[p]||0)+1;
     const rp=val(i,"reporter")||"(none)";(rep[rp]=rep[rp]||[0,0])[0]++;if(RES.has(s))rep[rp][1]++;
-    const as=val(i,"assignee")||"(unassigned)";(asg[as]=asg[as]||[0,0])[0]++;if(!RES.has(s))asg[as][1]++;
+    /* WS33: slot [2] counts status==="open" ONLY. Slot [1] is "not resolved" = open + in_progress, and
+       conflating the two is the exact defect the 2026-07-09 rebalance bug was: an "open" figure that was
+       really "active". The exact contributor counts are queried with statuses:["open"], so the sampled
+       basis compared against them must be open-only too, or the two can never be reconciled. */
+    const as=val(i,"assignee")||"(unassigned)";(asg[as]=asg[as]||[0,0,0])[0]++;if(!RES.has(s))asg[as][1]++;if(s==="open")asg[as][2]++;
     const cd=parse(val(i,"created"));if(cd&&cd>=start)opw[+monday(cd)]=(opw[+monday(cd)]||0)+1;
     if(RES.has(s)){const rd=parse(tsf(i,"status"));if(rd&&rd>=start)clw[+monday(rd)]=(clw[+monday(rd)]||0)+1;}}
   DATA.priority=pr;
   DATA.reporters=Object.entries(rep).map(([k,v])=>[k,v[0],v[1]]).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const _ae=Object.entries(asg).map(([k,v])=>[k,v[0],v[1]]);(PMEMBERS||[]).filter(m=>m.active).forEach(m=>{if(!_ae.find(x=>x[0]===m.email))_ae.push([m.email,0,0]);});_ae.sort((a,b)=>b[1]-a[1]);DATA.assigneesFull=_ae;DATA.assignees=_ae.slice(0,12);
+  /* WS33: open-only per assignee from the sample. Used two ways in loadAssigneeLoad — as the exact answer
+     when the sample is COMPLETE, and as the probe ORDER when it is not. Never mixed with slot [1]. */
+  DATA.assigneeOpenSample={};Object.keys(asg).forEach(k=>{DATA.assigneeOpenSample[k]=asg[k][2]||0;});
   DATA.reporterCount=Object.keys(rep).length;DATA.assigneeCount=Object.keys(asg).length;
   const wk=[];for(let d=monday(start);+d<=+monday(TODAY);d.setDate(d.getDate()+7))wk.push(+monday(d));
   DATA.trend={labels:wk.map(w=>new Date(w).toLocaleDateString("en-GB",{day:"numeric",month:"short"})),opened:wk.map(w=>opw[w]||0),resolved:wk.map(w=>clw[w]||0)};
@@ -1777,28 +1911,136 @@ function buildSampleAggregates(all){
   DATA.delta={d1:{opened:o1,resolved:rr1,net:o1-rr1,crit:c1},d7:{opened:o7,resolved:rr7,net:o7-rr7,crit:c7}};
 }
 /* ===== Tier 1.5: EXACT contributor open-load ===== */
+/* ===== WS33: exact contributor load, with PROVABLE early termination =====
+   This was up to 60 strictly-serial issueCount calls at ~1.7s each — up to ~100s on every project load,
+   and the largest single source of MCP traffic in the live debug log. The waste was visible there: call
+   after call returning count:0. We were spending a round trip to learn that someone has no open work.
+   Two shortcuts are applied. Both are ARITHMETIC, not sampling — the exactness that the whole trust
+   model rests on is preserved, and where it cannot be, the existing honest disclosure still fires.
+     A. COMPLETE SAMPLE. If the sample covered 100% of the project's issues, then the per-assignee
+        open counts computed from those rows ARE the exact counts. There is nothing left to ask the
+        server. Cost drops from up to 60 calls to ZERO.
+     B. OPEN TOTAL EXHAUSTED. We already hold the project's exact open count. Probing contributors in
+        descending order of sampled open load and accumulating exact counts, the moment the accumulated
+        total equals that exact project total, every contributor not yet probed must hold exactly zero
+        open issues — there are none left to hold. Stop, and record them as the zero they provably are.
+        Requires reconciled counts; a project mid-resync gets no early exit.
+        Note this cannot fire when open issues are UNASSIGNED (the accumulation can never reach the
+        total), which is correct and safe — it simply falls through to the capped path.
+   Fallback is unchanged: cap 60 and flag assigneeExactPartial so the UI discloses the remainder as
+   sampled rather than silently presenting a biased figure as exact. */
 async function loadAssigneeLoad(prj,emails,seq){
-  let distinct=[...new Set((emails||[]).filter(e=>e&&e!=="(unassigned)"))];
-  /* Cap the count-first calls at the 60 highest-sample-load contributors (emails arrive in load order
-     — top first). Beyond 60, resolve exact load for the top 60 and flag the remainder as sampled, rather
-     than silently dropping all exact load and falling back to the biased sample with no disclosure. */
-  if(distinct.length>60){distinct=distinct.slice(0,60);DATA.assigneeExactPartial=true;}
-  else DATA.assigneeExactPartial=false;
-  const out=[];
+  /* WS33 (QA): de-duplicate CASE-INSENSITIVELY. `emails` is assigneesFull ∪ active PMEMBERS, and the two
+     sources do not agree on case. An address differing only in capitalisation survived a plain Set as two
+     distinct contributors (illustrative form: Sam@ vs sam@ at the same domain), was
+     probed twice, and both counts were added to the exhaustion accumulator — double-counting the same
+     person's work and terminating early on a total that was never real. */
+  const seenLc={},distinctAll=[];
+  (emails||[]).forEach(e=>{if(!e||e==="(unassigned)")return;const k=String(e).toLowerCase();
+    if(!seenLc[k]){seenLc[k]=1;distinctAll.push(e);}});
+  let distinct=distinctAll;
+  const smp=DATA.assigneeOpenSample||{};
+  const smpOf=e=>{const v=smp[e];if(typeof v==="number")return v;
+    const k=String(e).toLowerCase();for(const kk in smp)if(kk.toLowerCase()===k)return smp[kk];return 0;};
+  /* probe order: heaviest sampled OPEN load first. Ordering only — never an assertion about a value. */
+  distinct=distinct.slice().sort((a,b)=>smpOf(b)-smpOf(a));
+  const openTot=(DATA.counts&&DATA.counts.reconciled&&typeof DATA.counts.open==="number")?DATA.counts.open:null;
+  /* ---- A. genuinely complete sample => the sample IS exact, no calls at all ----
+     WS33 (QA): this must NOT trust DATA.sample.complete on its own. That flag was computed from a page
+     PLAN and was provably capable of reporting true on a half-covered project (see the loadSample fix).
+     A flag is a claim; the check below is evidence. Three conditions, all required:
+       (a) the row count actually reaches the project total — coverage, not an assertion of coverage;
+       (b) counts are reconciled, so counts.open is trustworthy at all;
+       (c) the per-assignee open counts derived from those rows SUM to counts.open.
+     (c) is the one that matters: it is an independent reconciliation between two figures produced by
+     different code paths, so if either is wrong they disagree and we fall through to probing rather than
+     publish a fabricated "exact" number. Unassigned open issues are counted in, since they are part of
+     counts.open and would otherwise make a correct sample look inconsistent. */
+  if(DATA.sample&&DATA.sample.complete&&openTot!=null&&
+     typeof DATA.sample.n==="number"&&typeof DATA.sample.total==="number"&&
+     DATA.sample.n>=DATA.sample.total&&DATA.sample.total>0){
+    let sSum=0;Object.keys(smp).forEach(k=>{sSum+=(smp[k]||0);});
+    if(sSum===openTot){
+      DATA.assigneeExactPartial=false;
+      const outA=distinct.map(e=>({email:e,open:smpOf(e)})).sort((a,b)=>b.open-a.open);
+      DATA.assigneesExact=outA;DATA.assigneeExactBasis="complete-sample";
+      return outA;
+    }
+    /* coverage claimed but the numbers disagree — say nothing, probe instead */
+    try{console.warn("[WS33] complete-sample shortcut declined: assignee open sum "+sSum+" != exact open "+openTot);}catch(e){}
+  }
+  let overCap=false;
+  if(distinct.length>60){distinct=distinct.slice(0,60);overCap=true;}
+  DATA.assigneeExactPartial=overCap;
+  /* ---- B. exact probe with open-total exhaustion ---- */
+  const out=[];let acc=0,stoppedEarly=false,anyFailed=false;
   for(let i=0;i<distinct.length;i++){
     setLoad("Resolving contributor load",Math.round(100*(i+1)/distinct.length),`${i+1}/${distinct.length}`);
     const n=await issueCount(prj,{statuses:["open"],assigneeEmail:distinct[i]},seq);
     if(seq!=null&&seq!==reqSeq)return null;
-    if(n!=null)out.push({email:distinct[i],open:n});
+    /* WS33 (QA): a failed probe used to be dropped in silence — the contributor vanished from the exact
+       set and applyExactAssignees then left their SAMPLED figure sitting in a column labelled exact,
+       with nothing flagged. Record the gap. */
+    if(n==null){anyFailed=true;continue;}
+    out.push({email:distinct[i],open:n});acc+=n;
+    /* WS33 (QA): `acc>=openTot` was wrong. Overshoot means the accumulator and counts.open disagree —
+       issues created mid-load, an issue with multiple assignees, a duplicate identity — and in that
+       state "everyone remaining holds zero" is not a proof, it is a guess that erases real work. Only
+       EXACT equality licenses the shortcut; overshoot abandons it and falls back to honest disclosure. */
+    if(openTot!=null&&acc===openTot){
+      for(let j=i+1;j<distinct.length;j++)out.push({email:distinct[j],open:0});
+      stoppedEarly=true;break;
+    }
+    if(openTot!=null&&acc>openTot){
+      try{console.warn("[WS33] exhaustion shortcut abandoned: accumulated "+acc+" exceeds exact open "+openTot);}catch(e){}
+      DATA.assigneeExactPartial=true;break;
+    }
   }
-  out.sort((a,b)=>b.open-a.open);DATA.assigneesExact=out;return out;
+  /* the early exit only proves the REMAINDER is zero. If we were already capped at 60, contributors 61+
+     were never in scope and their sampled figures still stand — the disclosure must survive. */
+  if(stoppedEarly&&!overCap&&!anyFailed)DATA.assigneeExactPartial=false;
+  if(anyFailed)DATA.assigneeExactPartial=true;
+  out.sort((a,b)=>b.open-a.open);DATA.assigneesExact=out;
+  DATA.assigneeExactBasis=stoppedEarly?"exact-exhausted":(anyFailed?"exact-incomplete":"exact-capped");
+  return out;
 }
 function sampleBadge(){const s=DATA.sample;if(!s)return "";
   if(s.complete)return `<span class="db-badge ok">Complete · ${fmt(s.total)} issues</span>`;
   return `<span class="db-badge">Representative sample of ${fmt(s.n)} of ${fmt(s.total)} issues</span>`;}
 
 let reqSeq=0;let sampling=false;
+/* ===== WS33 SINGLE-FLIGHT REFRESH — the actual cause of the "connection drops" =====
+   refresh() had no concurrency control. reqSeq is a LATEST-WINS token: it correctly stops a superseded
+   run from writing its results, but the superseded run keeps EXECUTING to its next guard, and every step
+   between guards is an MCP call that has already left the building. So a second refresh() starting while
+   the first was in flight did not replace it — it ran alongside it.
+   Observed in the live debug log 2026-07-29: identical list_sheets calls 2s apart, identical
+   list_clash_tests calls 3s apart, and calls for TWO DIFFERENT projects interleaved — two full load
+   cycles racing. Doubling the call volume of a load that already ran a 60-call serial contributor loop
+   put it straight through the host's limiter: "Artifact MCP rate limit exceeded" five times in one
+   session, which surfaces to the user as the connection dropping.
+   There are 12 refresh() call sites and several fire in close succession on a first run (T&C accept ->
+   tcsPostAccept -> refresh, plus the boot path, plus setDedicated). This wrapper makes that safe:
+   at most ONE load cycle in flight; a request arriving during one sets a rerun flag and returns, and
+   exactly one more cycle runs when the current one finishes. Coalescing, not queueing — five clicks of
+   Refresh during a load produce one further load, not five. */
+let _refreshBusy=false,_refreshAgain=false;
 async function refresh(){
+  if(_refreshBusy){
+    /* WS33 (QA): the coalescing branch MUST invalidate the cycle it is superseding. Returning without
+       bumping reqSeq left the in-flight cycle fully live — so after a project switch it kept going and
+       RENDERED, painting the newly-selected project's name over the previous project's exact counts for
+       the length of a load. Correct semantics: single-flight for CALLS, latest-wins for RESULTS. The
+       running cycle now fails its next `my!==reqSeq` guard and writes nothing; the coalesced rerun
+       supplies the real data. */
+    reqSeq++;_refreshAgain=true;return;}
+  _refreshBusy=true;
+  try{
+    do{_refreshAgain=false;await _refreshOnce();}while(_refreshAgain);
+  }finally{_refreshBusy=false;}
+}
+function refreshInFlight(){return _refreshBusy;}
+async function _refreshOnce(){
   if(!(window.cowork&&window.cowork.callMcpTool)){if(window.demoBoot)window.demoBoot(PRJ);return;}/* demo/standalone: re-seed, never attempt a live load */
   if(typeof tcsAccepted==="function"&&!tcsAccepted())return;/* WS21.1 defence-in-depth: no live MCP call before consent, whatever the caller */
   const my=++reqSeq;bumpCB();
@@ -1822,11 +2064,34 @@ async function refresh(){
     else if(_rc&&_rc.fail){_forbidden=true;_fk=_rc.fail;}
     else if(!_rc){_forbidden=!!DISC_ERR;_fk=DISC_ERR;}
     if(my!==reqSeq)return;
-    PROJECTS=arr;if(arr.length&&!arr.find(p=>p.uuid===PRJ)){const _mr=arr.slice().sort((a,b)=>(b.lastActive||b.updated||"").localeCompare(a.lastActive||a.updated||""))[0];if(_mr)PRJ=_mr.uuid;}renderPicker();
+    /* WS33: the licence we just loaded is now VERIFIED — by the strongest possible evidence, an actual
+       successful (or failed) list_projects. Record it so the picker shows fact rather than "checking…",
+       then let the background worker verify the rest. */
+    if(LIC){
+      if(_rc&&_rc.projects){LICSTATE[LIC]={state:"ready",kind:null,at:Date.now()};licRecordVerified(LIC,true,null);}
+      else if(_fk){LICSTATE[LIC]={state:"blocked",kind:_fk,at:Date.now()};licRecordVerified(LIC,false,_fk);}
+    }
+    /* WS33: ACTIVE vs ARCHIVED. PROJECTS_ALL keeps everything the licence returned; PROJECTS — which every
+       count, panel and fan-out reads — is the visible (by default active-only) set. */
+    PROJECTS_ALL=arr;PRJ_TRUNCATED=!!(_rc&&_rc.truncated);
+    PROJECTS=projVisible();
+    if(PROJECTS.length&&!PROJECTS.find(p=>p.uuid===PRJ)){const _d=pickDefaultProject(PROJECTS);if(_d)PRJ=_d;}
+    renderPicker();
+    /* start (or continue) background licence verification — serial, one MCP slot, abandons on reqSeq */
+    if(LICQ.length&&!LICQ_RUN){LICQ_SEQ=my;licVerifyLoop(my);}
     const prj=PRJ;
     if(!PROJECTS.length||!prj){blankData();setNoProj(true);var _kk=_fk||DISC_ERR;const _nb=document.getElementById("noproj");if(_nb){_nb.innerHTML=(_forbidden||_kk)?("<b>"+((_kk&&_kk.t)||"This licence isn’t accessible via the MCP Server.")+"</b><br>"+((_kk&&_kk.d)||"The Revizto MCP could not read this licence from any of your connections. Nothing can be shown live; switch licence above.")):"<b>No projects in this licence.</b><br>Nothing to display — all project insights are cleared. Switch licence above to view a project.";}var _noconn=!!(_kk&&_kk.k==="noconn");setSrc(_noconn?"Revizto MCP not connected":((_forbidden||_kk)?"Licence not accessible via MCP":"No projects in this licence"),_noconn?"#0097A7":((_forbidden||_kk)?"#B42318":"#0097A7"));renderHeader();renderPicker();renderTab(current);return;}
     setNoProj(false);
-    const pj=arr.find(p=>p.uuid===prj)||arr[0];
+    /* WS33 (QA): the `||arr[0]` fallback is GONE. When PRJ was a stale uuid from another licence (which
+       happens when an all-archived licence leaves pickDefaultProject with nothing to return), this
+       silently rendered arr[0]'s metadata — including an ARCHIVED project's name and revision — beside
+       counts loaded for the stale uuid. A confident, entirely fabricated all-zero dashboard. If the
+       selected project is not in the resolved set, there is nothing honest to show. */
+    const pj=arr.find(p=>p.uuid===prj);
+    if(!pj){blankData();setNoProj(true);
+      const _nb2=document.getElementById("noproj");
+      if(_nb2)_nb2.innerHTML="<b>That project isn’t in this licence.</b><br>The previously selected project isn’t available on this licence — choose one from the project picker above.";
+      setSrc("Select a project","#0097A7");renderHeader();renderPicker();renderTab(current);return;}
     if(pj){DATA._projectId=pj.id||DATA._projectId;DATA.meta.name=pj.title||DATA.meta.name;DATA.meta.created=(pj.created||"").slice(0,10)||DATA.meta.created;DATA.meta.lastActive=pj.lastActive||DATA.meta.lastActive;DATA.meta.region=pj.region||DATA.meta.region;DATA.meta.has3d=(pj.has3d!==false);if(pj.revision){DATA.meta.revNum=pj.revision.number;DATA.meta.revBy=(pj.revision.author||{}).fullname||DATA.meta.revBy;DATA.meta.revDate=(pj.revision.created||"").slice(0,10);}}
     DATA.sheetsNote="";if(!connHas("list_sheets")){DATA.sheets=null;DATA.sheetsNote="Sheets aren’t exposed by this region’s MCP build";}
     else{try{const sh=await call(RB+"list_sheets",{projectUuid:prj});if(my!==reqSeq)return;DATA.sheets=(sh.entities||sh).length;{const _sh=(sh.entities||sh);if(_sh[0]&&_sh[0].uuid)DATA._sheetUuid=_sh[0].uuid;}}catch(e){if(my!==reqSeq)return;DATA.sheets=null;DATA.sheetsNote=mcpFailKind(e).t;}}/* WS20: per-region MCP builds can lack tools — degrade HONESTLY (null + note, never a fabricated 0), don’t abort the whole refresh */
@@ -1882,17 +2147,41 @@ async function refresh(){
     else{blankData();setNoProj(false);setSrc("Couldn't load live data — Reload to retry","#B42318");renderHeader();renderTab(current);}}
 }
 /* fold EXACT open-load into the sample-derived assignee rows (open = exact; assigned stays sample) */
+/* ===== WS33 (QA round 2): EXACTNESS IS PER-FIGURE, AND THE WRITE GATE READS IT =====
+   This function back-fills any contributor missing from assigneesExact with a[2] — the SAMPLED
+   not-resolved count, which is open PLUS in_progress — and then set assigneeExactMode=true
+   unconditionally. rebalanceState reads that flag as "these are exact OPEN counts" and labels the
+   column "open".
+   So a single failed probe (a rate-limit is enough, and rate-limiting is the very symptom this
+   workstream addresses) put a sampled open+in_progress number into a column presented as exact open.
+   Independent QA reproduced it end to end: a contributor whose true open count was 4 was named top
+   owner "holding 52% of the open backlog (13 issues)", against a denominator of 25 where the exact open
+   total was 16 — with the rebalance WRITE affordance attached and no disclosure that anything was
+   estimated. Same shape as the original blocker, different trigger.
+   Fix: mark which figures are exact and expose whether the set is COMPLETE. Back-filled rows keep their
+   sampled value (that is the pre-WS33 behaviour and it is fine on its own), but the set is then flagged
+   incomplete, rebalanceState reports exact:false, `ready` goes false, and the affordance disappears —
+   the honest outcome, because a plan cannot be enacted from a figure we do not have. */
 function applyExactAssignees(){if(!DATA.assigneesExact)return;
   const ex={};DATA.assigneesExact.forEach(r=>ex[r.email]=r.open);
-  const full=(DATA.assigneesFull||[]).map(a=>[a[0],a[1],ex[a[0]]!=null?ex[a[0]]:a[2]]);
-  DATA.assigneesExact.forEach(r=>{if(!full.find(x=>x[0]===r.email))full.push([r.email,r.open,r.open]);});
-  full.sort((a,b)=>b[2]-a[2]);DATA.assigneesFull=full;DATA.assignees=full.slice(0,12);DATA.assigneeExactMode=true;}
+  let backfilled=0;
+  const full=(DATA.assigneesFull||[]).map(a=>{
+    const hit=ex[a[0]]!=null;
+    if(!hit&&a[0]&&a[0]!=="(unassigned)")backfilled++;
+    /* slot [3] = "this figure came from an exact count-first probe" */
+    return [a[0],a[1],hit?ex[a[0]]:a[2],hit];});
+  DATA.assigneesExact.forEach(r=>{if(!full.find(x=>x[0]===r.email))full.push([r.email,r.open,r.open,true]);});
+  full.sort((a,b)=>b[2]-a[2]);DATA.assigneesFull=full;DATA.assignees=full.slice(0,12);
+  DATA.assigneeExactMode=true;
+  /* COMPLETE = every contributor in the pool carries a probed figure AND nothing was capped or dropped */
+  DATA.assigneeExactComplete=(backfilled===0)&&!DATA.assigneeExactPartial;
+  DATA.assigneeBackfilled=backfilled;}
 
 let charts={};
 function mk(id,type,data,opts){if(charts[id])charts[id].destroy();
   charts[id]=new Chart(document.getElementById(id),{type,data,options:Object.assign({responsive:true,maintainAspectRatio:false,font:{family:"Geist"}},opts)});}
 
-function blankData(){DATA.status={Open:0,"In progress":0,Solved:0,Closed:0};DATA.priority={};DATA.trend={labels:[],opened:[],resolved:[]};DATA.reporters=[];DATA.assignees=[];DATA.assigneesFull=[];DATA.team=[];DATA.teamNote="";DATA.sheets=0;DATA.sheetsNote="";DATA.clashTests=0;DATA.clashRun=0;DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;DATA.workflow=null;DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};DATA.reporterCount=0;DATA.assigneeCount=0;DATA.meta={name:"",region:"",created:"",lastActive:"",revNum:0,revBy:"",revDate:""};DATA.tested={};DATA.verified=undefined;DATA.detect=undefined;PORTM={};STATUSES=[];TYPES=[];PMEMBERS=[];WORK=[];workSel=new Set();LAST=null;DATA.tl=[];DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;DATA.assigneeExactMode=false;try{Object.keys(charts).forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});}catch(e){}try{if(typeof TL!=="undefined"&&TL){TL.drill=0;if(TL.chart){TL.chart.destroy();TL.chart=null;}}}catch(e){}}
+function blankData(){DATA.status={Open:0,"In progress":0,Solved:0,Closed:0};DATA.priority={};DATA.trend={labels:[],opened:[],resolved:[]};DATA.reporters=[];DATA.assignees=[];DATA.assigneesFull=[];DATA.team=[];DATA.teamNote="";DATA.sheets=0;DATA.sheetsNote="";DATA.clashTests=0;DATA.clashRun=0;DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;DATA.workflow=null;DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};DATA.reporterCount=0;DATA.assigneeCount=0;DATA.meta={name:"",region:"",created:"",lastActive:"",revNum:0,revBy:"",revDate:""};DATA.tested={};DATA.verified=undefined;DATA.detect=undefined;PORTM={};STATUSES=[];TYPES=[];PMEMBERS=[];WORK=[];workSel=new Set();LAST=null;DATA.tl=[];DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;DATA.assigneeExactMode=false;DATA.assigneeOpenSample={};DATA.assigneeExactBasis="";DATA.assigneeExactPartial=false;DATA.assigneeExactComplete=false;DATA.assigneeBackfilled=0;try{Object.keys(charts).forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});}catch(e){}try{if(typeof TL!=="undefined"&&TL){TL.drill=0;if(TL.chart){TL.chart.destroy();TL.chart=null;}}}catch(e){}}
 function setNoProj(on){NOPROJ=on;const w=document.querySelector(".wrap");if(w)w.classList.toggle("noproj-on",on);const b=document.getElementById("noproj");if(b)b.hidden=!on;}
 function renderHeader(){const m=DATA.meta;
   /* static project facts → ⓘ popover on the project picker */
@@ -2092,9 +2381,137 @@ async function discoverLicenses(seq){
       DISC_ERR={k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then open the Connections panel and dedicate it. If the connector is already connected, its tools may not be authorised for THIS artifact yet — re-create the Blueprint through the install skill (install the plugin, then run the dashboard skill). See the README “tools not authorised for this artifact” troubleshooting."};}
     else if(!_generic)DISC_ERR=_dkind;
     else DISC_ERR={k:"nolic",t:"No licences visible on this connection",d:"The dedicated connection answered, but your Revizto user sees no licences on it. Check you signed in with the right Revizto account, that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal), and that this is the right regional connection — open the Connections panel to switch."};}
-  if(LICENSES.length&&!LICENSES.find(function(x){return x.uuid===LIC;}))LIC=LICENSES[0].uuid;
+  /* WS33 (QA): verification results are kept for the SESSION, not rebuilt on every refresh.
+     The first cut cleared LICSTATE here — and discoverLicenses runs inside every _refreshOnce cycle, so
+     every Refresh click, project switch and licence switch threw away all 21 verdicts and re-probed the
+     whole estate: 38 extra calls per cycle (blocked probes cost 2 each via the cache-bust retry). That
+     made the rate-limiting this workstream exists to fix roughly 3.5x WORSE, not better. A verdict is a
+     fact about this connection and this session; it does not need re-establishing because the user
+     clicked Refresh.
+     Re-verification happens on the events that can actually change the answer: dedicating a different
+     connection (setDedicated clears LICSTATE outright) or an explicit Re-check (licResetVerification).
+     Persisted outcomes from PREVIOUS sessions are still deliberately NOT restored into LICSTATE — a
+     licence blocked last week may have been enabled since, and showing last week's verdict as today's
+     state is the predicted-not-verified failure this whole change exists to remove. They are read only
+     by licRank(), to order the queue. */
+  LICQ_SEQ=(seq!=null?seq:reqSeq);
+  const _keep=LICSTATE||{};LICSTATE={};
+  LICENSES.forEach(function(l){
+    const prevSt=_keep[l.uuid];
+    LICSTATE[l.uuid]=(prevSt&&(prevSt.state==="ready"||prevSt.state==="blocked"))
+      ? prevSt                                        /* verified this session — keep the fact */
+      : {state:"checking",kind:null,at:0};            /* never verified, or still in flight */
+  });
+  LICQ=[];
+  /* WS33: the default licence was LICENSES[0] — alphabetical, which on the Sydney connector is a role-1
+     licence that cannot serve projects. Order by what is knowable for free (unexpired, then role
+     descending, then last-verified-good) so the ONE blocking probe refresh() has to make is the most
+     likely to succeed. This is a claim about which to TRY FIRST, not about which will work. */
+  if(LICENSES.length&&!LICENSES.find(function(x){return x.uuid===LIC;})){
+    const ranked=LICENSES.slice().sort(function(a,b){return licRank(b)-licRank(a);});
+    LIC=ranked[0].uuid;}
+  /* WS33 (QA): queue only what is genuinely UNVERIFIED. Previously every licence was re-queued and
+     re-stamped "checking" on each refresh, which is what produced the 38-calls-per-cycle regression. */
+  LICQ=LICENSES.filter(function(l){return l.uuid!==LIC&&(LICSTATE[l.uuid]||{}).state==="checking";})
+    .sort(function(a,b){return licRank(b)-licRank(a);})
+    .map(function(l){return l.uuid;});
   saveConnState();/* WS25: remember per-connection health for next session's panel continuity */
   renderLicensePicker();renderConnHealth();}
+/* ---- WS33 licence verification ------------------------------------------------------------------ */
+function licExpired(l){
+  if(!l||!l.expires)return false;
+  /* expires is a plain date (YYYY-MM-DD) and is INCLUSIVE — compare on date, not timestamp, or a licence
+     expiring today reads as dead all day in the user's morning. */
+  const d=String(l.expires).slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return false;
+  const today=new Date();const t=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+  return d<t;}
+function licVerifyKey(u){return "rvz_licok@"+(DEDCONN||"none")+":"+u;}
+function licLastVerified(u){try{const v=localStorage.getItem(licVerifyKey(u));return v?JSON.parse(v):null;}catch(e){return null;}}
+function licRecordVerified(u,ok,kind){try{localStorage.setItem(licVerifyKey(u),JSON.stringify({ok:!!ok,k:(kind&&kind.k)||"",at:Date.now()}));}catch(e){}}
+/* ordering score ONLY — never rendered, never treated as state */
+function licRank(l){
+  if(!l)return -1e9;let s=0;
+  const prev=licLastVerified(l.uuid);
+  /* WS33 (QA): a persisted ok:true only earns the big bonus if the licence STILL looks capable today.
+     Without the role condition, a licence that was readable last week but has since had its role lowered
+     (or expired) outranked genuinely readable ones, became the blocking probe, failed, and produced the
+     exact symptom this change exists to remove — first open lands on an unusable licence plus a
+     fall-forward banner — just driven by the persisted store instead of alphabetical order. */
+  if(prev&&prev.ok&&(l.role||0)>=4&&!licExpired(l))s+=1000;
+  else if(prev&&!prev.ok)s-=500;
+  if(licExpired(l))s-=200;
+  s+=(l.role||0)*10;
+  return s;}
+/* the authoritative readability check for ONE licence. limit=1 keeps a background probe to the minimum
+   that still answers the question — readability is decided before any row is returned. */
+async function verifyLic(u,seq){
+  /* WS33 (QA round 2): defence-in-depth. Consent holds on every UI-reachable path today, but this
+     function reaches the wire and must refuse on its own — the same rule refresh() already applies. */
+  if(typeof tcsAccepted==="function"&&!tcsAccepted())return null;
+  const cur=LICSTATE[u];if(cur&&cur.state!=="checking"&&cur.state!=="unknown")return cur;
+  try{
+    const r=await call(DEDCONN+"list_projects",{licenseUuid:u,limit:1,page:0},{timeout:15000});
+    if(seq!=null&&seq!==reqSeq)return null;
+    if(r&&r.error)throw Object.assign(new Error(String(r.error)),{mcpMsg:String(r.error)});
+    LICSTATE[u]={state:"ready",kind:null,at:Date.now()};licRecordVerified(u,true,null);
+  }catch(e){
+    if(seq!=null&&seq!==reqSeq)return null;
+    const k=mcpFailKind(e);
+    LICSTATE[u]={state:"blocked",kind:k,at:Date.now()};licRecordVerified(u,false,k);
+  }
+  return LICSTATE[u];}
+/* explicit Re-check: the only thing that discards verified facts short of switching connection */
+function licResetVerification(){
+  Object.keys(LICSTATE||{}).forEach(function(u){LICSTATE[u]={state:"checking",kind:null,at:0};});
+  LICQ=(LICENSES||[]).slice().sort(function(a,b){return licRank(b)-licRank(a);}).map(function(l){return l.uuid;});
+  if(!LICQ_RUN&&window.cowork&&window.cowork.callMcpTool)licVerifyLoop(reqSeq);
+  if(typeof renderLicensePicker==="function")renderLicensePicker();}
+/* ONE background worker. Deliberately serial: it occupies a single slot of MCP_MAX_CONC, so it can
+   never starve the foreground load, and it inherits the shared cooldown through call(). It abandons
+   itself the moment reqSeq moves on. */
+async function licVerifyLoop(seq){
+  if(LICQ_RUN)return;LICQ_RUN=true;
+  try{
+    while(LICQ.length){
+      if(seq!=null&&seq!==reqSeq)return;
+      const u=LICQ.shift();
+      if(!u||!LICSTATE[u]||LICSTATE[u].state!=="checking")continue;
+      await verifyLic(u,seq);
+      if(seq!=null&&seq!==reqSeq)return;
+      if(typeof renderLicensePicker==="function")renderLicensePicker();
+    }
+  }finally{
+    LICQ_RUN=false;
+    /* WS33 (QA): HAND OFF, don't just stop. A refresh landing while this worker was mid-probe refilled
+       LICQ, but the refresh saw LICQ_RUN still true and started no worker; this worker then abandoned
+       itself on the stale seq and cleared the flag — leaving a non-empty queue with nobody draining it.
+       Licences sat on "checking…" until the user happened to open the picker. Whoever finishes last is
+       responsible for relaunching if there is work left and the queue is still current. */
+    if(LICQ.length&&window.cowork&&window.cowork.callMcpTool){
+      const nx=LICQ_SEQ;
+      if(nx===reqSeq)setTimeout(function(){if(!LICQ_RUN&&LICQ.length&&LICQ_SEQ===reqSeq)licVerifyLoop(LICQ_SEQ);},0);
+    }
+  }}
+/* opening the picker promotes everything still unverified to the front — the user is looking at it now */
+function licPrioritiseVisible(){
+  const pend=LICENSES.filter(function(l){return (LICSTATE[l.uuid]||{}).state==="checking";})
+    .sort(function(a,b){return licRank(b)-licRank(a);}).map(function(l){return l.uuid;});
+  LICQ=pend;
+  if(!LICQ_RUN&&LICQ.length&&window.cowork&&window.cowork.callMcpTool)licVerifyLoop(LICQ_SEQ);}
+function licStateLabel(l){
+  const st=LICSTATE[l.uuid]||{state:"checking"};
+  const exp=licExpired(l)?("Expired "+String(l.expires).slice(0,10)):"";
+  if(st.state==="checking")return {sel:true,note:exp?("checking… · "+exp):"checking…"};
+  if(st.state==="ready")return {sel:true,note:exp?("Expired "+String(l.expires).slice(0,10)+" · still readable"):""};
+  /* blocked: say WHY, in the user's terms, from the verified cause */
+  const k=(st.kind&&st.kind.k)||"";
+  let why="Not readable via the MCP Server";
+  if(k==="rights")why="Your role on this licence can’t read it via the MCP";
+  else if(k==="appauth")why="MCP not enabled for this account";
+  else if(k==="xregion")why="Lives on a different regional server";
+  else if(k==="notfound")why="Not found on this server";
+  else if(k==="timeout"||k==="ratelimit")why="Didn’t answer — re-check to retry";
+  return {sel:false,note:exp?(why+" · expired "+String(l.expires).slice(0,10)):why};}
 function renderLicensePicker(){const w=document.getElementById("licWrap"),sel=document.getElementById("licPick");if(!sel)return;
   /* WS29: the region suffix is GONE. A licence's `region` is where its data is hosted, which is not the
    same fact as which MCP server serves it - and printed next to a licence name in a connection-first
@@ -2102,8 +2519,26 @@ function renderLicensePicker(){const w=document.getElementById("licWrap"),sel=do
    (the oldest by id) the API reports us-east-1, so ".ANZ Duncan @ Revizto" rendered as "North America
    (USA)" while actually being served by Sydney. The serving server is now stated once, above, where it
    belongs; residency lives in the Connections panel. */
-if(LICENSES.length>1){w.hidden=false;sel.innerHTML=LICENSES.map(l=>`<option value="${l.uuid}" ${l.uuid===LIC?"selected":""}>${tcsEsc(l.name||l.uuid)}</option>`).join("");
-    sel.onchange=()=>{if(jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it before switching licence.");sel.value=LIC;return;}LIC=sel.value;localStorage.setItem(LICKEY(),LIC);PROJECTS=[];STATUSES=[];TYPES=[];PMEMBERS=[];PRJ="";COMPARE=[];cmpDoneAt="";cmpLoad=null;if(window._cmpSel)window._cmpSel=new Set();if(window._cmpExp)window._cmpExp=new Set();blankData();renderHeader();renderPicker();renderTab(current);setSrc("Loading…","#0097A7");refresh();};}
+if(LICENSES.length>1){w.hidden=false;
+    /* WS33: three groups, so the 4 licences that work are not buried among the 17 that cannot. A blocked
+       row stays VISIBLE and carries its verified reason — the user sees their whole estate and learns why
+       most of it isn't readable, which is a fact about their Revizto configuration, not a defect here.
+       Blocked rows are `disabled` so the picker cannot hand the app a licence already proven unreadable. */
+    const grp=(label,items)=>items.length?`<optgroup label="${tcsEsc(label)}">`+items.map(o=>o).join("")+`</optgroup>`:"";
+    const opt=l=>{const s=licStateLabel(l);
+      return `<option value="${l.uuid}" ${l.uuid===LIC?"selected":""} ${s.sel?"":"disabled"}>`+
+        tcsEsc(l.name||l.uuid)+(s.note?tcsEsc(" — "+s.note):"")+`</option>`;};
+    const ready=[],checking=[],blocked=[];
+    LICENSES.forEach(l=>{const st=(LICSTATE[l.uuid]||{}).state;
+      (st==="ready"?ready:st==="blocked"?blocked:checking).push(l);});
+    const sortByName=a=>a.slice().sort((x,y)=>String(x.name||"").localeCompare(String(y.name||"")));
+    sel.innerHTML=
+      grp("Readable",sortByName(ready).map(opt))+
+      grp("Checking…",sortByName(checking).map(opt))+
+      grp("Not readable via the MCP Server",sortByName(blocked).map(opt));
+    /* the user is looking at the list now — verify whatever is still unknown, ahead of everything else */
+    sel.onmousedown=sel.onfocus=()=>{try{licPrioritiseVisible();}catch(e){}};
+    sel.onchange=()=>{if(jobActive()){showModalMsg("Bulk update running","A bulk update is running. Pause or stop it before switching licence.");sel.value=LIC;return;}LIC=sel.value;localStorage.setItem(LICKEY(),LIC);PROJECTS=[];PROJECTS_ALL=[];PRJ_TRUNCATED=false;STATUSES=[];TYPES=[];PMEMBERS=[];PRJ="";COMPARE=[];cmpDoneAt="";cmpLoad=null;if(window._cmpSel)window._cmpSel=new Set();if(window._cmpExp)window._cmpExp=new Set();blankData();renderHeader();renderPicker();renderTab(current);setSrc("Loading…","#0097A7");refresh();};}
   else{w.hidden=true;}
   /* WS29: the licence region badge is retired. Region is a property of the SERVER row now (and of the
      licence data residency shown in the Connections panel), never of the licence selector. */
@@ -2171,7 +2606,10 @@ function setDedicated(prefix){
   /* per-connection selections - never carry a licence uuid across instances */
   LIC=(function(){try{return localStorage.getItem(LICKEY())||"";}catch(x){return "";}})();
   PRJ=(function(){try{return localStorage.getItem(PRJKEY())||"";}catch(x){return "";}})();
-  LICENSES=[];PROJECTS=[];STATUSES=[];TYPES=[];PMEMBERS=[];COMPARE=[];cmpDoneAt="";cmpLoad=null;
+  LICENSES=[];PROJECTS=[];PROJECTS_ALL=[];PRJ_TRUNCATED=false;STATUSES=[];TYPES=[];PMEMBERS=[];COMPARE=[];cmpDoneAt="";cmpLoad=null;
+  /* WS33: licence verification is per connection — a licence uuid and its readability mean nothing on a
+     different regional instance, and LICQ_SEQ is bumped below so any in-flight worker abandons itself. */
+  LICSTATE={};LICQ=[];
   if(window._cmpSel)window._cmpSel=new Set();if(window._cmpExp)window._cmpExp=new Set();
   cmpSeq++;reqSeq++;/* invalidate every in-flight fan-out from the previous connection */
   blankData();setNoProj(false);
@@ -2332,16 +2770,16 @@ async function resolveConn(licUuid,seq){/* resolve + PIN the connection that ser
   /* the current pin = cached winner if still a candidate, else the live CONN if it serves this licence */
   var pin=(cached&&all.indexOf(cached)>=0)?cached:((all.indexOf(CONN)>=0)?CONN:null);
   async function probe(p){
-    try{const projs=await call(p+"list_projects",{licenseUuid:licUuid,include:["revision","lastActive","has3d"]});
-      if(seq!=null&&seq!==reqSeq)return {abort:true};
-      if(projs&&projs.error)return {kind:mcpFailKind({mcpMsg:String(projs.error)})};
-      var arr=Array.isArray(projs&&projs.entities)?projs.entities:(Array.isArray(projs)?projs:[]);
-      return {ok:true,arr:arr};
+    /* WS33: was a single unpaginated call — silently capped at the tool's default 100 and could not even
+       detect that it had truncated, because list_projects.count is the page length, not the total. */
+    try{const res=await listProjectsAll(p,licUuid,seq);
+      if(res&&res.abort)return {abort:true};
+      return {ok:true,arr:res.arr,truncated:!!res.truncated,pages:res.pages};
     }catch(e){if(seq!=null&&seq!==reqSeq)return {abort:true};return {kind:mcpFailKind(e)};}}
   var lastKind=null;
   /* 1) try the PIN alone first */
   if(pin){var r=await probe(pin);if(r.abort)return null;
-    if(r.ok){setConn(pin);try{localStorage.setItem("rvz_conn4lic:"+licUuid,pin);}catch(e){}return {conn:pin,projects:r.arr};}
+    if(r.ok){setConn(pin);try{localStorage.setItem("rvz_conn4lic:"+licUuid,pin);}catch(e){}return {conn:pin,projects:r.arr,truncated:r.truncated};}
     lastKind=r.kind;
     if(!(r.kind&&CONN_FATAL[r.kind.k])){return {hold:true,fail:r.kind};}/* transient → HOLD the pin, preserve state, don't probe others */
     try{localStorage.removeItem("rvz_conn4lic:"+licUuid);}catch(x){}/* fatal → the pin is stale; re-resolve below */
@@ -2351,7 +2789,7 @@ async function resolveConn(licUuid,seq){/* resolve + PIN the connection that ser
   for(var i=0;i<cands.length;i++){var p=cands[i];
     if(typeof jobActive==="function"&&jobActive()&&p!==CONN)continue;/* WS21.1: connection PINNED while a job is active */
     var rr=await probe(p);if(rr.abort)return null;
-    if(rr.ok){setConn(p);try{localStorage.setItem("rvz_conn4lic:"+licUuid,p);}catch(e){}return {conn:p,projects:rr.arr};}
+    if(rr.ok){setConn(p);try{localStorage.setItem("rvz_conn4lic:"+licUuid,p);}catch(e){}return {conn:p,projects:rr.arr,truncated:rr.truncated};}
     lastKind=rr.kind;
   }
   return {fail:lastKind};}
@@ -2379,16 +2817,47 @@ function actInit(){const fa=document.getElementById("fAssignee");if(fa){const cu
    (someone to receive), real open work on the top owner, and a share past the proportional trigger.
    When not ready the brief offers no rebalance and reads honestly. */
 function rebalanceState(){
-  var exact=!!DATA.assigneeExactMode;
+  /* WS33 (QA round 2): assigneeExactMode alone is NOT sufficient to claim these are exact open counts.
+     It only says "an exact pass ran". If any contributor's figure was back-filled from the sample — one
+     failed probe, an overshoot abandon, or the 60-cap — the column mixes exact open with sampled
+     open+in_progress, and `exact` here drives both the "open" wording and `ready`, which is what puts the
+     rebalance WRITE card on screen. Require the set to be COMPLETE. Incomplete degrades honestly to the
+     pre-existing sampled presentation ("active"), with no write offered. */
+  var exact=!!(DATA.assigneeExactMode&&DATA.assigneeExactComplete);
   var pool=(DATA.assigneesFull||DATA.assignees||[]).filter(function(a){return a&&a[0]&&a[0]!=="(unassigned)";});
   var top=pool[0]||null;
   var contrib=Math.max(1,pool.length);
   var bk=pool.reduce(function(x,a){return x+(a[2]||0);},0);
   var topLoad=top?(top[2]||0):0;
-  var share=(bk>0&&top)?topLoad/bk:0;
+  /* ===== WS33 (QA round 3) BLOCKER FIX — RECONCILE THE DENOMINATOR =====
+     `bk` is the sum over NAMED contributors only. The project's open total is DATA.counts.open, and the
+     two are not the same number whenever open work sits outside the pool — most commonly UNASSIGNED
+     issues, but also a contributor who never appeared in the sample and is not an active project member.
+     "% of the open backlog" was computed as topLoad/bk, so the smaller the pool's coverage the LARGER the
+     reported concentration. Independent QA measured it end to end: a project with 100 open issues of
+     which 60 were unassigned reported the top owner at 75% of the open backlog when the truth was 30% —
+     and because 0.75 cleared the trigger while 0.30 does not, the approval-gated rebalance WRITE card was
+     offered on a project that has no concentration problem at all. Overstated by 45 points, labelled
+     "exact open counts (count-first)".
+     Two changes, both conservative:
+       - the denominator is the project's own exact open total whenever we have it, so the percentage is
+         a share of the real backlog rather than a share of what we happened to measure;
+       - `exact` additionally requires the pool to ACCOUNT FOR that total (bk === openTot). If it does
+         not, there is open work we cannot attribute, so no plan can be honestly proposed: exact goes
+         false, the wording degrades to "active", and `ready` withdraws the write affordance.
+     This is the same class as the two earlier findings — a producer-side guard (assigneeExactComplete)
+     that a consumer defeated by computing its own figure. */
+  var openTot=(DATA.counts&&DATA.counts.reconciled&&typeof DATA.counts.open==="number")?DATA.counts.open:null;
+  var accounts=(openTot!=null&&bk===openTot);
+  var unattributed=(openTot!=null)?Math.max(0,openTot-bk):null;
+  exact=!!(exact&&accounts);
+  var denom=(openTot!=null)?openTot:bk;
+  var share=(denom>0&&top)?topLoad/denom:0;
   var trig=Math.max(1.5/contrib,0.05);
-  var ready=!!(exact&&top&&pool.length>=2&&bk>0&&topLoad>0&&share>=trig);
-  return {exact:exact,pool:pool,top:top,topLoad:topLoad,contrib:contrib,bk:bk,share:share,trig:trig,ready:ready,conc:bk>0?Math.round(100*share):0,fairReal:bk/contrib,word:exact?"open":"active"};
+  var ready=!!(exact&&top&&pool.length>=2&&denom>0&&topLoad>0&&share>=trig);
+  return {exact:exact,pool:pool,top:top,topLoad:topLoad,contrib:contrib,bk:denom,poolSum:bk,openTot:openTot,
+    unattributed:unattributed,accounts:accounts,share:share,trig:trig,ready:ready,
+    conc:denom>0?Math.round(100*share):0,fairReal:denom/contrib,word:exact?"open":"active"};
 }
 function rebalanceReceiver(){var p=rebalanceState().pool;return (p.length>=2)?p[p.length-1][0]:"";}
 function rebalanceSeed(){var RS=rebalanceState();if(!RS.ready)return "";var recv=rebalanceReceiver();
@@ -2410,7 +2879,7 @@ function actionRecs(){const out=[];const crit=((DATA.priority||{}).critical||0)+
     const _exact=RS.exact&&!DATA.assigneeExactPartial;const _fairD=Math.round(_fairReal);
     const _rebRat="One owner holds "+_conc+"% of the open backlog. Reassigning some of it in Action anything brings them toward the team mean of "+fmt(_fairD)+" (= "+fmt(_bk)+" ÷ "+fmt(_contrib)+").";
     const _rebBody='<div class="proof-formula">fair share = open backlog ÷ contributors</div><div class="proof-rows">'
-      +proofRow("open backlog",fmt(_bk),{term:["open backlog","Exact open (unstarted) issues held by the named contributors — counted per person, count-first."]})
+      +proofRow("open backlog",fmt(_bk),{term:["open backlog","The project's exact count of open (unstarted) issues, count-first. Shown only when the named contributors account for ALL of it — if any open work is unassigned or unattributed, this card is withheld rather than divided by a partial denominator."]})
       +proofRow("contributors",fmt(_contrib))
       +proofRow("fair share","≈ "+fmt(_fairD),{term:["fair share","The team mean: open backlog divided by the people actively holding work."]})
       +proofRow(top[0]+" holds",fmt(RS.topLoad)+"  ("+_conc+"%)")
@@ -2547,7 +3016,11 @@ function doUndo(){if(writesOff()||!LAST)return;showConfirm(LAST.plan);}
 function recomputeFromTL(){const tl=DATA.tl||[];if(!tl.length)return;const asg={},pr={};
   for(const r of tl){const a=r.au||"(unassigned)";(asg[a]=asg[a]||[0,0])[0]++;if(!r.rs)asg[a][1]++;pr[r.pr||"none"]=(pr[r.pr||"none"]||0)+1;}
   const _ae=Object.entries(asg).map(([k,v])=>[k,v[0],v[1]]);(PMEMBERS||[]).filter(m=>m.active).forEach(m=>{if(!_ae.find(x=>x[0]===m.email))_ae.push([m.email,0,0]);});_ae.sort((a,b)=>b[1]-a[1]);DATA.assigneesFull=_ae;DATA.assignees=_ae.slice(0,12);
-  DATA.assigneeCount=Object.keys(asg).length;DATA.priority=pr;}
+  DATA.assigneeCount=Object.keys(asg).length;DATA.priority=pr;
+  /* WS33 (QA round 3): this rebuilds assigneesFull from timeline rows as 3-element tuples carrying the
+     NOT-RESOLVED count, which is not an exact open figure and has no slot [3]. Leaving the exactness flags
+     set would let rebalanceState claim "open" over recomputed data. Only applyExactAssignees may set them. */
+  DATA.assigneeExactMode=false;DATA.assigneeExactComplete=false;}
 /* keep exact aggregates consistent after a successful write, without re-fetching */
 const LEGACY_BUCKET={open:"open",in_progress:"in_progress",solved:"solved",closed:"closed"};
 function statusToBucket(v){if(!v)return null;if(LEGACY_BUCKET[v])return v;
@@ -2564,7 +3037,14 @@ function patchExactAfterWrite(groups,prior){
       /* assignee change → patch DATA.assigneesExact (open issues only) */
       if(DATA.assigneesExact&&newAsg){const wasOpen=(oldBucket==="open");if(wasOpen){const oldAsg=pw.assignee||w.assignee;
         if(oldAsg&&oldAsg!==newAsg){const fr=DATA.assigneesExact.find(r=>r.email===oldAsg);if(fr&&fr.open>0)fr.open--;}
-        let to=DATA.assigneesExact.find(r=>r.email===newAsg);if(!to){to={email:newAsg,open:0};DATA.assigneesExact.push(to);}to.open++;}}
+        let to=DATA.assigneesExact.find(r=>r.email===newAsg);
+        if(!to){to={email:newAsg,open:0};DATA.assigneesExact.push(to);
+          /* WS33 (QA round 3): this receiver was never probed, so 0 is an ASSUMPTION, not a count — they
+             may already hold open work (assigneeOptions offers every member; only active members are
+             probed). Incrementing from an assumed zero and presenting the result as exact is exactly the
+             fabrication this round closed elsewhere. Mark the set incomplete instead. */
+          DATA.assigneeExactComplete=false;DATA.assigneeExactPartial=true;}
+        to.open++;}}
     });}
   if(DATA.assigneesExact)DATA.assigneesExact.sort((a,b)=>b.open-a.open);
   if(countsDirty)DATA.status={Open:DATA.counts.open,"In progress":DATA.counts.in_progress,Solved:DATA.counts.solved,Closed:DATA.counts.closed};
@@ -2695,9 +3175,25 @@ function offerResume(){let j=null;try{let raw=localStorage.getItem(jobKey());if(
   const disc=document.getElementById("rbDiscard");if(disc)disc.onclick=()=>{if(confirm("Discard tracking for this job? The "+fmt(done)+" changes already made stay in Revizto — this only stops the remaining "+fmt(rem)+" from being picked up here.")){PENDING_RESUME=null;JOB=null;try{localStorage.removeItem(jobKey());}catch(e){}b.hidden=true;b.innerHTML="";}};}
 function renderPicker(){const btn=document.getElementById("prjBtn");if(!btn)return;
   const lbl=document.getElementById("prjBtnLabel"),pop=document.getElementById("prjPop"),search=document.getElementById("prjSearch"),list=document.getElementById("prjList");
-  const cur=PROJECTS.find(p=>p.uuid===PRJ)||{title:(PROJECTS.length?"Select project":"No projects in this licence")};lbl.textContent=cur.title;btn.disabled=!PROJECTS.length;
+  /* WS33: the empty label must distinguish "this licence has no projects" from "all of its projects are
+     archived" — the second is a one-click fix and the first is not, so saying the wrong one sends the
+     user hunting for a bug that isn't there. */
+  const _arch=projArchivedCount();
+  const _emptyLbl=PROJECTS.length?"Select project":(_arch?`No active projects · ${_arch} archived`:"No projects in this licence");
+  const cur=PROJECTS.find(p=>p.uuid===PRJ)||{title:_emptyLbl};lbl.textContent=cur.title;btn.disabled=!PROJECTS.length&&!_arch;
   function paint(q){q=(q||"").toLowerCase();const items=PROJECTS.filter(p=>!q||(p.title||"").toLowerCase().includes(q));
-    list.innerHTML=items.length?items.map(p=>`<div class="combo-opt ${p.uuid===PRJ?"sel":""}" role="option" data-u="${p.uuid}" tabindex="0">${p.title}${p.uuid===PRJ?'<span class="combo-tick">✓</span>':""}</div>`).join(""):'<div class="em" style="padding:8px 10px">No projects match.</div>';
+    const rows=items.length?items.map(p=>{const t=prjTag(p);
+      return `<div class="combo-opt ${p.uuid===PRJ?"sel":""}" role="option" data-u="${p.uuid}" tabindex="0">${p.title}`+
+        (t?` <span class="em" style="font-size:11px">· ${t}</span>`:"")+
+        (p.uuid===PRJ?'<span class="combo-tick">✓</span>':"")+`</div>`;}).join(""):'<div class="em" style="padding:8px 10px">No projects match.</div>';
+    /* archived affordance sits INSIDE the picker, next to the list it changes (affordance proximity) */
+    const foot=_arch?`<div class="em" style="padding:8px 10px;border-top:1px solid var(--line,#e5e7eb);font-size:12px">`+
+        `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;min-height:24px">`+
+        `<input type="checkbox" id="prjArchTgl" ${SHOW_ARCHIVED?"checked":""}> Include ${_arch} archived / frozen project${_arch===1?"":"s"}</label></div>`:"";
+    const trunc=PRJ_TRUNCATED?`<div class="em" style="padding:8px 10px;font-size:12px;color:var(--warn,#B54708)">Showing the first ${fmt(PROJECTS_ALL.length)} projects — this licence has more than the Blueprint pages in one pass.</div>`:"";
+    list.innerHTML=rows+trunc+foot;
+    const tg=document.getElementById("prjArchTgl");
+    if(tg)tg.onchange=()=>{setShowArchived(tg.checked);paint(search?search.value:"");};
     list.querySelectorAll("[data-u]").forEach(o=>{o.onclick=()=>choose(o.dataset.u);o.onkeydown=e=>{if(e.key==="Enter")choose(o.dataset.u);};});}
   function open(){pop.hidden=false;btn.setAttribute("aria-expanded","true");search.value="";paint("");setTimeout(()=>search.focus(),10);}
   function close(){pop.hidden=true;btn.setAttribute("aria-expanded","false");}
@@ -2718,13 +3214,17 @@ async function projectMetrics(uuid){
   /* coherence: derive total from the summed statuses so active+resolved always == tot.
      Trust the unfiltered server total ONLY when it agrees with the sum; else use the sum and flag !reconciled. */
   const _sum=open+inprog+solved+closed;const reconciled=(typeof cT==="number"&&cT===_sum);tot=reconciled?cT:_sum;
+  /* WS33 (QA round 3): keep the unfiltered server total alongside the coherent bucket sum. `tot` is
+     deliberately the bucket sum when the two disagree (so active+resolved always adds up on screen), but
+     that makes it the WRONG basis for judging sample coverage — see the cmpTrend call site. */
+  const grossTotal=(typeof cT==="number"&&cT>_sum)?cT:_sum;
   let sheets=null,clash=0;
   if(connHas("list_sheets")){try{const s=await call(RB+"list_sheets",{projectUuid:uuid});sheets=(s.entities||s).length;}catch(e){}}
   try{const c=await call(RB+"list_clash_tests",{projectUuid:uuid});clash=Array.isArray(c)?c.length:((c.entities||c.data||[]).length);}catch(e){}
   const active=open+inprog,resolved=solved+closed;
   const pj=PROJECTS.find(p=>p.uuid===uuid)||{};const la=pj.lastActive||pj.updated||"";
   /* criticals & 90d flow & key-person require row sampling — not available as exact server filters here */
-  return {uuid,id:pj.id,lic:pj.license_id,title:pj.title||uuid,tot,active,resolved,rate:tot?Math.min(100,Math.round(100*resolved/tot)):0,reconciled,crit:null,o90:null,r90:null,net90:0,sheets,clash,lastActive:la,topShare:0,idle:la?Math.round((TODAY-new Date(la.replace(" ","T")))/864e5):null};}
+  return {uuid,id:pj.id,lic:pj.license_id,title:pj.title||uuid,tot,grossTotal,active,resolved,rate:tot?Math.min(100,Math.round(100*resolved/tot)):0,reconciled,crit:null,o90:null,r90:null,net90:0,sheets,clash,lastActive:la,topShare:0,idle:la?Math.round((TODAY-new Date(la.replace(" ","T")))/864e5):null};}
 function cmpInit(){if(!window._cmpSel){window._cmpSel=new Set();}
   if(window._cmpSel.size===0){if(PRJ)window._cmpSel.add(PRJ);if(PROJECTS.length&&PROJECTS.length<=4)PROJECTS.forEach(p=>window._cmpSel.add(p.uuid));}}
 function cmpPickerShell(){const el=document.getElementById("cmpPicker");if(!el||document.getElementById("cmpSearch"))return;
@@ -2770,11 +3270,25 @@ async function loadCompare(uuids){if(cmpLoading||!(window.cowork&&window.cowork.
     const m=await projectMetrics(uuids[i]);if(_dead()){cmpLoad=null;cmpLoading=false;return;}COMPARE.push(m);renderResults();
     if(m._err){continue;}/* WS21.1: unreachable project — no sampling, row renders as unavailable */
     cmpLoad.phase="sample";refreshCmpControls();
-    const t=await cmpTrend(uuids[i],m.tot,reqSeq);if(t){m.net90=t.net90;m.o90=t.o90;m.r90=t.r90;m.sampleN=t.n;m.sampleComplete=t.complete;m.weeks=t.weeks;m._rows=t.rows;}m._memMap=await cmpMemMap(uuids[i]);if(_dead()){cmpLoad=null;cmpLoading=false;return;}renderResults();refreshCmpControls();}
+    /* WS33 (QA round 3): sample coverage must be measured against the project's TRUE grand total, not
+       against `m.tot`. When the four legacy status buckets do not sum to the server total (a project using
+       custom statuses, or mid-resync), `m.tot` falls back to the BUCKET SUM — so a 300-issue project whose
+       buckets account for 100 reported "Coverage exact · All issues read live (exact)" on 33% coverage,
+       and dropped the "(sample)" qualifier from the critical and overdue signals. `m.reconciled` was
+       already computed here and had no consumer on any compare surface; now completeness requires it. */
+    const _gross=(typeof m.grossTotal==="number"&&m.grossTotal>0)?m.grossTotal:m.tot;
+    const t=await cmpTrend(uuids[i],_gross,reqSeq);if(t){m.net90=t.net90;m.o90=t.o90;m.r90=t.r90;m.sampleN=t.n;m.sampleComplete=(t.complete&&m.reconciled!==false);m.weeks=t.weeks;m._rows=t.rows;}m._memMap=await cmpMemMap(uuids[i]);if(_dead()){cmpLoad=null;cmpLoading=false;return;}renderResults();refreshCmpControls();}
   cmpDoneAt=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});cmpLoad=null;cmpLoading=false;refreshCmpControls();}
 async function cmpTrend(uuid,total,seq){
-  const P=total>0?Math.ceil(total/200):1;const cap=2000;/* fixed compare-sample cap: bounded + fast per project, independent of the single-view detail-sample setting */
-  const need=Math.max(1,Math.min(Math.ceil(cap/200),P));let pages,full=false;
+  /* WS33 (QA round 2) — THE TWIN OF THE BLOCKER. The loadSample fix was applied in one place; this
+     cross-project sampler carried the identical defect. It planned pages at 200 rows while fetching
+     MCP_PAGE_MAX (100), so `full` (-> sampleComplete) went TRUE at 67% or 50% coverage. That flag drives
+     "Coverage exact — All issues read live (exact)", suppresses the sample caveat, drops the "(sample)"
+     qualifier from the critical/overdue counts, and sets exact:true / cov:"exact" on every row feeding the
+     Teams and Individuals pivots. Independent QA measured it lying at totals 150, 300 and 1000.
+     Derive from the constant the fetch uses. Never a second literal. */
+  const P=total>0?Math.ceil(total/MCP_PAGE_MAX):1;const cap=2000;/* fixed compare-sample cap: bounded + fast per project, independent of the single-view detail-sample setting */
+  const need=Math.max(1,Math.min(Math.ceil(cap/MCP_PAGE_MAX),P));let pages,full=false;
   if(need>=P){pages=[];for(let p=0;p<P;p++)pages.push(p);full=true;}
   else{const set=new Set();const stride=P/need;for(let k=0;k<need;k++)set.add(Math.min(P-1,Math.round(k*stride)));set.add(0);set.add(P-1);pages=[...set].sort((a,b)=>a-b);}
   const fetchPage=async page=>{for(let att=0;att<2;att++){try{return await call(RB+"list_issues",{projectUuid:uuid,limit:MCP_PAGE_MAX,page,include:["stampAbbr","stampColor"]});}catch(e){if(att<1)continue;return null;}}return null;};
@@ -2799,7 +3313,7 @@ function cmpWeeks(rows){
 function cmpSeries(){
   if(cmpPivot==="teams")return cmpTeamSeries();
   if(cmpPivot==="indiv")return cmpIndivSeries();
-  return {series:COMPARE.filter(m=>!m._err).map(m=>({key:m.title,viewing:m.uuid===PRJ,net90:(m.net90!=null?m.net90:null),rate:m.rate,tot:m.tot,sampleN:m.sampleN,exact:!!m.sampleComplete,weeks:m.weeks||null,cov:(m.sampleComplete?"exact":(m.net90!=null?"sample":"load"))})),note:""};
+  return {series:COMPARE.filter(m=>!m._err).map(m=>({key:m.title,viewing:m.uuid===PRJ,net90:(m.net90!=null?m.net90:null),rate:m.rate,tot:m.tot,gross:(m.grossTotal!=null?m.grossTotal:m.tot),sampleN:m.sampleN,exact:!!m.sampleComplete,weeks:m.weeks||null,cov:(m.sampleComplete?"exact":(m.net90!=null?"sample":"load"))})),note:""};
 }
 /* Shared group aggregation for Teams + Individuals: net-90, 13-week active series,
    resolution rate, coverage (exact only if every constituent row is exact). Rows are
@@ -2809,7 +3323,7 @@ function cmpAgg(G,wk,s0){
     let o90=0,r90=0,res=0;for(const r of rows){if(r.o>=s0)o90++;if(r.rs){res++;if(r.c&&r.c>=s0)r90++;}}
     const weeks=wk.map(t=>{const te=t+7*864e5;let active=0,op=0,rs=0;for(const r of rows){if(r.o<=te&&!(r.rs&&r.c&&r.c<=te))active++;if(r.o>=t&&r.o<te)op++;if(r.rs&&r.c&&r.c>=t&&r.c<te)rs++;}return {t,active,opened:op,resolved:rs};});
     const exact=rows.every(r=>r._exact);
-    return {key,net90:o90-r90,rate:rows.length?Math.round(100*res/rows.length):0,tot:rows.length,sampleN:rows.length,weeks,exact,cov:exact?"exact":"sample",rows};});
+    return {key,net90:o90-r90,rate:rows.length?Math.round(100*res/rows.length):0,tot:rows.length,gross:rows.length,sampleN:rows.length,weeks,exact,cov:exact?"exact":"sample",rows};});
   arr.sort((a,b)=>b.weeks[b.weeks.length-1].active-a.weeks[a.weeks.length-1].active);
   return arr;
 }
@@ -2843,7 +3357,15 @@ async function cmpMemMap(uuid){try{const r=await call(RB+"list_project_members",
 function cmpMemName(au){if(!au||au==="(unassigned)")return "Unassigned";for(const m of COMPARE){const info=(m._memMap||{})[au];if(info&&info.nm)return info.nm;}return au;}
 async function cmpStampMap(uuid){try{const r=await call(RB+"list_stamp_templates",{projectUuid:uuid});const ents=(r&&(r.entities||r))||[];const mp={};ents.forEach(t=>{try{const f=typeof t.fields==="string"?JSON.parse(t.fields):(t.fields||{});if(f&&f.stampColor!=null&&mp[f.stampColor]==null)mp[f.stampColor]=t.title;}catch(e){}});return mp;}catch(e){return {};}}
 function cmpPanelPending(key,viewing){return `<div class="cmp-mp"><p class="cmp-mp-ttl">${key}${viewing?' <span class="sg-cur-pill">Current</span>':''}</p><div class="em" style="padding:16px 0;font-size:var(--fs-2)">Building trend…</div></div>`;}
-function cmpMultiPanel(key,weeks,exact,sampleN,tot,viewing){
+/* WS33 (QA round 4) SAMPLE-RATIO DENOMINATOR. Round 3 correctly re-based cmpTrend's coverage on the
+   project's TRUE grand total (grossTotal) rather than the four-bucket sum, because the bucket sum
+   understates a project using custom statuses and made "Coverage exact" appear at 33% coverage. But every
+   surface that PRINTS the ratio kept using m.tot as the denominator, so once the numerator was measured
+   against the real total the two no longer matched — on a 300-issue project whose buckets account for 100
+   the copy read "a 300 of 100 representative sample". A ratio must state the denominator the numerator was
+   actually taken against. m.tot stays the coherent bucket sum for the totals column (active + resolved
+   must add up on screen); sampling copy uses grossTotal. */
+function cmpMultiPanel(key,weeks,exact,sampleN,tot,viewing,gross){
   const wk=weeks;const N=Math.max(2,Math.min(cmpFcast,wk.length));const trail=wk.slice(-N);
   const avgO=trail.reduce((a,b)=>a+b.opened,0)/trail.length;const avgR=(trail.reduce((a,b)=>a+b.resolved,0)/trail.length)*cmpOutlook;
   let a=wk[wk.length-1].active;const proj=[];for(let k=0;k<cmpFcast;k++){a=Math.max(0,Math.round(a+avgO-avgR));proj.push(a);}
@@ -2857,7 +3379,7 @@ function cmpMultiPanel(key,weeks,exact,sampleN,tot,viewing){
   const area=`<polygon points="${gx},${pB} ${actPts} ${X(p0)},${pB}" fill="${dir}" opacity=".1"/>`;
   const axis=`<line x1="${gx}" y1="${pT}" x2="${gx}" y2="${pB}" stroke="var(--muted)" stroke-width="1.25"/><line x1="${gx}" y1="${pB}" x2="${pR}" y2="${pB}" stroke="var(--muted)" stroke-width="1.25"/>`;
   const ticks=`<text x="${gx-5}" y="${pB+3}" text-anchor="end" font-size="10" fill="var(--muted)">0</text><text x="${gx-5}" y="${pT+7}" text-anchor="end" font-size="10" fill="var(--muted)">${fmt(mx)}</text>`;
-  const cov=exact?`<span style="color:var(--teal-deep)">exact</span>`:`<span style="color:#B26B00">sampled ${fmt(sampleN||0)}/${fmt(tot||0)}</span>`;
+  const cov=exact?`<span style="color:var(--teal-deep)">exact</span>`:`<span style="color:#B26B00">sampled ${fmt(sampleN||0)}/${fmt(((gross!=null&&gross>0)?gross:tot)||0)}</span>`;
   return `<div class="cmp-mp"><p class="cmp-mp-ttl">${key}${viewing?' <span class="sg-cur-pill">Current</span>':''}</p>`+
     `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${key} active backlog trend, axis 0 to ${fmt(mx)}, latest ${last}">${area}${axis}${ticks}<polyline points="${actPts}" fill="none" stroke="${dir}" stroke-width="2" stroke-linejoin="round"/><polyline points="${projPts}" fill="none" stroke="${dir}" stroke-width="1.5" stroke-dasharray="3 3" opacity=".55"/><circle cx="${lx}" cy="${ly}" r="3" fill="${dir}"/><text x="${pR+3}" y="${ly+3}" font-size="11" fill="var(--concrete)" font-weight="600">${last}</text></svg>`+
     `<p class="cmp-mp-cov" data-proof-i tabindex="0" aria-label="Coverage" data-proof-def="${_esc("Vertical axis is fixed at 0 so every card shares the same floor; the top tick is the panel's own peak. Exact = rebuilt from all issues. Sampled = from a representative sample of the project's history (large projects); the trend shape is representative, the latest value approximate.")}">${cov}</p></div>`;
@@ -2865,7 +3387,7 @@ function cmpMultiPanel(key,weeks,exact,sampleN,tot,viewing){
 function renderMulti(){const el=document.getElementById("cmpMulti");if(!el)return;
   const ser=cmpSeries();const all=ser.series||[];
   if(!all.length){el.innerHTML="";return;}
-  const panels=all.map(s=>(s.weeks&&s.weeks.length)?cmpMultiPanel(s.key,s.weeks,s.exact,s.sampleN,s.tot,s.viewing):cmpPanelPending(s.key,s.viewing)).join("");
+  const panels=all.map(s=>(s.weeks&&s.weeks.length)?cmpMultiPanel(s.key,s.weeks,s.exact,s.sampleN,s.tot,s.viewing,s.gross):cmpPanelPending(s.key,s.viewing)).join("");
   const iBtn=(al,def)=>`<button type="button" class="proof-i" data-proof-i aria-label="${al}" data-proof-def="${def}"><span aria-hidden="true">&#9432;</span></button>`;
   const desc="Each panel anchored at 0 · top tick = the panel's own peak · dashed = projection"+(ser.note?" · "+ser.note:"");
   el.innerHTML=`<div class="brief-head"><div class="sec" style="margin-top:0"><div class="sec-eye">Trend</div><div class="sec-ttl">Active-backlog trend<button type="button" class="proof-i" data-proof-i aria-label="Active-backlog trend — how it's computed" data-proof-def="Active backlog = issues open at each week end, rebuilt from the sampled issue history per series. Dashed = projection: trailing symmetric averages of opened vs resolved, with resolved scaled by the Outlook multiplier. Live, recomputed each render — never cached."><span aria-hidden="true">&#9432;</span></button></div></div>`+
@@ -2883,7 +3405,7 @@ function renderScan(){const el=document.getElementById("cmpScan");if(!el)return;
     const sgn=net==null?"":(net>0?"+":(net<0?"−":"±"));
     const col=net==null?"var(--muted)":(net>0?"var(--red)":(net<0?"var(--teal-deep)":"var(--muted)"));
     const word=net==null?"loading…":(net>0?"growing":(net<0?"shrinking":"holding"));
-    const cov=s.exact?`<span style="color:var(--teal-deep)">${fmt(s.tot)} / issues · exact</span>`:(has?`<span style="color:#B26B00">${fmt(s.sampleN!=null?s.sampleN:s.tot)} ${cmpPivot!=="projects"?"issues · sample":"/ of "+fmt(s.tot)+" · sample"}</span>`:`<span class="em">loading…</span>`);
+    const cov=s.exact?`<span style="color:var(--teal-deep)">${fmt(s.tot)} / issues · exact</span>`:(has?`<span style="color:#B26B00">${fmt(s.sampleN!=null?s.sampleN:s.tot)} ${cmpPivot!=="projects"?"issues · sample":"/ of "+fmt((s.gross!=null&&s.gross>0)?s.gross:s.tot)+" · sample"}</span>`:`<span class="em">loading…</span>`);
     return `<div class="cmp-ct"><p class="cmp-ct-ttl">${s.key}${s.viewing?' <span class="sg-cur-pill">Current</span>':''}</p><div class="cmp-ct-fig" data-proof-i tabindex="0" aria-label="Net backlog, last 90 days" data-proof-def="${_esc("Net backlog = issues opened minus resolved over the last 90 days. Red = growing, teal = shrinking, grey = holding.")}"><span class="cmp-ct-num" style="color:${col}">${has?sgn+Math.abs(net):'—'}</span><span class="cmp-ct-word">${word}</span></div><p class="cmp-ct-rate">Resolution rate <b>${s.rate}%</b></p><p class="cmp-ct-cov" data-proof-i tabindex="0" aria-label="Coverage" data-proof-def="${_esc("Green = exact live count. Amber = a representative sample for large projects; totals and resolution rate stay exact.")}">${cov}</p></div>`;};
   const eye=cmpPivot==="teams"?"Teams":(cmpPivot==="indiv"?"Individuals":"Portfolio");const ttl=cmpPivot==="teams"?"Team scan":(cmpPivot==="indiv"?"Individual scan":"Portfolio scan");
   const head=`<div class="sec" style="margin-top:0"><div class="sec-eye">${eye}</div><div class="sec-ttl">${ttl}<button type="button" class="proof-i" data-proof-i aria-label="${ttl} — how it's computed" data-proof-def="Net backlog = issues opened minus resolved over the last 90 days, per ${cmpPivot==="teams"?"team":(cmpPivot==="indiv"?"person":"project")}. Green = exact live count; amber = a representative sample for large projects. Resolution rate is exact."><span aria-hidden="true">&#9432;</span></button></div><div class="sec-sub">Net backlog movement over the last 90 days${ser.note?" · "+ser.note:""}</div></div>`;
@@ -2909,12 +3431,12 @@ function cmpSignals(m){
   const net=(m.net90!=null?m.net90:0);const sig=[];
   sig.push({key:"backlog",label:`Backlog ${net>0?"+":(net<0?"−":"±")}${Math.abs(net)}`,status:(m.net90==null?"mut":(net>0?(m.rate<40?"risk":"watch"):"ok")),why:`Net ${net>0?"growth":(net<0?"reduction":"change")} of ${Math.abs(net)} issues over the last 90 days.`});
   sig.push({key:"resolution",label:`Resolution ${m.rate}%`,status:(m.rate>=65?"ok":(m.rate>=40?"watch":"risk")),why:`${m.rate}% of issues resolved (${fmt(m.resolved)} of ${fmt(m.tot)}).`});
-  if(conc&&conc.share>=30)sig.push({key:"concentration",label:`Concentration ${conc.share}%`,status:(conc.share>=45?"risk":"watch"),why:`${conc.owner} holds ${conc.share}% of the open backlog (${conc.n} of ${conc.total}).`});
+  if(conc&&conc.share>=30)sig.push({key:"concentration",label:`Concentration ${conc.share}%`,status:(conc.share>=45?"risk":"watch"),why:`${conc.owner} holds ${conc.share}% of the active backlog (${conc.n} of ${conc.total}).`});
   if(crit>0)sig.push({key:"criticals",label:`${fmt(crit)} critical${crit>1?"s":""}`,status:"risk",why:`${fmt(crit)} open critical or blocker issue${crit>1?"s":""}${m.sampleComplete?"":" (sample)"}.`});
   if(overdue>0)sig.push({key:"overdue",label:`${fmt(overdue)} overdue`,status:"risk",why:`${fmt(overdue)} open issue${overdue>1?"s":""} past deadline${m.sampleComplete?"":" (sample)"}.`});
   sig.push({key:"clash",label:(m.clash>0?"Clash auto on":"No clash auto"),status:(m.clash>0?"ok":"watch"),why:(m.clash>0?`${m.clash} clash test${m.clash>1?"s":""} configured.`:"No clash automation — manual issue creation only.")});
   sig.push({key:"activity",label:(m.idle==null?"—":(m.idle<=1?"Active today":(m.idle<=14?`Active ${m.idle}d`:`Dormant ${m.idle}d`))),status:(m.idle==null?"mut":(m.idle<=7?"ok":(m.idle<=14?"watch":"mut"))),why:`Last activity ${m.lastActive?m.lastActive.slice(0,10):"unknown"}.`});
-  sig.push({key:"coverage",label:(m.sampleComplete?"Coverage exact":"Coverage sample"),status:(m.sampleComplete?"ok":"watch"),why:(m.sampleComplete?"All issues read live (exact).":`Trend and signal detail from a ${fmt(m.sampleN||0)} of ${fmt(m.tot)} representative sample.`)});
+  sig.push({key:"coverage",label:(m.sampleComplete?"Coverage exact":"Coverage sample"),status:(m.sampleComplete?"ok":"watch"),why:(m.sampleComplete?"All issues read live (exact).":`Trend and signal detail from a ${fmt(m.sampleN||0)} of ${fmt((m.grossTotal!=null&&m.grossTotal>0)?m.grossTotal:m.tot)} representative sample.`)});
   const rank={ok:0,mut:0,watch:1,risk:2};let worst=0;sig.forEach(s=>{worst=Math.max(worst,rank[s.status]||0);});
   const dot=m.tot===0?"mut":(worst>=2?"risk":(worst>=1?"watch":"ok"));
   return {sig,conc,crit,overdue,oldest,dot,worst};
@@ -2924,7 +3446,7 @@ function cmpKeyHtml(){
   const rows=[
     ["Backlog trend","Net issues opened minus resolved over the last 90 days.",band("ok","falling / flat")+band("watch","growing")+band("risk","growing + resolution &lt;40%")],
     ["Resolution rate","Share of all issues resolved (solved or closed).",band("ok","&#8805;65%")+band("watch","40–64%")+band("risk","&lt;40%")],
-    ["Concentration","Largest share of the open backlog held by one assignee.",band("watch","30–44%")+band("risk","&#8805;45%")+'<span class="sg-knote">hidden below 30%</span>'],
+    ["Concentration","Largest share of the ACTIVE backlog (open + in progress) held by one assignee.",band("watch","30–44%")+band("risk","&#8805;45%")+'<span class="sg-knote">hidden below 30%</span>'],
     ["Criticals","Open critical or blocker issues.",band("risk","any open &gt; 0")],
     ["Overdue","Open issues past their deadline.",band("risk","any open &gt; 0")],
     ["Clash automation","Whether clash-test automation is configured.",band("ok","configured")+band("watch","none")],
@@ -2958,9 +3480,9 @@ function renderSignals(){const el=document.getElementById("cmpSignals");if(!el)r
       const tileH=tiles.map(t=>`<div class="sg-tile"><div class="v" style="color:${t[2]}">${t[1]}</div><div class="l">${t[0]}</div></div>`).join("");
       const drivers=[];const worstSig=s.sig.filter(g=>g.status==="risk").concat(s.sig.filter(g=>g.status==="watch"))[0];
       if(worstSig)drivers.push(`<div><b style="font-weight:500;color:var(--ink)">What's driving attention:</b> ${worstSig.why}</div>`);
-      if(s.conc&&s.conc.share>=30)drivers.push(`<div style="margin-top:4px">Concentration — <b style="font-weight:500">${s.conc.owner}</b> holds ${s.conc.share}% of the open backlog (${s.conc.n} of ${s.conc.total}).</div>`);
+      if(s.conc&&s.conc.share>=30)drivers.push(`<div style="margin-top:4px">Concentration — <b style="font-weight:500">${s.conc.owner}</b> holds ${s.conc.share}% of the active backlog (${s.conc.n} of ${s.conc.total}).</div>`);
       if(s.oldest&&s.oldest.length)drivers.push(`<div style="margin-top:4px">Oldest open: ${s.oldest.map(o=>{const u=cmpIssueUrl(m,o.id);return (u?`<a href="${u}" target="_blank" rel="noopener" class="sg-issuelink" title="Open issue #${o.id} in Revizto">#${o.id}</a>`:`#${o.id}`)+` (${o.age}d)`;}).join(", ")}.</div>`);
-      const cov=m.sampleComplete?"":`<div style="margin-top:6px" class="em">Concentration, criticals, overdue and oldest-open are from a ${fmt(m.sampleN||0)} of ${fmt(m.tot)} representative sample.</div>`;
+      const cov=m.sampleComplete?"":`<div style="margin-top:6px" class="em">Concentration, criticals, overdue and oldest-open are from a ${fmt(m.sampleN||0)} of ${fmt((m.grossTotal!=null&&m.grossTotal>0)?m.grossTotal:m.tot)} representative sample.</div>`;
       drawer=`<div class="sg-drawer"><div class="sg-dhead">Breakdown<button type="button" class="proof-i" data-proof-i aria-label="Breakdown — how it's computed" data-proof-def="${_esc("The tiles are this project's key metrics. What's driving attention names the highest-severity signal and its cause; concentration and oldest-open are derived from the open issues. On large projects these are from a representative sample, noted below.")}"><span aria-hidden="true">&#9432;</span></button></div><div class="sg-tiles">${tileH}</div><div class="sg-drivers">${drivers.join("")}${cov}</div></div>`;
     }
     return `<div class="sg-row${exp?" sg-open":""}${cur?" sg-cur":""}"><button type="button" class="sg-head" data-exp="${m.uuid}" aria-expanded="${exp}"><span class="sg-top"><span class="sg-dot" style="background:${dotCol[s.dot]}"></span><span class="sg-name">${m.title}</span>${cur?`<span class="sg-cur-pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>Current</span>`:""}<span class="sg-exp">${exp?"Hide details":"Details"}<svg class="sg-cv" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span></span></button><div class="sg-chips">${s.sig.map(chip).join("")}</div>${drawer}</div>`;};
@@ -2987,7 +3509,7 @@ function cmpGroupSignals(g){
   const net=(g.net90!=null?g.net90:0);const unit=indiv?"person":"team";const sig=[];
   sig.push({key:"backlog",label:`Backlog ${net>0?"+":(net<0?"−":"±")}${Math.abs(net)}`,status:(net>0?(g.rate<40?"risk":"watch"):"ok"),why:`Net ${net>0?"growth":(net<0?"reduction":"change")} of ${Math.abs(net)} issues over the last 90 days.`});
   sig.push({key:"resolution",label:`Resolution ${g.rate}%`,status:(g.rate>=65?"ok":(g.rate>=40?"watch":"risk")),why:`${g.rate}% of this ${unit}'s issues resolved (${fmt(rows.filter(r=>r.rs).length)} of ${fmt(rows.length)}).`});
-  if(!indiv&&conc&&conc.share>=30)sig.push({key:"concentration",label:`Concentration ${conc.share}%`,status:(conc.share>=45?"risk":"watch"),why:`${cmpMemName(conc.owner)} holds ${conc.share}% of the open backlog (${conc.n} of ${conc.total}).`});
+  if(!indiv&&conc&&conc.share>=30)sig.push({key:"concentration",label:`Concentration ${conc.share}%`,status:(conc.share>=45?"risk":"watch"),why:`${cmpMemName(conc.owner)} holds ${conc.share}% of the active backlog (${conc.n} of ${conc.total}).`});
   if(crit>0)sig.push({key:"criticals",label:`${fmt(crit)} critical${crit>1?"s":""}`,status:"risk",why:`${fmt(crit)} open critical or blocker issue${crit>1?"s":""}${g.exact?"":" (sample)"}.`});
   if(overdue>0)sig.push({key:"overdue",label:`${fmt(overdue)} overdue`,status:"risk",why:`${fmt(overdue)} open issue${overdue>1?"s":""} past deadline${g.exact?"":" (sample)"}.`});
   sig.push({key:"coverage",label:(g.exact?"Coverage exact":"Coverage sample"),status:(g.exact?"ok":"watch"),why:(g.exact?"All constituent projects read live (exact).":"Includes at least one large project read from a representative sample.")});
@@ -3001,7 +3523,7 @@ function cmpGroupKeyHtml(){
     ["Backlog trend",`Net issues opened minus resolved across this ${unit}'s work over the last 90 days.`,band("ok","falling / flat")+band("watch","growing")+band("risk","growing + resolution &lt;40%")],
     ["Resolution rate",`Share of this ${unit}'s issues resolved (solved or closed).`,band("ok","&#8805;65%")+band("watch","40–64%")+band("risk","&lt;40%")]
   ];
-  if(cmpPivot!=="indiv")rows.push(["Concentration","Largest share of the open backlog held by one member.",band("watch","30–44%")+band("risk","&#8805;45%")+'<span class="sg-knote">hidden below 30%</span>']);
+  if(cmpPivot!=="indiv")rows.push(["Concentration","Largest share of the ACTIVE backlog (open + in progress) held by one member.",band("watch","30–44%")+band("risk","&#8805;45%")+'<span class="sg-knote">hidden below 30%</span>']);
   rows.push(["Criticals","Open critical or blocker issues.",band("risk","any open &gt; 0")]);
   rows.push(["Overdue","Open issues past their deadline.",band("risk","any open &gt; 0")]);
   rows.push(["Coverage","Whether the figures are exact or include a large project read from a representative sample.",band("ok","exact")+band("watch","sample")]);
@@ -3338,9 +3860,19 @@ function buildLibrary(){const lib=document.getElementById("library");
 const DOCTRINE="You are a senior BIM manager accountable for the whole project outcome — on time, on budget, minimal rework and RFIs. Reason like an owner, not a reporter. RULES: (1) Size every recommendation to the SCALE of the problem — use proportions, percentages and fair-share targets, never arbitrary fixed counts; fixing 10 of 10,000 is noise. (2) Prefer root-cause fixes that stop the inflow (clash automation, workflow/stamp discipline, fix-once-close-many on shared objects) over symptom triage, and rank root cause first. (3) When triaging, order by severity x buildability impact x age, not raw count. (4) Quantify BOTH the expected dent AND the residual that remains. (5) Be capacity-honest — never propose more than the team or tools can absorb; if work must be batched, say the batch size and cycles. (6) If load is concentrated but no teammate sits below the fair-share line, say plainly it is a capacity/scope problem, not a reassignment one. Keep it specific and numeric. ";
 function context(){const C=DATA.counts;const tot=C?C.total:Object.values(DATA.status).reduce((a,b)=>a+b,0);
   return {project:DATA.meta.name,region:(typeof dispRegion==="function"?(dispRegion()+(connCfg().env==="prod"?" (production)":" (stage)")):(DATA.meta.region||"")),lastActivity:DATA.meta.lastActive,modelRevision:DATA.meta.revNum,totalIssues:tot,countsReconciled:(C?C.reconciled:true),detailComplete:(DATA.sample?DATA.sample.complete:false),detailSampleN:(DATA.sample?DATA.sample.n:0),statusCounts:DATA.status,priorityCounts:DATA.priority,
-    resolutionRatePct:Math.round(100*(DATA.status.Solved+DATA.status.Closed)/tot),last90d:{opened:DATA.trend.opened.reduce((a,b)=>a+b,0),resolved:DATA.trend.resolved.reduce((a,b)=>a+b,0),weekly:DATA.trend},
+    resolutionRatePct:tot>0?Math.round(100*(DATA.status.Solved+DATA.status.Closed)/tot):null,/* WS33 (QA round 3): was NaN on an empty project, and NaN was being emitted into the LLM payload */last90d:{opened:DATA.trend.opened.reduce((a,b)=>a+b,0),resolved:DATA.trend.resolved.reduce((a,b)=>a+b,0),weekly:DATA.trend},
     drawingSheets:(DATA.sheetsNote?("unavailable — "+DATA.sheetsNote):DATA.sheets),clashTestsConfigured:DATA.clashTests,stampTemplates:DATA.stamps,
-    topAuthors:DATA.reporters.map(r=>({email:r[0],issues:r[1],resolvedPct:Math.round(100*r[2]/r[1])})),assigneeLoad:DATA.assignees.map(r=>({email:r[0],assigned:r[1],open:r[2]})),
+    topAuthors:DATA.reporters.map(r=>({email:r[0],issues:r[1],resolvedPct:Math.round(100*r[2]/r[1])})),/* WS33 (QA round 3): this is the payload every LLM answer reasons over, and it labelled slot [2] as
+       `open` unconditionally. Slot [2] is exact open ONLY when the exact pass covered every contributor;
+       otherwise it is the SAMPLED not-resolved count (open + in_progress). One failed probe was enough for
+       the model to be handed a contributor's 13 "open" issues when the truth was 4, and DOCTRINE tells it
+       to compute proportions from exactly these numbers. Name the field for what it actually is, and state
+       the basis so the answer can qualify itself. */
+    assigneeLoad:DATA.assignees.map(r=>{const _ex=!!(DATA.assigneeExactMode&&DATA.assigneeExactComplete);
+      return _ex?{email:r[0],assigned:r[1],open:r[2]}:{email:r[0],assigned:r[1],activeNotResolved:r[2]};}),
+    assigneeLoadBasis:(DATA.assigneeExactMode&&DATA.assigneeExactComplete)
+      ?"exact open counts per person (count-first)"
+      :"SAMPLED open+in_progress per person — NOT exact open; do not present these as open counts or derive exact shares from them",
     licenceMembers:DATA.team.map(t=>({name:t[0],email:t[1],role:t[2],lastActive:t[3]||"never"}))};}
 async function ask(persona,q,btn){const ans=document.getElementById("answer"),A=document.getElementById("answerA");
   document.getElementById("answerQ").textContent=`${persona.name} · ${q.t}`;A.innerHTML="Thinking…";document.getElementById("answerSrc").textContent="";
@@ -4097,7 +4629,7 @@ async function loadFullHistory(){
   const tgtN=cap===Infinity?total:SAMPLE_CEILING;
   if(tgtN>=WARN_AT){
     const ok=await confirmLoad("Load the full timeline?",
-      `This reads ${cap===Infinity?`all <b>${fmt(total)}</b>`:`a representative <b>${fmt(SAMPLE_CEILING)}</b> of <b>${fmt(total)}</b>`} issues in roughly <b>${fmt(Math.ceil(tgtN/200))}</b> live requests, to rebuild the timeline from full history. It may take a while and can be interrupted by connection limits. Your headline totals are already exact.`,
+      `This reads ${cap===Infinity?`all <b>${fmt(total)}</b>`:`a representative <b>${fmt(SAMPLE_CEILING)}</b> of <b>${fmt(total)}</b>`} issues in roughly <b>${fmt(Math.ceil(tgtN/MCP_PAGE_MAX))}</b> live requests, to rebuild the timeline from full history. It may take a while and can be interrupted by connection limits. Your headline totals are already exact.`,
       "Load timeline");
     if(!ok)return;
   }
@@ -4341,7 +4873,10 @@ async function changeScale(mutate){
   const prev={mode:SCALE_MODE,pct:SCALE_PCT,fixed:SCALE_FIXED};
   mutate();
   if(effectiveCap()>=WARN_AT){
-    const b=liveBasis(),cap=effectiveCap(),pages=Math.max(1,Math.ceil((b?Math.min(cap,b):cap)/200));
+    /* WS33 (QA round 2): quoted at /200 while the reads are /100 — the consent copy understated the cost
+       of the load it was asking the user to approve by a factor of two, in a dialog whose own text warns
+       the load "can be interrupted by connection limits". */
+    const b=liveBasis(),cap=effectiveCap(),pages=Math.max(1,Math.ceil((b?Math.min(cap,b):cap)/MCP_PAGE_MAX));
     const ok=await confirmLoad("Large sample — load anyway?",
       `This will read about <b>${fmtCap(cap)}</b> issues${b?` (of ${fmt(b)} live)`:""} in roughly <b>${fmt(pages)}</b> live requests. It may take a while and can be interrupted by connection limits. Your headline totals are already exact — this only deepens the detail sample, which is capped at ${fmt(SAMPLE_CEILING)} in-browser and labelled honestly beyond that.`,
       "Load anyway");
@@ -4445,7 +4980,8 @@ window.demoBoot=function(u){const d=DEMO[u]||DEMO["demo-prj"];PRJ=DEMO[u]?u:"dem
  DATA.tl=demoTl(PRJ,d.status);DATA.tl_anomalies=0;DATA._projectId=0;DATA._sheetUuid="";DATA._issueUuid="";
  snapshotStore();setSrc("Snapshot · "+SNAPDATE,"#0097A7");renderHeader();renderPicker();renderTab(current);};
 function demoSeed(){LICENSES=[{uuid:"demo-lic",name:"Demo licence"}];LIC="demo-lic";
-PROJECTS=[{uuid:"demo-prj",id:0,title:DEMO["demo-prj"].title,lastActive:DEMO["demo-prj"].lastActive},{uuid:"demo-prj2",id:0,title:DEMO["demo-prj2"].title,lastActive:DEMO["demo-prj2"].lastActive}];
+PROJECTS_ALL=[{uuid:"demo-prj",id:0,title:DEMO["demo-prj"].title,lastActive:DEMO["demo-prj"].lastActive,archived:false,frozen:false},{uuid:"demo-prj2",id:0,title:DEMO["demo-prj2"].title,lastActive:DEMO["demo-prj2"].lastActive,archived:false,frozen:false}];
+PROJECTS=projVisible();PRJ_TRUNCATED=false;/* WS33: demo goes through the same active/archived path as live — a demo that bypasses the real code path proves nothing about the real code path */
 Object.keys(DEMO).forEach(k=>{const st=DEMO[k].status;const t=Object.values(st).reduce((a,b)=>a+b,0);PORTM[k]={active:st.Open+st["In progress"],rate:t?Math.round(100*(st.Solved+st.Closed)/t):0,tot:t};});
 window.demoBoot("demo-prj");}
 if(!(window.cowork&&window.cowork.callMcpTool)){demoSeed();}            /* standalone: demo IS the app */

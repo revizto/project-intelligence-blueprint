@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.0.1 — 2026-07-30 (licence and project resolution; build `2026-07-30.1`)
+
+A bug-fix release. Everything below was reported by first-time users: licences and projects not resolving
+correctly, and the MCP connection appearing to drop.
+
+> **Action required.** Updating the plugin does not update a Blueprint you have already deployed.
+> **Re-run the `project-intelligence-dashboard` skill** to deploy this version. Tool authorisations are
+> unchanged from 1.0.0 — the same ten tools per server — so there is nothing new to approve.
+
+### Licences now show whether they can actually be read
+
+- **Every licence is verified, not assumed.** Reading a licence's projects over the MCP needs *both* a
+  licence role of Administrator or Owner *and* the MCP application enabled on that licence's Revizto
+  account — and the second condition is not visible in the licence list, so it cannot be predicted. Each
+  licence is now checked with a real call and labelled with the verified outcome.
+- **The picker groups licences into Readable, Checking… and Not readable**, and a licence that cannot be
+  read says why — "Your role on this licence can't read it via the MCP", "MCP not enabled for this
+  account", "Lives on a different regional server". Unreadable licences stay visible so you can see your
+  whole estate and what would need changing, but cannot be selected.
+- **The Blueprint now opens on a licence that works.** It previously defaulted to the first licence
+  alphabetically, which on a large estate is frequently one you cannot read — so a first open showed
+  "Licence not accessible" before you had touched anything, then jumped to a different licence with a
+  warning. Expiry dates are shown where relevant.
+
+### Projects
+
+- **All projects are now listed.** A licence with more than 100 projects was silently truncated to the
+  first 100, with no indication that anything was missing.
+- **Archived and frozen projects are excluded by default.** They previously appeared alongside live work
+  and could be selected — and because an archived project often carries the most recent activity date, it
+  could even be chosen as the default. An "Include archived" toggle in the project picker reveals them,
+  tagged.
+- Selecting a project that no longer belongs to the current licence now says so, instead of quietly
+  showing a different project's details.
+
+### The connection no longer drops under normal use
+
+- **Overlapping refreshes are collapsed into one.** Switching project or licence while a load was running
+  started a second load without stopping the first, so both ran together and doubled the number of
+  requests — enough to trip the host's rate limit, which surfaced as the connection dropping. Loads are
+  now single-flight, and the newest request always wins.
+- **Contributor workload resolves in seconds instead of minutes.** It previously issued one request per
+  contributor, in sequence, most of them only to establish that someone had no open work. It now derives
+  what it can and stops as soon as the remaining figures are provably zero.
+- **Requests that cannot succeed are no longer retried.** A licence you lack rights for, or an account
+  without the MCP enabled, was being asked twice.
+
+### Accuracy
+
+- **Sample coverage is reported honestly.** A project could be described as fully read when only half of it
+  had been, on both the project view and the cross-project comparison. Anything drawn from a sample now
+  says so, and states how much was read against the right total.
+- **Workload concentration is measured against the whole open backlog.** It was previously divided by the
+  work it could attribute to named people, so unassigned issues inflated one person's share — and could
+  offer a rebalance suggestion on a project that had no imbalance. Where open work cannot be fully
+  attributed, the figure is presented as indicative and no rebalance is proposed.
+- Figures shown to the assistant in Ask anything are now labelled as exact or sampled, so answers cannot
+  present an estimate as a count.
+
 ## 1.0.0 — 2026-07-29 (general availability: server-first connection model; build `2026-07-29.2`)
 
 First GA release. The connection model is now deterministic and three real data faults are fixed.
@@ -94,7 +153,7 @@ Addresses the dominant real-world failure — "Artifact MCP rate limit exceeded"
 - **Per-connection health persists** across sessions, so the Connections panel shows continuity (last-seen) instead of a blank start.
 - **Honest rate-limit messaging** added to the connection error mapper.
 - Two-gate honesty preserved: an added/newly-appeared connector is probed and remembered, but its tools are only callable once authorised into the artifact's allowlist (install-skill declaration / rebuild) — the panel says so.
-- Verification: `node --check` + div-balance pass; scrub gates pass — 0 connector ids, 0 stage markers (`5e21f9e7` / `internal:true`), 0 id leaks. Diff vs rc.11 is exactly the WS25 feature hunks + build stamp.
+- Verification: `node --check` + div-balance pass; scrub gates pass — 0 connector ids, 0 internal stage markers, 0 id leaks. Diff vs rc.11 is exactly the WS25 feature hunks + build stamp.
 - Version `1.0.0-rc.11` → `1.0.0-rc.12` (plugin + marketplace + skill). Release `CONFIG` unchanged (`connectors:[]`, `readOnly:false`, `tcsVersion:"1.1"`); build `2026-07-22.1` → `2026-07-24.1`.
 
 ## 1.0.0-rc.11 — 2026-07-22 (WS24 multi-licence connection hardening; build `2026-07-22.1`)
