@@ -4,19 +4,21 @@ Live project intelligence over the **Revizto MCP Server**, delivered as a Claude
 
 It follows one explicit path: **MCP Server → Licence → Project.** Each Revizto MCP server you connect is its own connection, listed by the name you gave it in Claude. You choose which server the Blueprint reads from, and every licence and project you see comes from that one server — nothing is merged across servers and nothing is guessed on your behalf. Servers that are connected but unusable are shown greyed with the reason stated. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" sample. Nothing is cached or hardcoded — every figure is re-derived live on load and on every Refresh.
 
-**Status:** `v1.0.0` (build `2026-07-29.2`). Opens read-only every session with a user-controlled write toggle. Full version history in [CHANGELOG.md](CHANGELOG.md). 
+**Status:** `v1.0.2` (build `2026-07-30.2`). Covers licence and project resolution, connection stability, sample honesty, and the Revizto MCP **OAuth client ID change to `revizto-mcp`**. Opens read-only every session with a user-controlled write toggle. Full version history in [CHANGELOG.md](CHANGELOG.md).
 
-> ### ⚠️ Upgrading from a release candidate — action required
+> ### ⚠️ Upgrading to 1.0.2 — action required
 >
 > Updating the plugin does **not** update a Blueprint you have already deployed. The artifact you are
 > using was built from the previous version and still contains its code.
 >
-> **Re-run the `project-intelligence-dashboard` skill** to deploy the new version. Your Revizto
-> connectors, licences and projects are untouched, and the tool authorisations are unchanged from
-> rc.13 — the same ten tools per server — so there is nothing new to approve.
+> **Re-run the `project-intelligence-dashboard` skill** to deploy this version. The tool authorisations are
+> unchanged — the same ten tools per server — so there is nothing new to approve. If you re-added a
+> connector for the new client ID, the re-run is mandatory: a re-added connector has a new id, and the old
+> artifact's allowlist is bound to the old one.
 >
-> Until you re-run it you will keep the old connection behaviour, where the Blueprint chose a server
-> for you rather than letting you choose.
+> Coming from 1.0.0 you also keep its faults until you re-run: licences assumed readable rather than
+> verified, project lists silently capped at 100, archived projects mixed in with live work, and
+> overlapping refreshes that surface as the connection dropping.
 
 
 ---
@@ -28,7 +30,7 @@ Follow these in order. The whole install is per-user and **needs no Claude admin
 ### Prerequisites
 
 - **Claude desktop app with Cowork.** The Blueprint runs as a Cowork artifact — not in a plain chat or on claude.ai.
-- **A Revizto licence the MCP Server accepts** — your organisation has enabled the Revizto MCP Server (Developer Portal) and your licence role is sufficient. Confirm with your Revizto contact.
+- **A Revizto licence the MCP Server accepts** — the Revizto MCP Server app is activated on the organisation account (Developer portal), your licence role is Administrator or Owner, and *that account* is authorised for your connector (Step 2). Reading a licence over the MCP needs all three; the Blueprint verifies each licence with a real call and tells you which one is missing.
 - **(Team/Enterprise only) Admin network allowlist** — your Claude admin allows the Revizto MCP connector domain(s) + `cdn.jsdelivr.net` under Admin settings → Capabilities.
 
 ### Step 1 — Run this task on your computer (not the cloud) 🔴
@@ -40,31 +42,90 @@ Follow these in order. The whole install is per-user and **needs no Claude admin
 
 ### Step 2 — Connect the Revizto MCP connector
 
-**Settings → Connectors** → add the **Revizto MCP** connector for your region → sign in with your Revizto account (OAuth) → approve **read** access. (One connection per region; most customers use one.)
+Add the **Revizto MCP** connector for your region as a **custom connector**, then sign in with your Revizto account (OAuth) and approve **read** access. One connection per region; most customers use one.
 
-### Step 3 — Install the plugin (Personal scope — no admin needed)
+In Claude: **Customize → Connectors**. If your organisation manages your Claude account, an owner must add the connector once from **Organization settings → Connectors** before members can add it.
 
-Do **either** of these under **Directory → Plugins → Personal**:
+| Field | Value |
+|---|---|
+| Type / transport | Streamable HTTP (remote MCP server) |
+| URL | `https://api.<region>.revizto.com/mcp` — see the region table below |
+| OAuth Client ID | `revizto-mcp` |
+| OAuth Client Secret | leave blank |
 
-- **Add by URL:** **+** (Add marketplace) → enter `revizto/project-intelligence-blueprint` → turn **"Sync automatically" OFF** → **Sync** → install **revizto-project-intelligence**.
-- **Or upload the ZIP:** under **Local uploads**, upload the plugin package (`revizto-project-intelligence` ZIP). No GitHub needed.
+Regions: `virginia` (North America), `canada`, `ireland` (Europe), `london` (UK), `frankfurt` (UAE, hosted in Germany), `saopaulo` (South America), `singapore` (SE Asia), `sydney` (ANZ), `tokyo` (Japan), `ksa` (KSA Premium), `zurich` (Switzerland).
 
-Either way it installs just for you — no Claude admin required. The install detail should list **3 skills**. (Leave "Sync automatically" off — turning it on needs the Claude GitHub App on the repo and isn't required; you'll re-sync manually when a new build ships.)
+> **Two prerequisites on the Revizto side.** The **Revizto MCP Server** app must be *activated* for your organisation account — an owner or admin does this under **Manage account info → Developer portal**; standard users can only confirm it under **Account info → App integrations**. And if you belong to **several organisation accounts**, one connector sign-in authorises only the accounts covered by that authentication method. Authorise the rest from Revizto Workspace → your profile → **Active sessions → API**. Skipping this is the single most common reason a licence shows as unreadable in the Blueprint.
 
-### Step 4 — Open the Blueprint
+> ### ⚠️ Already had a connector before 30 July 2026? Re-add it.
+>
+> The Revizto MCP **OAuth client ID changed to `revizto-mcp`**. Connectors created with the previous client
+> ID stop authorising. Remove and re-add each Revizto MCP connector with the values above.
+>
+> Re-adding mints a **new connector id**, and the Blueprint's tool authorisations are bound to the old one —
+> so after re-adding you must **re-run the `project-intelligence-dashboard` skill** (Step 5). You can also
+> paste the new id into the **Add** box in the Blueprint's MCP Server panel and press **Re-check** as a
+> stopgap, but a full re-run is what restores the tool allowlist.
 
-In a Cowork session (running **on your computer**, plugin installed), say:
+Confirm the connection before continuing — ask Claude: *"Check my Revizto MCP connection. Tell me which Revizto account and region you can access, then list the available Revizto tools."*
+
+### Step 3 — Install the plugin package (Personal scope — no admin needed)
+
+**Recommended: upload the package.** Under **Directory → Plugins → Personal → Local uploads**, upload
+`revizto-project-intelligence-v1.0.2.plugin` (the package supplied to you). No GitHub access needed, and
+it carries the bundled dashboard asset — which is the part the install skill copies.
+
+**Alternative: add the marketplace by URL.** **+** (Add marketplace) → enter
+`revizto/project-intelligence-blueprint` → turn **"Sync automatically" OFF** → **Sync** → install
+**revizto-project-intelligence**. Requires access to the private repo.
+
+Either way it installs just for you — no Claude admin required. The install detail should list **3 skills**,
+and the version should read **1.0.2**. (Leave "Sync automatically" off — turning it on needs the Claude
+GitHub App on the repo and isn't required; you re-upload or re-sync manually when a new build ships.)
+
+> **Upgrading, not installing fresh?** Remove the old entry first, then upload the new package —
+> Claude will otherwise keep serving the cached older version. If the version still reads the old number after
+> a re-upload, clear the plugin cache (see Troubleshooting).
+
+### Step 4 — Enable the plugin's skills 🔴
+
+**Installing the plugin does not enable its skills.** This catches almost everyone. The plugin ships three
+skills, but they arrive **switched off**, and the install action lives in one of them — so if you skip this
+step, asking Claude to open the Blueprint does nothing useful: the skill never loads, no artifact is
+registered, and you are left with either no dashboard at all or a hand-written imitation of one.
+
+Under **Directory → Skills** (or the plugin's own detail pane), find and switch **on**:
+
+- **`project-intelligence-dashboard`** — required. This is the install action.
+- `skill-aeco-innovation-revizto` — optional, Revizto platform knowledge.
+- `skill-aeco-innovation-revizto-api` — optional, Revizto API / MCP reference.
+
+Only the first is needed to deploy the Blueprint. Confirm it is enabled before continuing — ask Claude
+*"list your available skills"* and check `project-intelligence-dashboard` appears.
+
+### Step 5 — Open the Blueprint
+
+In a Cowork session (running **on your computer**, plugin installed, skill enabled), say:
 
 > Open the Revizto Project Intelligence Blueprint — follow the `project-intelligence-dashboard` skill.
 
 It copies the bundled dashboard verbatim, calls your Revizto read tools, and registers the artifact with those tools authorised. Then: accept the **Terms** (name + tick + Agree), choose your **MCP Server**, and pick your **Licence**.
 
+If Claude instead starts *designing* a dashboard, the skill is not loaded — go back to Step 4.
+
 ### Verify (60 seconds)
 
 - Status pill reads **live** — not "Snapshot · demo data", not "Revizto MCP not connected", not "tools aren't authorised".
 - The **MCP Server** control names the server you are reading from; the **Licence** picker below it lists that server's licences and lands on your most-recently-active project.
-- Headline totals are exact; sampled panels say "sample of N of M".
+- The licence picker groups licences into **Readable**, **Checking…** and **Not readable**, and every
+  unreadable one states its reason. A licence is verified with a real call, never assumed — so the
+  Blueprint should never open on one it cannot read.
+- The project picker lists **live projects only**; archived and frozen work appears only when you turn on
+  **Include archived**, and is tagged when it does. A licence with more than 100 projects lists all of them.
+- Headline totals are exact; sampled panels say "sample of N of M" against the right total.
 - **06 Action anything shows a padlock on first load** — correct, the Blueprint opens read-only. Toggle the **Read-only** pill off to enable writes (they run through the approval pipeline).
+- Footer / About reads build **`2026-07-30.2`**. If it reads an earlier stamp you are looking at a
+  Blueprint deployed by an older version — re-run the skill (Step 5).
 
 ### Troubleshooting
 
@@ -77,6 +138,12 @@ It copies the bundled dashboard verbatim, calls your Revizto read tools, and reg
 | Install starts *writing/designing* a dashboard | Wrong behaviour — it should copy a file. Stop and confirm the plugin is current, then re-run. |
 | "Snapshot · demo data" (fictional "Riverside Medical Centre") | Not running inside a Cowork artifact created by the install skill. |
 | Licence picker empty / a licence missing | Check the **MCP Server** panel first — the licence may live on a different server than the one selected. The Blueprint names the cause against each server: Revizto MCP not enabled in the Developer Portal, insufficient licence role, needs sign-in, or not authorised for this artifact. |
+| A licence sits under **Not readable** | Read the stated reason. "Your role on this licence can't read it via the MCP" needs an Administrator or Owner role. "MCP not enabled for this account" is a Developer Portal setting on that licence's Revizto account — invisible in the licence list, so it can only be found by the check the Blueprint now runs. "Lives on a different regional server" means switch server in the MCP Server panel. Unreadable licences stay listed deliberately, so you can see the whole estate and what would need changing. |
+| A project you expect isn't in the picker | It is archived or frozen — turn on **Include archived** in the project picker. Both are excluded by default since 1.0.1 because an archived project often carries the most recent activity date and was being picked as the default. |
+| Footer build stamp is older than `2026-07-30.2` | The deployed artifact predates the plugin update. Re-run the `project-intelligence-dashboard` skill (Step 5) — updating the plugin never rewrites an already-deployed Blueprint. |
+| Asking Claude to open the Blueprint does nothing, or it starts **designing** a dashboard | The `project-intelligence-dashboard` skill is not enabled. Installing the plugin does not enable its skills — do Step 4. |
+| A licence shows **"This account isn't authorised for MCP yet"** | Two causes, self-service first: authorise that organisation account from Revizto Workspace → your profile → **Active sessions → API**, then press **Re-check**. One connector sign-in only covers accounts on that authentication method. If it still fails, the **Revizto MCP Server** app isn't activated on that account — an owner or admin activates it under **Manage account info → Developer portal**. |
+| Connections that worked before 30 July 2026 now fail or show **"no longer registered"** | The Revizto MCP OAuth client ID changed to `revizto-mcp`. Re-add each connector (Step 2), then re-run the skill (Step 5) — re-adding mints a new connector id, and the artifact's tool allowlist is bound to the old one. |
 | Blank charts, no error (Team/Enterprise) | A connector domain or `cdn.jsdelivr.net` isn't allowlisted — ask your Claude admin (Admin settings → Capabilities). |
 
 Every tool call inherits your own Revizto role and project membership — the dashboard can't see or do anything you can't do in Revizto itself.
@@ -110,7 +177,7 @@ The install skill fills the connector config for you; this is what it writes and
 ```js
 const CONFIG={connectors:[
   {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-20.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
 ```
 **Two regions:** add a second `{prefix…}` line. Add each region's connector domain to the admin allowlist too.
 
@@ -132,7 +199,7 @@ One `CONFIG` object at the top of `dashboard.html`:
 | `connectors` | `[]` (skill fills it) | one entry per connected region: `{prefix, env, wsHost, missing}`. |
 | `readOnly` | `false` | the Read-only pill is a **live per-session toggle**. The Blueprint always opens read-only and re-asserts it on re-show; toggling off enables the 06 write surface. Set `true` to hard-lock read-only and disable writes. |
 | `tcsVersion` | `"1.1"` | Terms version (`1.1` published the canonical Terms link). Bumping it re-prompts acceptance on every connection. |
-| `buildStamp` | `"2026-07-20.1"` | shown in About / Terms footer for support. |
+| `buildStamp` | `"2026-07-30.2"` | shown in About / Terms footer for support. |
 
 ## Trust posture (the product is the trust)
 

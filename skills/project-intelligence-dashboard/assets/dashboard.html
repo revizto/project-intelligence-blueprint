@@ -1327,7 +1327,7 @@ const CONFIG={connectors:[
     MCP server is its own connection: the Blueprint reads from exactly ONE at a time and you choose
     which in the MCP Server panel. Leaving this empty is valid - the Blueprint shows a connect CTA and
     a connection can be added at runtime from that panel. */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
 /* (WS21 licence-first commentary removed 2026-07-29 — it asserted the opposite of the WS28 model above:
    "users pick a LICENCE, never a connector", every connection probed, serving connection auto-resolved.
    WS28 dedicates one connection explicitly. missing:[] still means recon-verified tool gaps. Consent is
@@ -2507,7 +2507,7 @@ function licStateLabel(l){
   const k=(st.kind&&st.kind.k)||"";
   let why="Not readable via the MCP Server";
   if(k==="rights")why="Your role on this licence can’t read it via the MCP";
-  else if(k==="appauth")why="MCP not enabled for this account";
+  else if(k==="appauth")why="This account isn’t authorised for MCP yet";
   else if(k==="xregion")why="Lives on a different regional server";
   else if(k==="notfound")why="Not found on this server";
   else if(k==="timeout"||k==="ratelimit")why="Didn’t answer — re-check to retry";
@@ -2551,7 +2551,15 @@ function connHas(tool){var c=connCfg();return !(c.missing&&c.missing.indexOf(too
 function lsKey(base){return base+"@"+(typeof CONN!=="undefined"&&CONN?CONN:"default");}
 function dispRegion(){var l=(LICENSES||[]).find(function(x){return x.uuid===LIC;});return regionName(l&&l.region);}
 function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
-  if(/not authorized to access this account/i.test(m))return{k:"appauth",t:"The Revizto MCP isn’t enabled for this account",d:"This organisation account hasn’t enabled the Revizto MCP server. An account owner or admin can enable it under Manage account info → Developer portal (standard users: Account info → App integrations). Until then, its licences can’t be read."};
+  /* WS34: this message has TWO causes and the build only ever named one — the admin-side one, which most
+     users cannot action. Per Revizto's help centre (Connecting AI tools to Revizto MCP server, updated
+     2026-07-27) the MCP server "can only access accounts using the authentication methods used during the
+     most recent authorization flow", so on an estate spanning several organisation accounts a single
+     connector sign-in authorises only some of them. That is self-serviceable from Revizto Workspace and is
+     the LIKELIER cause after any connector is re-added — which every customer must now do, because the
+     OAuth client ID changed. Naming only the Developer portal sent people to their admin for a problem
+     they could have fixed themselves in a minute. Both causes are now stated, self-service first. */
+  if(/not authorized to access this account/i.test(m))return{k:"appauth",t:"This Revizto account isn’t authorised for MCP yet",d:"Two things cause this, and the first is yours to fix. (1) This organisation account hasn’t been authorised for the connector you signed in with — the Revizto MCP can only reach accounts covered by your most recent authorisation, so an estate spanning several accounts needs each one authorised. Do it in Revizto Workspace → your profile → Active sessions → API, then press Re-check. (2) If it still fails, the Revizto MCP Server app isn’t activated on that account — an owner or admin activates it under Manage account info → Developer portal (standard users see Account info → App integrations). Until one of those is done, this account’s licences can’t be read."};
 /* WS28 fix: the API says "You don't have enough rights to perform this action." — the original
      WS20 pattern only matched "insufficient rights", so this branch never fired on the real message.
      It fell through to the generic error, which (a) greyed the connection as unreachable instead of
@@ -2559,7 +2567,7 @@ function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
   if(/(?:in)?sufficient rights|enough rights/i.test(m))return{k:"rights",t:"Your licence role can’t read this via the MCP",d:"The Revizto MCP returned “insufficient rights” — your role on this licence doesn’t permit this call. Ask a licence administrator to raise your role."};
   if(/direct api access is forbidden/i.test(m))return{k:"xregion",t:"Licence not reachable through this connection",d:"The Revizto MCP returned “direct API access is forbidden” — this licence lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
   if(/entity not found/i.test(m))return{k:"notfound",t:"Not found on this regional instance",d:"The Revizto MCP couldn’t find this entity on this connection — it likely lives on a different regional instance. Connect that region’s Revizto MCP server to reach it."};
-  if(/Failed to parse SSE/i.test(m))return{k:"gone",t:"This Revizto MCP connection is no longer registered",d:"The host returned a malformed response, which is what happens when a connector id has been removed or rebuilt. The Blueprint stops calling it for this session. If the connector was rebuilt, its id changed — add the new id via the Add box in the header, then press Re-check. Connector ids are per-install, so a rebuild always issues new ones."};
+  if(/Failed to parse SSE/i.test(m))return{k:"gone",t:"This Revizto MCP connection is no longer registered",d:"The host returned a malformed response, which is what happens when a connector id has been removed or rebuilt. The Blueprint stops calling it for this session. If the connector was rebuilt, its id changed — add the new id via the Add box in the header, then press Re-check. Connector ids are per-install, so a rebuild always issues new ones. Re-adding the connector now needs OAuth client ID “revizto-mcp” with the client secret left blank, against your region’s URL (https://api.<region>.revizto.com/mcp) — see the README."};
   if(/timeout/i.test(m))return{k:"timeout",t:"The Revizto MCP didn’t answer in time",d:"The call timed out — the connection may be broken or the region unreachable. Reload to retry, or check the connector under Settings → Connectors."};
   if(/rate limit/i.test(m))return{k:"ratelimit",t:"The Revizto MCP is rate-limiting this artifact",d:"Too many calls in a short window. The Blueprint now paces requests and retries automatically — wait a moment and press Refresh. If it persists, narrow the issue sample or reduce the number of projects compared at once."};
   if(/not in this artifact'?s? mcp_tools allowlist/i.test(m))return{k:"allowlist",t:"The Blueprint’s tools aren’t authorised for this artifact yet",d:"The Revizto MCP is connected, but this artifact’s own tool allowlist is empty — connecting the connector and authorising its tools for this artifact are two separate steps. Re-create the Blueprint through the install skill (install the plugin, then run the project-intelligence-dashboard skill), which declares the read tools into the artifact. See the README “tools not authorised for this artifact” troubleshooting row."};

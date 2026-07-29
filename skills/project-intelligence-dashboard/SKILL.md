@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.1"
+  version: "1.0.2"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -18,7 +18,7 @@ Deploy the **pre-built** Revizto Project Intelligence Blueprint as a live Cowork
 ## 🚫 CRITICAL — deploy the bundled file verbatim. Do NOT build a dashboard.
 
 The Blueprint is a **finished, approved artifact**: a single self-contained HTML file
-(`assets/dashboard.html`, ≈ 879 KB, ≈ 3,857 lines) that ships inside this plugin. Your entire
+(`assets/dashboard.html`, ≈ 968 KB, ≈ 5,000 lines) that ships inside this plugin. Your entire
 job is to **copy that exact file** and **insert the user's connector prefix into one line**, then
 register it as an artifact.
 
@@ -50,17 +50,33 @@ local session binds the allowlist and the Blueprint loads live data.
 
 ## Steps
 
-**1 — Confirm a Revizto MCP connector is connected.** If `callMcpTool` is unavailable, tell the user
-to add the **Revizto MCP** connector for their region (Settings → Connectors) and approve read-only
-tool access, then stop. (The Blueprint still opens without one — it shows a calm "Connect the Revizto
-MCP Server" first-run panel — but has nothing live to read.)
+**1 — Confirm a Revizto MCP connector is connected.** If no `mcp__<id>__list_licenses` tool is available in
+this session, tell the user to add the **Revizto MCP** connector for their region under **Customize →
+Connectors** and stop. The connector is a custom/remote MCP server: transport **Streamable HTTP**, URL
+`https://api.<region>.revizto.com/mcp`, **OAuth Client ID `revizto-mcp`**, client secret **blank**. (The
+Blueprint still opens without a connector — it shows a calm "Connect the Revizto MCP Server" first-run
+panel — but has nothing live to read.)
+
+Two Revizto-side conditions are easy to miss, and both surface later as "unreadable licence" rather than as
+a connection error, so mention them if licences come back blocked:
+
+- The **Revizto MCP Server** app must be activated on the organisation account (owner/admin:
+  Manage account info → Developer portal).
+- Each organisation account must be **authorised for that connector**. One sign-in only covers accounts on
+  the authentication method used at the time; the rest are authorised from Revizto Workspace → profile →
+  **Active sessions → API**.
+
+If the user had a connector before 30 July 2026, it was created with the previous OAuth client ID and no
+longer authorises — it must be removed and re-added with `revizto-mcp`. Re-adding mints a **new connector
+id**, so a previously-deployed Blueprint's allowlist is bound to an id that no longer exists. That is
+precisely why this skill is being re-run; do not assume the old artifact can be repaired in place.
 
 **2 — Copy the bundled dashboard verbatim into your scratch workspace.** Do not open it to reproduce
 it — just copy it:
 
 ```bash
 cp "$CLAUDE_PLUGIN_ROOT/skills/project-intelligence-dashboard/assets/dashboard.html" ./pi-blueprint.html
-wc -c ./pi-blueprint.html   # sanity check: expect ~879000 bytes. If it's a few KB, you have the wrong file — do not proceed.
+wc -c ./pi-blueprint.html   # sanity check: expect ~968000 bytes. If it's a few KB, you have the wrong file — do not proceed.
 ```
 
 (If `$CLAUDE_PLUGIN_ROOT` isn't set in this environment, locate the plugin's
@@ -75,7 +91,7 @@ of the copied file the connector array ships empty:
 ```js
 const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection ... */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-29.2"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
 ```
 
 Read the installer's actual Revizto MCP tool prefix from the connected tool names in this session —
@@ -85,7 +101,7 @@ the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licen
 ```js
 const CONFIG={connectors:[
   {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-29.2"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
 ```
 
 Use a single targeted find-and-replace on that one region. **Do not touch anything else in the file** —
@@ -130,8 +146,8 @@ has been invoked once so it can be declared. (Repeat per connector prefix if the
 
 **6 — Verify you deployed the real thing AND the tools bound (mandatory).**
 
-- Content: the deployed HTML is ≈ 879 KB / ≈ 3,857 lines (a dashboard you "built" will be far smaller)
-  and contains `buildStamp:"2026-07-29.2"` and the six-view chrome (panel ids incl. `panel-issues`,
+- Content: the deployed HTML is ≈ 968 KB / ≈ 5,000 lines (a dashboard you "built" will be far smaller)
+  and contains `buildStamp:"2026-07-30.2"` and the six-view chrome (panel ids incl. `panel-issues`,
   `panel-health`, `panel-compare`, `panel-ask`). If size/markers are off, you regenerated it — discard
   and redo from step 2 by copying the file.
 - Tools: after the artifact opens, it must reach the Terms gate → licence picker, **not** the

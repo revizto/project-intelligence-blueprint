@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.0.2 — 2026-07-30 (OAuth client ID change; build `2026-07-30.2`)
+
+Revizto changed the OAuth client ID for the MCP server to `revizto-mcp`. Connectors created with the
+previous client ID stop authorising and must be re-added. This release makes the consequences of that
+change legible instead of mysterious, and corrects install documentation that was wrong in ways that
+blocked first-time users.
+
+> **Action required.** Re-add each Revizto MCP connector using client ID `revizto-mcp` with the client
+> secret left blank, then **re-run the `project-intelligence-dashboard` skill**. Re-adding a connector mints
+> a new connector id, and an already-deployed Blueprint's tool authorisations are bound to the old one.
+
+### An unauthorised account now says what you can do about it
+
+- **"OAuth2 application is not authorized to access this account" has two causes, and the Blueprint only
+  ever named one.** It reported the account as missing the Revizto MCP Server app — an admin-side setting
+  most users cannot change — and said nothing about the other cause: the account simply not being covered
+  by your most recent connector authorisation. The Revizto MCP can only reach accounts authorised under the
+  authentication method used at sign-in, so an estate spanning several organisation accounts needs each one
+  authorised, from Revizto Workspace → your profile → **Active sessions → API**. That is self-service, it
+  takes a minute, and after any connector is re-added it is the likelier of the two. Both causes are now
+  stated, the self-service one first. Verified against a role-Owner licence that failed for exactly this
+  reason while lower-privileged licences on authorised accounts succeeded — proving the cause is the
+  account, not the role.
+- The licence picker's short reason changed from "MCP not enabled for this account" — which asserted the
+  wrong cause — to "This account isn't authorised for MCP yet".
+- A de-registered connection now states the client ID and regional URL needed to re-add it.
+
+### Install documentation
+
+- **Enabling the plugin's skills is now a step of its own.** Installing the plugin does not enable its
+  skills, and the install action is a skill — so a correct plugin install still produced no dashboard, and
+  sometimes produced a hand-written imitation of one. This was missing from the instructions entirely.
+- Step 2 now gives the full connector configuration: transport, regional URL table, client ID
+  `revizto-mcp`, blank secret, and the Claude-specific path including the organisation-owner prerequisite.
+- The Revizto-side prerequisites are stated as the three separate conditions they are: app activated on the
+  account, sufficient licence role, and that account authorised for your connector.
+- Four new troubleshooting rows: skills not enabled, an unauthorised account, connections that broke on the
+  client ID change, and a stale build stamp.
+
 ## 1.0.1 — 2026-07-30 (licence and project resolution; build `2026-07-30.1`)
 
 A bug-fix release. Everything below was reported by first-time users: licences and projects not resolving
