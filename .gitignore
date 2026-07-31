@@ -1,0 +1,7 @@
+.fuse_hidden*
+
+# rc.4: connector is user-added, not plugin-bundled (marketplace validator rejects url-less MCP server)
+.mcp.json
+
+# internal build tooling — must never ship in the customer repo (leaks canonical paths)
+derive-release.py

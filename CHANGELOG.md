@@ -1,0 +1,246 @@
+# Changelog
+
+## 1.0.0 — 2026-07-29 (general availability: server-first connection model; build `2026-07-29.2`)
+
+First GA release. The connection model is now deterministic and three real data faults are fixed.
+
+> **Upgrading from a release candidate — action required.** Updating the plugin does not update a Blueprint
+> you have already deployed. **Re-run the `project-intelligence-dashboard` skill** to deploy this version.
+> Tool authorisations are unchanged from rc.13 (the same ten tools per server), so there is nothing new to
+> approve.
+
+### The connection model is now yours to choose
+
+- **One Revizto MCP server = one connection, chosen explicitly.** Previously the Blueprint was
+  *licence-first*: it probed every connected region, merged all visible licences into one picker, and
+  auto-resolved whichever connection happened to serve the licence you picked. That meant the app guessed,
+  and a guess is the wrong default for a tool whose product is trust. You now pick the server, and every
+  licence and project comes from that server alone — nothing merged, nothing inferred.
+- **New MCP Server panel.** One row per connected server, named with the name you gave the connector in
+  Claude (read from the artifact's own metadata — nothing to configure). Each row shows environment,
+  licence count and licence data residency. Servers that are connected but unusable are greyed, cannot be
+  selected, and state the reason — "Needs sign-in", "No longer registered", "Not authorised for this
+  artifact", "Connected — no licences visible", "Connected — licences not readable".
+- **The control bar states the data path:** **MCP Server → Licence → Project.** The server used to sit to
+  the right of Licence as trailing metadata, which inverted the real dependency — the server determines
+  which licences exist at all.
+- **Terms acceptance is now per server, on first use.** Previously one acceptance covered every configured
+  connection, so you consented for servers you might never select, and adding one re-gated everything.
+- **Licence and project selections are remembered per server.** A licence UUID means nothing on a different
+  regional instance, so carrying the selection across a switch would silently resolve to a different
+  project set.
+
+### Demo data sanitised
+
+- **The pre-live snapshot is now fully synthetic.** The dataset rendered before the first live read (and
+  behind the Terms gate) previously contained **18 real Revizto colleague email addresses**, three real
+  names, internal `+tag` test accounts, the internal project / sheet / issue identifiers, and an internal
+  stage project. It had shipped in every release candidate. Identities now come from the same fictional
+  cast already used by the offline demo (`example.com` addresses, fictional firms); every numeric value is
+  unchanged, so the pre-live view renders exactly as before.
+- The internal stage region label is stripped from the customer build, and internal server names no longer
+  appear in source comments.
+- The release derivation gained an identity gate that fails on any real address or internal marker, and it
+  ignores base64 asset blobs so it cannot be fooled into crying wolf. Like every other gate, it carries a
+  self-test proving it can fire.
+
+### Data faults fixed
+
+- **Issue sampling was failing validation.** Every paginated read requested 200 rows (issue and
+  cross-project sampling) or 500 (rebalance paging) against an API that caps reads at 100 and rejects
+  anything larger. All read page sizes are now bound to one constant. Write batching is unchanged at 200,
+  which `update_issues` still accepts — reads and writes have different ceilings.
+- **The "insufficient rights" branch never fired.** The code matched `insufficient rights`; the API returns
+  *"You don't have enough rights to perform this action."* Dead since the multi-region release. A licence
+  with a role problem was reported as an unreachable connection, and the permanent failure was treated as
+  transient so recovery never triggered.
+- **Region was removed from the licence picker.** A licence's `region` is where its data is hosted, not
+  which server serves it. Some older licences report a region that differs from the server serving them, so
+  the picker could label an ANZ licence "North America (USA)". Residency now appears only in the MCP Server
+  panel, as plain per-region counts.
+
+### Reliability
+
+- **Rate-limit backoff is now shared, not per call.** Each in-flight call used to discover the limiter
+  independently, sleep briefly and retry together — five workers amplifying one problem. The client now
+  backs off as a single actor with a shared cooldown and adaptive concurrency that steps down under
+  pressure and recovers on a success streak. Across three live loads: 80% of calls wasted → 3% → 0%.
+- **A de-registered connector no longer stalls a load.** Its failure signature is treated as permanent and
+  skipped for the session — but only for a connector that has never succeeded. The same signature also
+  occurs as a one-off transport blip on a healthy connection, which must not blacklist it.
+- **Region labels added** for `ap-southeast-2` and `ali-me-central-1`.
+
+### Verification
+
+Four QA gates, each carrying a self-test that proves it can detect the failure it claims to detect:
+a load smoke test that executes the artifact against a DOM shim (added after a temporal-dead-zone bug
+passed both `node --check` and a unit harness while rendering a blank shell), a unit suite asserting
+against the API's real error strings, a naming suite, and a rate-limiter simulation. Release gates: zero
+connector ids, structurally empty registry, app code byte-identical to canonical, and no increase in
+internal markers versus the previous release.
+
+## 1.0.0-rc.13 — 2026-07-24 (WS25 follow-up: Connections ⓘ help copy for Re-check + Add connector; build `2026-07-24.1`)
+
+- **Connection controls get their own ⓘ.** The status popover was overloaded, so control help is split into a second icon: the existing ⓘ now shows connection **status** only, and a new ⓘ beside Re-check/Add explains just those controls — **Re-check** (re-probes every connection to recover a dropped link; works whether or not read-only is on) and **Add connector** (paste a connector id / `mcp__…__` prefix to add a connection at runtime; remembered next session; two-gate caveat — tools return data only once authorised for the artifact via the install skill).
+- Copy-only change to `renderConnHealth()`'s proof definition. No logic, CONFIG, or allowlist change. `node --check` + div-balance pass; scrub gates pass (0 connector ids, 0 stage markers). Build stamp unchanged (`2026-07-24.1`).
+- Version `1.0.0-rc.12` → `1.0.0-rc.13` (plugin + marketplace + skill).
+
+## 1.0.0-rc.12 — 2026-07-24 (WS25 connection resilience: rate-limit taming + runtime connector management; build `2026-07-24.1`)
+
+Addresses the dominant real-world failure — "Artifact MCP rate limit exceeded" — and makes MCP connections self-serviceable inside the running Blueprint without re-running the install skill.
+
+- **Rate-limit gate + backoff on the shared `call()` path.** A global concurrency cap (5) plus exponential backoff-with-jitter on rate-limit and transient bridge errors stops the parallel fan-out stampeding the Artifact MCP limiter (the top field failure, ahead of transient network drops). Writes pass the gate but are never auto-retried.
+- **Runtime connector management, independent of read-only.** The Connections panel gains a **Re-check** control (re-probes every configured connector to self-heal a transient drop, debounced) and an **Add connector** field (enter a connector id/prefix; persisted to `localStorage` and merged with the configured set *before* connection resolution). Both work in read-only and normal mode — read-only governs only the "action anything" write features, not connector management.
+- **Per-connection health persists** across sessions, so the Connections panel shows continuity (last-seen) instead of a blank start.
+- **Honest rate-limit messaging** added to the connection error mapper.
+- Two-gate honesty preserved: an added/newly-appeared connector is probed and remembered, but its tools are only callable once authorised into the artifact's allowlist (install-skill declaration / rebuild) — the panel says so.
+- Verification: `node --check` + div-balance pass; scrub gates pass — 0 connector ids, 0 stage markers (`5e21f9e7` / `internal:true`), 0 id leaks. Diff vs rc.11 is exactly the WS25 feature hunks + build stamp.
+- Version `1.0.0-rc.11` → `1.0.0-rc.12` (plugin + marketplace + skill). Release `CONFIG` unchanged (`connectors:[]`, `readOnly:false`, `tcsVersion:"1.1"`); build `2026-07-22.1` → `2026-07-24.1`.
+
+## 1.0.0-rc.11 — 2026-07-22 (WS24 multi-licence connection hardening; build `2026-07-22.1`)
+
+Fixes a fault where a licence's serving connection could be dropped on view switches or a transient timeout — the dashboard would blank or appear "disconnected." Surfaced on the multi-connection staging test bed; the fix applies to every install.
+
+- **Connection is pinned per licence and only re-homes on a *fatal* cause** (`appauth` / `rights` / `xregion` / `notfound`). A timeout or generic bridge error is treated as **transient** and holds the pinned connection — it no longer falls through to another candidate and silently re-homes (the flip that also re-locked read-only and re-stamped the region). Single-connection installs are unaffected by design; multi-connection installs stop flipping on a blip.
+- **Transient failures preserve last-good data.** A mid-load timeout no longer wipes the view — it holds the last live data and shows "Couldn't refresh — showing last live data. Reload to retry." Only a genuine no-data state blanks.
+- **Leaving the 03 Cross-project view aborts its multi-project fan-out** (new per-view load token), so it can't keep saturating the shared connection the single-project views depend on.
+- Health-probing remains observation-only (no connection side effects).
+- Verification: `node --check` + div-balance pass; 14/14 logic harness (timeout-holds-pin, fatal-re-homes, compare-abort); independent QA review PASS, no regressions. Scrub gates pass — 0 stage/PII markers; diff vs rc.10 is exactly the WS24 app-code hunks (byte-identical scrub otherwise).
+- Version `1.0.0-rc.10` → `1.0.0-rc.11` (plugin + marketplace + skill). Dashboard app code updated; `CONFIG` unchanged (`connectors:[]`, `readOnly:false`, `tcsVersion:"1.1"`); build `2026-07-20.1` → `2026-07-22.1`.
+
+## 1.0.0-rc.10 — 2026-07-21 (Terms link published; repo relocated; build `2026-07-20.1`)
+
+- **Terms & Conditions link published.** The in-text link in the acceptance gate (and its review mode) now points to the canonical **`https://revizto.com/legal/revizto-mcp-server`** — the long-standing placeholder (`href="#"`, "Link to be provided") is gone. Applied to both canonical and release dashboards.
+- **`tcsVersion` bumped `1.0` → `1.1`.** A Terms change re-prompts acceptance: on next load every connection re-shows the gate once and re-records consent against v1.1 (this is the intended, built-in behaviour). No other T&C text changed.
+- **Repository relocated** to `github.com/revizto/project-intelligence-blueprint` (from `jhowden-revizto/revizto-project-intelligence`): all install commands, marketplace-add references and doc URLs updated; git remote repointed. Install identifier unchanged (`revizto-project-intelligence@revizto`).
+- Doc consistency: README/SKILL `CONFIG` examples corrected to the shipped values (`readOnly:false, tcsVersion:"1.1"`); Configuration table + Known-open-items T&C entry updated (now resolved).
+- Version `1.0.0-rc.9` → `1.0.0-rc.10` (plugin + marketplace + skill). Dashboard change is the Terms `href` + `tcsVersion` value; `node --check` + div-balance pass; build stays `2026-07-20.1`.
+- **README restructured (install-first).** The `rc.4`–`rc.10` release-note blockquotes are consolidated here in CHANGELOG and removed from the README top. The README now leads with a clean, per-user, **no-admin install** (Personal scope — add-by-URL *or* ZIP local upload), states the run-on-your-computer step first, and pushes all reference/advanced material (two-gates, Region & Licensing, Configuration, Trust, Demo, Repo layout) below a `# Reference` divider. Added an **Admin / org-wide rollout** section (Owner path + the private-repo caveat + the Cowork/Skills prerequisite). Docs-only; no version bump.
+
+## 1.0.0-rc.9 — 2026-07-20 (Read-only pill is a live toggle; approval-gated writes enabled; build `2026-07-20.1`)
+
+Requested change: the header **Read-only** pill was hard-locked on (`CONFIG.readOnly:true`); it is now a working per-session toggle.
+
+- **`CONFIG.readOnly` flipped `true` → `false`** in the release build, activating the existing toggle logic (no app-code change — the toggle branch was already there). Safety defaults are unchanged and deliberate: the Blueprint **opens read-only every session** (WS17) and **re-asserts read-only when the artifact is reopened/re-shown** (WS18). Turning writes on is an explicit, per-session action.
+- **`update_issues` now declared on the artifact allowlist at install** (install `SKILL.md`: declare ten tools per connector prefix — the nine reads + `update_issues`). This lets an *approved* write actually execute when the user toggles read-only off. **`update_issues` is declared but never called during install** — it is a write, and only a user-approved 06 action ever invokes it.
+- **The approval pipeline is unchanged.** Every write still runs through count-first targeting → diff + sample preview → name + reason approval modal → audit note → reversible, with connection-stamped staged jobs. The two-wall model still holds: your approval gate (in-app) + the Cowork allowlist (host). rc.9 opens the host wall for `update_issues` so approved writes land.
+- Docs updated across README (status, six-views note, Configuration `readOnly:false` row, trust posture, tool allowlist, install step, verify step), `CONNECTORS.md`, and the in-file `CONFIG` comment.
+- Version `1.0.0-rc.8` → `1.0.0-rc.9` (plugin + marketplace + skill). Dashboard change is the one `CONFIG.readOnly` value + a comment; `node --check` + div-balance pass; build stays `2026-07-20.1`. To revert to a hard read-only build: set `CONFIG.readOnly:true` and drop `update_issues` from the install declaration.
+- **Repository relocated** to `github.com/revizto/project-intelligence-blueprint` (from `jhowden-revizto/revizto-project-intelligence`). All install commands, marketplace-add references and doc URLs updated; git remote repointed. Install identifier unchanged (`revizto-project-intelligence@revizto`) — the marketplace/plugin names are independent of the repo path.
+
+## 1.0.0-rc.8 — 2026-07-20 (confirmed working end-to-end; local-session step made prominent; build `2026-07-20.1`)
+
+**First fully-working install confirmed.** Running the install in a session **on the user's computer** (not the cloud) bound the nine read tools to the artifact, and the Blueprint went live — header "Live", licence "Jason Howden License — North America (USA)", a real project loaded. The whole chain is now proven: marketplace → plugin → verbatim deploy → tool allowlist → licence/region discovery → live data.
+
+- **README:** the local-vs-cloud requirement is promoted to a 🔴 **CRITICAL FIRST STEP** at the top, plus an explicit **Step 0** in the install flow, with the exact control: the **run-location picker at the top-right of the Claude window → "On your computer"** (laptop icon, not cloud), and the default toggle at **Settings → Cowork → "Run new tasks in the cloud" (off)**.
+- **Install `SKILL.md`:** prerequisite updated with the same exact control and a note that a local session is confirmed to bind the allowlist and load live data.
+- Version `1.0.0-rc.7` → `1.0.0-rc.8` (plugin + marketplace + skill). No dashboard code change (build stays `2026-07-20.1`).
+
+## 1.0.0-rc.7 — 2026-07-20 (local-session requirement; build `2026-07-20.1`)
+
+rc.6 ran the skill correctly — copied the real Blueprint verbatim, inserted the connector prefix, and called all nine read tools in-session (confirmed: `list_licenses` returned "Jason Howden License", region us-east-1) — yet the dashboard still showed "Licence not accessible via MCP / tools aren't authorised for this artifact / No projects". Runtime logs settled it: the session was a **cloud** Cowork session (`cse_…`, `remote_cowork.sign_for_session_header`, remote `/artifacts/cse_…/versions`). The cloud→desktop artifact bridge **does not bind the `mcp_tools` allowlist**, so the artifact opens empty regardless of everything upstream.
+
+Not a config bug. The `CONFIG.connectors` prefix (`mcp__Revizto_Virginia_MCP__`), the licence-first model (no region/licence baked in), and the licence/region discovery are all correct and proven — the same connector answers "what is my licence" with full detail (licence 38327, uuid `9b5c3796-…`, Super-administrator, us-east-1) in chat.
+
+- **Install `SKILL.md`: local-session prerequisite.** New up-front block — the install must run in a **local (on-your-computer)** Cowork session; the skill checks for a cloud session and stops with guidance rather than producing a dashboard that can't read. call-then-declare (rc.6) and copy-verbatim (rc.5) unchanged.
+- **README:** rc.7 note + rewritten "tools aren't authorised / licence not accessible" troubleshooting row (cloud-session cause + local-session fix), and an explicit statement that the config/prefix/licence are correct.
+- Version `1.0.0-rc.6` → `1.0.0-rc.7` (plugin + marketplace + skill). No dashboard code change (build stays `2026-07-20.1`).
+
+**Open for Revizto/Anthropic:** confirm whether a cloud-created artifact can ever be granted the `mcp_tools` allowlist (e.g. a per-artifact tool-permission grant in the desktop UI), or whether local creation is mandatory. Until then, local install is the supported path.
+
+## 1.0.0-rc.6 — 2026-07-20 (install skill binds the tool allowlist; build `2026-07-20.1`)
+
+rc.5 deployed the correct Blueprint verbatim, but it opened on "The Blueprint's tools aren't authorised for this artifact yet" — the artifact's `mcp_tools` allowlist was empty. Root cause: Cowork's `create_artifact` only adds a tool to the artifact allowlist **if that tool was actually called in the same session** (per the tool's own contract). The rc.5 skill declared the nine read tools without calling them first, so nothing bound. (This also answers the long-standing open question — the native `create_artifact` *can* populate the allowlist; it just requires the tools to have been exercised in-session.)
+
+- **Install `SKILL.md`: call-then-declare.** New mandatory step 4 — for each connected connector prefix, call each of the nine read tools once (`list_licenses` → `list_projects` → project-scoped reads), which both verifies the licence is MCP-accessible and registers the tools for the session. Step 5 (`create_artifact`) now stresses `mcp_tools` is REQUIRED and lists all nine per prefix. Step 6 adds a tools-bound check (must reach Terms/licence picker, not the allowlist panel). The rc.5 copy-verbatim recipe is unchanged and confirmed working (deploys the real ~879 KB Blueprint).
+- **README:** rc.6 note + rewritten "tools aren't authorised" troubleshooting row (real cause + call-then-declare fix).
+- Version `1.0.0-rc.5` → `1.0.0-rc.6` (plugin + marketplace + skill). Clear the plugin cache / re-sync so the desktop picks up rc.6 (see the cache-clear troubleshooting). No dashboard code change (build stays `2026-07-20.1`).
+
+## 1.0.0-rc.5 — 2026-07-20 (install skill deploys the dashboard verbatim; build `2026-07-20.1`)
+
+After rc.4 installed cleanly, running the install skill in the user's Cowork session **rebuilt a dashboard from scratch** instead of deploying the bundled Blueprint. Root cause: `create_artifact` takes an `html_path` (a file you write), and the rc.4 skill said "read the bundled HTML and create the artifact from it" — which the model interpreted as licence to author its own dashboard. The bundled `dashboard.html` is a finished, approved ~879 KB / 3,857-line artifact; it must be **copied**, not regenerated.
+
+- **Install `SKILL.md` rewritten as a strict copy-don't-author recipe.** Explicit prohibition on authoring/rebuilding/redesigning a dashboard; deterministic steps: `cp` the bundled `assets/dashboard.html` to scratch → make exactly one edit (insert the connector prefix into the empty `CONFIG.connectors` array) → `create_artifact` with `html_path` pointing at the copied file and the nine read tools declared per connector prefix → **verify** the deployed artifact is ≈ 879 KB / 3,857 lines and carries `buildStamp:"2026-07-20.1"` and the six-view chrome; if not, it was regenerated — discard and redo by copying. No dashboard code change (build stays `2026-07-20.1`).
+- **README:** rc.5 note + Install Step 3 caution — the skill copies the bundled file verbatim; if you see Claude *designing/writing* a dashboard, stop and re-run.
+- Version `1.0.0-rc.4` → `1.0.0-rc.5` (plugin + marketplace + skill). Re-sync the marketplace and update the plugin to pick up the corrected skill.
+- **README troubleshooting: "Stuck on an old plugin version (clear the cache)."** Re-syncing and reinstalling can keep serving a cached version (anthropics/claude-code#17361); added the on-disk cache-clear procedure (`~/.claude/plugins/cache` + `marketplaces/` + `known_marketplaces.json`, with the macOS `chflags -R nouchg` step and the Windows path), plus how to verify the published version on GitHub first.
+
+## 1.0.0-rc.4 — 2026-07-20 (marketplace validation fix; build `2026-07-20.1`)
+
+rc.3 could not be added as a marketplace at all. The first user's log gave the exact server-side cause (repeated on every Sync attempt):
+
+```
+MARKETPLACE_ERROR:REMOTE_SYNC_FAILED [remoteMarketplaceOps] status: failed_content
+{"plugins":[{"name":"revizto-project-intelligence",
+  "error":"MCP server 'Revizto MCP' must have a 'url' field that is a string"}],
+ "message":"1 plugins found, 1 failed validation"}
+```
+
+Cowork's marketplace validator runs server-side and requires every plugin-declared MCP server to carry a `url` string. The plugin bundled the Revizto MCP connector in `.mcp.json` as `{"type":"sse"}` with no URL — deliberately, because it's a regional, OAuth, user-added connector with no static endpoint. The validator rejected it, and the desktop UI surfaced only the generic "Marketplace sync failed. Check the repository URL" (a red herring — the repo is public and was parsed fine).
+
+- **Removed the plugin's bundled MCP-server declaration.** Deleted `.mcp.json` and the `mcpServers` key from `plugin.json`. The plugin now ships **skills only** and validates. Nothing in the working flow depended on the plugin declaring the connector: the artifact's `mcp_tools` allowlist is populated by the install skill's `create_artifact`, and the Revizto MCP connector is added by the user in Settings → Connectors (already a documented prerequisite). No dashboard code change (build stays `2026-07-20.1`).
+- **Docs aligned:** README status → rc.4 with the fix note; repo layout drops `.mcp.json`; install detail now reads "3 skills" (no bundled MCP server); the by-name `.mcp.json` resolution open item is retired (moot — the plugin doesn't declare the connector); `CONNECTORS.md` reframed (connector is user-added, not bundled); `TEST` guide updated. README now states the repo must be **public** for the desktop install path (Cowork sync is anonymous + server-side, per anthropics/claude-code#61271).
+
+Confirmed en route: the repo is public and the marketplace manifest is valid and anonymously reachable — repo visibility was never the blocker (the validator parsed it and rejected the plugin's MCP entry).
+
+- **Install docs: "Sync automatically" must be OFF (required).** After rc.4 validated and the marketplace added, the first user hit `github_repo_not_accessible` — "Automatic sync on push requires the Claude GitHub App to be installed on this repository." That's the auto-update toggle, not a repo conflict. README Install Step 2 and the test guide now make turning **"Sync automatically" OFF** a mandatory step (manual sync reads the public repo anonymously; no GitHub App, no interaction with the user's other connected repos), with matching troubleshooting rows. Docs-only; package unchanged at rc.4.
+
+## 1.0.0-rc.3 — 2026-07-20 (installable + self-explaining; build `2026-07-20.1`)
+
+Fixes the first-user install failure: the Blueprint showed "Connect the Revizto MCP Server" while the connector *was* connected. Root cause (traced from runtime evidence): a Cowork artifact enforces its **own per-artifact `mcp_tools` allowlist**, separate from the connector grant, and it was empty — every MCP call was refused with `Tool "…" is not in this artifact's mcp_tools allowlist`, which `mcpFailKind()` didn't recognise, so the graceful zero-connection block funnelled it into the "please connect" CTA (a false negative). Connecting/granting the connector does not populate that allowlist; only the install-skill `create_artifact` declaration does, and only when run natively from an installed plugin.
+
+- **Package is now installable as a plugin.** Added `.claude-plugin/marketplace.json` (one-plugin marketplace, `source: "./"`). Without it, `/plugin marketplace add` and the desktop plugin browser had no working path, so the tool-declaring native install couldn't happen. Install identifier: **`revizto-project-intelligence@revizto`** (`/plugin marketplace add revizto/project-intelligence-blueprint` → `/plugin install revizto-project-intelligence@revizto`).
+- **Dashboard surfaces the allowlist error (code fix, build `2026-07-20.1`).** `mcpFailKind()` gains an `allowlist` branch matching `/not in this artifact's mcp_tools allowlist/i`, returning an actionable cause ("the tools aren't authorised for this artifact yet — re-create through the install skill"). Because that branch returns a *specific* kind, the existing zero-connection logic automatically promotes it over the "please connect" CTA — so a connected-but-unauthorised artifact no longer masquerades as "not connected". The no-connection copy is also broadened to name the two-gate cause. Applied identically to canonical and the release build; app logic remains byte-identical between them (only `CONFIG` + demo snapshot differ). `node --check` + div-balance pass.
+- **Docs reframed around the two gates and plugin-first install.** README leads with the connector gate vs artifact-tool gate distinction, makes plugin install the one true path (clone/select-folder is documented as inspect/edit only, since it can't authorise tools), adds the marketplace commands and desktop-browser flow, flags the prefix as per-user/per-connector-name (don't copy examples verbatim), and rewrites the troubleshooting rows (new "tools aren't authorised for this artifact" row). Install `SKILL.md` calls the tool declaration load-bearing; `CONNECTORS.md` documents the second gate.
+
+Still open at rc.3 (flagged in README): confirm the native `create_artifact` actually declares the tools into the allowlist on the current desktop build (this cut is what lets the first user test it), the exact artifact-runtime prefix form, and the placeholder Terms & Conditions URL (its publication bumps `tcsVersion`).
+
+## 1.0.0-rc.2 — 2026-07-20 (licence-first release candidate; build `2026-07-17.9`)
+
+Second release candidate. Consolidates all post-rc.1 work (WS20 → WS23) into a shippable cut. The headline change since rc.1 is the **connector model**: rc.1 configured a single `CONFIG.server` prefix that the installer rewrote; rc.2 is **licence-first / connector-agnostic** — you list one entry per connected region in `CONFIG.connectors` and the Blueprint routes each licence to its serving connection automatically. Release posture unchanged: production deep-links (`ws.revizto.com`), `readOnly:true`, ships `connectors:[]` (empty) and a synthetic demo snapshot, zero PII / stage identifiers (scrub verified).
+
+Docs brought back into line with the shipped build in this cut: README rewritten for licence-first with a step-by-step **MCP Region & Licensing** section and worked one-/multi-region examples; install `SKILL.md` corrected (artifact id `revizto-project-intelligence-blueprint`, `CONFIG.connectors` population, per-connector tool declaration); `CONNECTORS.md` gained connector-prefix discovery. Product name is **Project Intelligence Blueprint** throughout.
+
+Still open at rc.2 (flagged in README): the by-name connector-resolution question, and the placeholder Terms & Conditions URL (its publication will bump `tcsVersion`, re-prompting acceptance on every connection).
+
+- **Graceful zero-connection state (WS23):** the Blueprint never demands connections it doesn't have. It probes every configured Revizto MCP connection, uses whichever respond, and skips the rest. With no connectors configured (fresh install) or none reachable, it shows a calm first-run state — "Connect the Revizto MCP Server to enable live project intelligence" with plain-language setup guidance — instead of an error; specific failure causes (account not enabled in the Developer Portal, insufficient rights, wrong region, timeout) keep their precise, actionable messages. The live status pill reads "Revizto MCP not connected" in a calm setup tone, not an error red.
+- **Control bar rebuilt as two designed rows (WS22):** replaces the zone grid, which overflowed at the fixed content width and wrapped the licence badge onto a phantom row while breaking the totals line mid-phrase. Row 1: licence context + session actions (Read-only, Refresh). Row 2: project scope + Detail sample with its coverage caption beneath + live status. Licence and project controls share one width formula so edges align between rows; all controls sit on a shared 34px line; breakpoints (1024/640) rebuilt to match. Build 2026-07-17.9.
+- **Licence-first, connector-agnostic routing (WS21, supersedes the WS20 region dropdown):** users pick a LICENCE, never a connector. The dashboard probes every configured Revizto MCP connection in parallel, aggregates licences (deduped) into ONE picker shown as "Licence name — Region", and resolves the serving connection automatically (probe + on-device cache, self-healing). The displayed region is always the SELECTED LICENCE's own Revizto region (masthead badge), never a connector label. A Connections ⓘ shows per-connection health. Works with ANY subset of regional connectors a customer chooses to add — one entry behaves exactly like the classic single-region build; adding a region is one CONFIG entry + allowlist update, zero code change. Honest failures per cause, including exact guidance when an account hasn't enabled the Revizto MCP in the Developer Portal. Trust hardening: T&C acceptance recorded per connection (one gate stamps all); staged write jobs are connection-stamped, stored under their own connection's key, never resumable cross-connection, and the serving connection is pinned while a job is active; all loaders are sequence-guarded so no stale response can repopulate state after a switch; unreachable projects in Compare are labelled "Couldn't load", never scored as zeros.
+- **Multi-region (WS20):** the dashboard now carries a deploy-time REGION REGISTRY (`CONFIG.servers`) instead of a single connector prefix. Each Revizto region is its own MCP connector; add one entry per region with YOUR connector id (see CONNECTORS.md). With one entry the build behaves single-region (no new UI); with several, a Region dropdown appears in the toolbar. Every MCP call routes through the selected region's connector; switching regions does a full state reset, re-locks read-only, re-runs the per-region T&C acceptance, and re-targets issue deep-links to the region's workspace host. Failures surface honestly per cause (account hasn't authorised the MCP app · insufficient licence role · licence on a different regional instance · not found · timeout), and per-region MCP tool gaps degrade per panel (e.g. a region build without `list_sheets` shows an explicit note, never a fabricated 0). Trust hardening with it: staged write jobs are region-stamped and region-stored — a job can only ever resume on the region it was approved for; in-flight loads are invalidated on switch.
+- Removed the "Reset acceptance (demo)" button (and its handler) from the Terms & Conditions review footer. The footer now shows only the acceptance record and Close; the on-device acceptance can no longer be cleared from the UI (demo-only affordance retired).
+- Read-only re-asserts on re-show, not only on reload. A popped-out or reopened artifact view keeps its live JS state, so the start-time read-only default didn't apply to it. Added `pageshow` + `visibilitychange`→visible listeners that force read-only back on whenever the artifact becomes visible again. Guarded: it never interrupts an approved job that is mid-run, and it only ever tightens to read-only (never enables writes). Release deploy-time hard-lock unchanged.
+- Read-only forced ON at every open. `READONLY` no longer initialises from the remembered `localStorage` value — it starts `true` on every load, so the Blueprint always opens read-only. The toggle stays per-session (writes can be enabled during a session on non-locked builds); the last state is never persisted back into the start. The deploy-time hard-lock (`CONFIG.readOnly:true`, this release build) is unchanged and still disables the toggle.
+- Morning brief · Next Moves: removed the misleading "Run clash tests" action button and the matching "run the … clash tests" narrative clause. The MCP connector is read-only on clash tests (it can list them, not trigger runs), so clash is no longer offered as an actionable next move — the clash state stays surfaced in the 02 Project checklist and the persona Hot Spots. Next-Moves narrative now guards the empty case.
+- Approval gate — resume hardening: `runJob` now refuses to write any job missing a name or reason (e.g. a job persisted before the name-gate) and re-routes its remaining issues back through the approval gate to re-collect attribution, so no write can proceed unattributed on any path.
+- Approval gate hardened (trust-critical): a write could proceed with the audit-trail **name/initials** field left empty. The confirm gate (`executePlan`) now requires BOTH a reason and a name before anything is written — an empty (or whitespace-only) name throws an inline error, focuses the field, and blocks; no write job is created and nothing is sent to Revizto until both are filled. Both fields are marked · required in the modal. `executePlan` is the single approval gate for every write path (06 single/multi-step, undo, and the 04→selection handoff), so all writes are now gated on attribution. No change to the write/execution logic.
+- Action workflow unified (WS14): the 04 Coordination-analytics **Issue actions** section no longer writes directly. The inline "Edit selected issues" form + "Review & apply…" (which jumped straight to the approval modal, bypassing 06's Plan/preview) is removed; selecting issues now routes solely through the existing **"Action N in 06 →"** handoff, so every change is composed, previewed count-first and approval-gated in 06 Action anything, writing to exactly the selected issues. One write surface, one trust pipeline; the direct-write path is gone.
+- Design review v2.2 — Section B + before-release fixes complete: T&C modal migrated to the `--fs` type tokens (no raw sizes left); the "Agree and continue" button is always enabled with click-time validation (message + field focus, writes only when valid); a visible build stamp (`Build 2026-07-09.2`) in About and the gate footer; ⓘ tooltips now tap-toggle on touch (touch-suppression guard) with keyboard/Esc intact; synthetic demo data painted behind a lighter T&C gate scrim with plain-language summary chips (consent-before-live-load preserved); 8pt spacing grid across all spacing/radii; breakpoints consolidated to 640/1024 + a single coarse-pointer block; calmer ⓘ layer at AA contrast; 44px touch targets incl. `.fbtn`; the tour "Six views" step split into two. Independent QA: SHIP; trust/write pipeline unchanged.
+- Action-planning logic fixed (root cause: "open" was conflated with "active" = open + in-progress). Per-assignee load carried a dual meaning — exact "open" when the exact contributor load resolved, sample "unresolved" otherwise — so the same figure read as "70% of the whole backlog" in one card and "89% of the open backlog" in another, and a rebalance was recommended on a project where the owner had 0 open issues (all in-progress) and then couldn't be planned. Fixes: (1) Rebalance moves OPEN (unstarted) issues only and fires only when exact open counts show real open concentration; every entry point (recommendation card, brief CTA, Next-Moves button, and proposeRebalance itself) is gated the same way, so it never proposes a move that can't run and never dead-ends waiting on open issues that don't exist. (2) The move is capped to a bounded first batch rather than a single giant reassignment. (3) The concentration figure is labelled honestly and mode-aware — "active" (open + in-progress) against the active total in sample mode, "open" against the open total in exact mode — so numerator, label and denominator always agree. (4) Next Moves scales the critical count to match the Triage card (one estimate, not a raw sample count beside a scaled one) and is framed as "address the load concentrated on X" rather than promising a rebalance that may not apply. Known follow-up: the rebalance card and its plan modal describe the "open backlog" against slightly different scopes (top-N vs full pool) — both self-disclosed in their proofs.
+- AI-brief CTA icon: the "Action this rebalance in Revizto" button used a small, faint lightning glyph. Canonical now uses a filled SVG bolt at 16px; the release copy still carried the older literal "⚡ … →" text-glyph button, so this also reconciles the release brew-CTA to canonical (filled bolt + arrow SVG, `brewgo-cta` styling). App code back in parity.
+- Rebalance now plans from data we already hold. Root cause of the "can't take place" recommendation: the planner did a fresh paged `list_issues` read at click time, which intermittently timed out on the connector — so a valid, visible move became "impossible". It now builds the move-set from the issues already in memory (the loaded project sample: uuid + assignee + open status). A bounded connector read runs only as a best-effort top-up when the sample didn't hold enough of the owner's open issues, and never dead-ends. Only if zero of the owner's open issues have loaded yet does it ask you to let sampling finish and retry. Combined with Stage 1 (lands in 06, Try again), a recommended rebalance now reliably executes.
+- Action unification, Stage 1: fixed the morning-brief rebalance dead-end. Rebalance now switches to the 06 Action view first, and the two "Couldn't plan rebalance / the connector isn't responding" dialogs now offer a **Try again** button (the connector stall is transient) instead of terminating. Rebalance already composes its full fair-share plan + proof into the shared approval modal and job runner; this makes it recoverable and lands it in 06. Follow-up stages: route the match-based triggers (triage criticals, worklist) into 06's Match/Do workbench, and surface the rebalance plan as an editable pre-built plan in 06.
+- Terms button: dropped the document glyph so it matches the text-only About pill (About · Terms · Tour).
+- Issue actions (06): the status filter now defaults to "Any status" instead of "Open" — reordered the options and removed the JS that forced it back to Open on the 04→06 handoff.
+- Warn/caution polish. Retuned the semantic warn colour from the muddy burnt-orange `#B45309` to a cleaner orange-red `#C2410C` (with a warmer tint and border), applied via the single `--warn` token so every write/risk surface updates together — rec tiles, badges, banners, the identity "SET" tag, and the approval modal. Still AA-compliant. Replaced all thin text "⚠" glyphs with a crisp SVG warning triangle at a legible 14px, and made the recommendation-card arrow a bolder 17px SVG, so caution icons read clearly instead of being nearly invisible.
+- 06 Action fix: recoverable people pickers. When the assignee/reporter/watcher candidate list came back empty or short (members not yet loaded), there was no way to find or reload members, so a person you needed couldn't be picked. Added a search box and a "Refresh members" button to each people match field (re-fetches `list_project_members` and re-renders, repopulating both the match checklist and the change-assignee dropdown), an empty-state hint when nothing is loaded, and a "Refresh member list" button inside the "pick the right people" blocker.
+- UI fix: the six view tabs now stay on one line in Read-only mode. The read-only padlock on "06 Action anything" was widening the tab enough to wrap it to a second row; tightened tab padding (16→12px) and the number/label gap (8→6px) to reclaim the space. `flex-wrap` retained so genuinely narrow viewports still wrap gracefully.
+- Design system ("Designfix A") captured from the UX/UI review: introduced a type-scale token set (`--fs-1`…`--fs-5`) replacing ad-hoc font sizes across the product, and split the red palette by meaning — brand red (`--red`) for primary CTAs and brand marks only; write/risk states on amber `--warn` with an aria-hidden ⚠; failures and "at risk" on `--error` red. Applied to CSS chrome and the JS-rendered status layer (risk dots, readiness state, "At risk", negative indicators moved off brand red onto `--error`). Also fixed 3 all-caps "SHOWCASE" left in the T&Cs warranty/liability clauses (now "BLUEPRINT"). Behaviour, copy, aria/keyboard, and the tour are unchanged. Follow-ups (Section B, next API cycle): 8pt spacing re-base, breakpoint consolidation, calm ⓘ layer, watch-amber token migration.
+- T&Cs dialog: removed the duplicate header "Close" (the footer Close plus Esc / click-outside dismiss remain in review mode). An optional "email me a copy" of the acceptance was evaluated and dropped: the dashboard runs in a sandboxed iframe where `mailto:` and pop-ups are blocked, so a client-side send can't work, and a static front-end cannot send email itself. The email field was removed entirely — the acceptance record is now name + UTC timestamp + version. Any genuine emailed confirmation is deferred to the server-side acceptance logging already flagged for pre-release (same backend). No T&Cs version change.
+- Renamed to the official product name **Project Intelligence Blueprint** (masthead keeps "Intelligence" in Revizto Red, appends "Blueprint"). Applied across browser title, screen-reader heading, tour copy, the bulk-write audit-comment label, and the full T&Cs: "Revizto Project Intelligence Dashboard Showcase" → "Revizto Project Intelligence Blueprint" and the defined term "Showcase" → "Blueprint" through all 24 sections. The separate defined term "Dashboard" (the interface) is preserved. Internal artifact id/slug/filenames unchanged.
+- Terms & Conditions acceptance gate — a **Terms** button (About-style pill + document glyph) sits next to About in the masthead (About · Terms · Tour). On first load, and whenever `CONFIG.tcsVersion` changes, a mandatory, non-dismissible gate presents the full Showcase T&Cs (24 sections) with a required name field, optional email, and an **Agree** checkbox; the dashboard is blocked and **no live project data is fetched from the connector until the user accepts** (consent precedes access). Acceptance is recorded on-device (name, email, ISO-UTC timestamp, T&Cs version) and re-prompts only on a version bump; the recorded identity also seeds the 06 Action "me/my" resolver. The Terms button re-opens the T&Cs read-only afterwards with the acceptance record shown. Modal follows the existing approval-modal pattern: `role="dialog"`, `aria-modal`, focus-trap, background `inert`; gate mode suppresses Esc/backdrop/close, review mode is dismissible. All existing trust behaviour and the `list_issues`/`update_issues` surface unchanged. Note: the in-text link to the Revizto MCP Server T&Cs is a placeholder pending the canonical URL.
+- 06 Action anything — multi-step editor redesigned as a two-column **Match / Do** workbench: a cool teal "Match issues where…" (filter/search) half and a warm red "Then apply…" (action) half, joined by a → connector, so it's unmistakable which side searches and which side acts. Fields render as inline-expand rows — only the fields in use are shown; **+ Add filter / + Add change** reveal the rest (no more wall of empty controls). Step-tool and caret icons moved from faint unicode glyphs to the dashboard's crisp inline-SVG icon set, enlarged. Collapsed rows are keyboard-operable (role/aria-expanded, Enter/Space). All trust behaviour unchanged: count-first honesty labels, never-broaden block, comment-only, 04 selection-mode target banner, and the exact `list_issues`/`update_issues` surface.
+- Demo mode v2: two contrasting sample projects (Riverside Medical Centre, Hillcrest Aquatic Centre), synthetic issue timeline so 04 Coordination analytics renders offline, demo-aware refresh so project switching re-seeds instead of attempting a live load. Live path untouched.
+- README: exact customer install steps (prerequisites, connect → get → create → verify) + troubleshooting table.
+- Read-only pill lock: when `CONFIG.readOnly` is true the header pill is checked, disabled and carries an explainer tooltip — read-only deployments are visibly immutable. In write-enabled builds (`readOnly:false`) the pill remains a live user toggle. Writes additionally require `update_issues` on the artifact's declared tool list (host-enforced outer gate).
+- Timeline series legibility (04): 8-hue non-semantic categorical ramp (red/amber/green reserved for risk states, never identity); end-of-line identity labels with collision avoidance; interactive legend chips (hover to focus, click to isolate); generic Top-6 + "Other (n more)" aggregation across Assignee/Stamp/Type/Company/Department group-bys, with recursive drill-down into "Other" and breadcrumb back. Whole-project totals, milestones and projections always compute from the full dataset regardless of drill level.
+
+## 1.0.0-rc.1 — 2026-07-06 (WS10 package)
+
+First packaged release candidate, from the WS1–WS9 showcase build (feature-complete, QA/QC'd 2026-07-05: F1 persona narratives live-derived, F2 sharing cadence on publish date, F3 90-day-flow loading state, view titles aligned).
+
+- `CONFIG` flipped for release: `wsHost` → `ws.revizto.com` (production deep-links), `readOnly` → `true` (write surface off by default).
+- Snapshot fallback fully scrubbed: synthetic demo project ("Riverside Medical Centre — demo"), fictional people on `@example.com`, no staff emails, no stage licence/project identifiers; AI context region derived from live metadata instead of a literal.
+- Bundled curated skills: `skill-aeco-innovation-revizto`, `skill-aeco-innovation-revizto-api`.
+- Plugin scaffold refreshed from the 2026-06 stage dry-run (`.mcp.json` by-name production entry; manifest, connectors and README rewritten for release posture).
+
+Known open item: by-name connector-prefix resolution for `CONFIG.server` in plugin context (see README).
