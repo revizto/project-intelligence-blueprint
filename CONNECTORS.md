@@ -2,19 +2,27 @@
 
 ## Required connector
 
-This plugin needs the **Revizto MCP** connector, but it does **not** bundle it. The connector is a directory connector with a dynamic, per-region endpoint and OAuth sign-in, so there is no static URL to declare — and the marketplace validator rejects a plugin MCP server without a `url`. So the plugin ships **skills only**; you add the Revizto MCP connector yourself in **Settings → Connectors** (a prerequisite — see the README "Install" Step 1), one connection per region you use.
+This plugin needs the **Revizto MCP** connector, but it does **not** bundle it. The connector is a directory connector with a dynamic, per-region endpoint and OAuth sign-in, so there is no static URL to declare — and the marketplace validator rejects a plugin MCP server without a `url`. So the plugin ships **skills only**; you add the Revizto MCP connector yourself in **Customize → Connectors** (see the README install sequence, Step 5), one connection per region you use.
 
 | Connector | How you add it | Notes |
 |---|---|---|
-| Revizto MCP (project data) | Settings → Connectors → add "Revizto MCP" for your region, sign in | OAuth 2.1 PKCE against the regional Revizto API. One connection per region. |
+| Revizto MCP (project data) | Customize → Connectors → add "Revizto MCP" for your region, sign in | OAuth 2.1 PKCE against the regional Revizto API. One connection per region. |
 
 The Blueprint **opens read-only every session**; the header Read-only pill is a live per-session toggle. Switching it off enables the 06 Action write surface, and approved writes (`update_issues`, declared on the artifact at install) run through the count-first + name/reason approval pipeline. Read-only re-asserts whenever the artifact is reopened. To ship a hard read-only build, set `CONFIG.readOnly:true` and omit `update_issues` at install.
 
-> **Two separate gates.** Connecting this connector is necessary but **not** sufficient. The dashboard artifact also has its own per-artifact `mcp_tools` allowlist, which the connector grant does **not** populate — the install-skill `create_artifact` declares the read tools into it (and only takes effect when run from an installed plugin, natively in Cowork). If the dashboard says "tools aren't authorised for this artifact," gate 2 is the empty one. See the README "Install — do this as a plugin".
+> **Two separate gates.** Connecting this connector is necessary but **not** sufficient. The dashboard artifact also has its own per-artifact `mcp_tools` allowlist, which the connector grant does **not** populate — the install-skill `create_artifact` declares the read tools into it (and only takes effect when run from an installed plugin, natively in Cowork). If the dashboard says "tools aren't authorised for this artifact," gate 2 is the empty one. See the README install sequence, Steps 4 and 8.
 
 ## Regional connections (server-first)
 
-Each Revizto region is a separate MCP connection (see the regional server URLs in Revizto's MCP help article). Add one connection per region your organisation uses, then list each connection's id in `CONFIG.connectors` in `dashboard.html`:
+Each Revizto region is a separate MCP connection (see the regional server URLs in Revizto's MCP help article). Add one connection per region your organisation uses.
+
+> **You do not do the next part by hand.** The install skill reads your connector ids and writes them into
+> `CONFIG.connectors` for you. It is documented here so you can see what gets written, and for the rare
+> case of configuring outside a Cowork install. Editing your own copy of `dashboard.html` and opening it
+> directly will not work — the artifact tool gate is bound at `create_artifact` time (see the README,
+> "How it works: two gates").
+
+For reference, this is the shape the skill writes into `CONFIG.connectors` in `dashboard.html`:
 
 ```js
 connectors:[

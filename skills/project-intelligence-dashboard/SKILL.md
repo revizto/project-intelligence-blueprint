@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.2"
+  version: "1.0.3"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -66,10 +66,15 @@ a connection error, so mention them if licences come back blocked:
   the authentication method used at the time; the rest are authorised from Revizto Workspace → profile →
   **Active sessions → API**.
 
-If the user had a connector before 30 July 2026, it was created with the previous OAuth client ID and no
-longer authorises — it must be removed and re-added with `revizto-mcp`. Re-adding mints a **new connector
-id**, so a previously-deployed Blueprint's allowlist is bound to an id that no longer exists. That is
-precisely why this skill is being re-run; do not assume the old artifact can be repaired in place.
+If the user had a connector before 30 July 2026, the OAuth client ID has since changed to `revizto-mcp`.
+What it invalidated is the **per-account authorisation**, not the connector itself — connector ids survived
+the change and existing connections were verified still authenticating on 30 July 2026. So the remedy is
+to re-authorise each Revizto organisation account (Revizto Workspace → profile → **Active sessions →
+API**), then Re-check. **Do not tell the user to remove and re-add a connector that is still connected:**
+re-adding mints a **new connector id**, which orphans a deployed Blueprint's tool allowlist and causes the
+very failure it appears to fix. Only a connector Claude reports as disconnected, or that the Blueprint
+lists as "No longer registered", should be re-added — and after that it does need this skill re-run, so
+the new id is authorised for the artifact.
 
 **2 — Copy the bundled dashboard verbatim into your scratch workspace.** Do not open it to reproduce
 it — just copy it:
@@ -152,9 +157,10 @@ has been invoked once so it can be declared. (Repeat per connector prefix if the
   and redo from step 2 by copying the file.
 - Tools: after the artifact opens, it must reach the Terms gate → licence picker, **not** the
   "tools aren't authorised for this artifact yet" panel. If it shows that panel, the `mcp_tools` did not
-  bind — confirm you (a) *called* each of the nine tools in step 4 and (b) *declared* all nine in step 5,
-  then re-create. If it still fails after both, the artifact-creation path on this build is not binding
-  the allowlist — report that to Revizto (capture the desktop version).
+  bind — confirm you (a) *called* each of the nine read tools in step 4 and (b) *declared* all **ten**
+  in step 5 (the nine reads + `update_issues`), then re-create. If it still fails after both, the
+  artifact-creation path on this build is not binding the allowlist — report that to
+  **support@revizto.com** (capture the desktop version).
 
 **7 — Hand off to the user.** Tell them the Blueprint is open; on first live load it shows the Terms
 gate (accept to proceed), then a licence picker; it lands on their most-recently-active project. Point

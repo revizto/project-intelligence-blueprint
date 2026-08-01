@@ -1,13 +1,150 @@
 # Changelog
 
+## 1.0.3 — 2026-08-01 (documentation; Blueprint unchanged at build `2026-07-30.2`)
+
+A documentation-only release. No change to the Blueprint, the plugin's skills logic, or the tool
+allowlist — so there is nothing to redeploy if you are already on 1.0.2. Three defects, all of them the
+kind that stops a correct product from working for someone following the instructions.
+
+> **Correction to 1.0.2.** The 1.0.2 notes below instruct you to remove and re-add every Revizto MCP
+> connector after the client-ID change. **That instruction was wrong and should not be followed.** See
+> "The client-ID remedy was backwards" immediately below.
+
+### The install numbering restarted, and users restarted with it
+
+Reported by users. The prerequisites were an unnumbered bullet list, and the install that followed began
+at "Step 1". Anyone who completed the prerequisites and then met a fresh Step 1 reasonably concluded they
+were at the beginning, and worked through the run-location and connector steps a second time.
+
+Installation is now **one continuous sequence of eight numbered steps** — Steps 1–3 prerequisites, Steps
+4–8 install — with an explicit "carry on at Step 4, do not go back to Step 1" and a step index table at
+the top. The section headings now lead with their step range rather than with the words "Prerequisites"
+and "Install", because the old heading tree read as Install ▸ Prerequisites ▸ Install and invited exactly
+the same restart at a different place. Steps 1–3 were also rewritten from noun phrases into imperatives so
+they read as part of the same sequence, and the nested "1. 2. 3." list inside Step 2 became lettered
+conditions (a)/(b)/(c) so that no numbered list restarts anywhere inside a numbered sequence.
+
+### There is no package file, and the README said there was
+
+Reported by users. Step 3 led with "**Recommended:** upload the package … `revizto-project-intelligence-v1.0.2.plugin`",
+and the org-rollout section offered "upload the plugin ZIP". **No such file is distributed.** The plugin
+has only ever been installed by pointing Claude at this GitHub repository as a marketplace; the file-upload
+route was written when one was contemplated and never removed. Readers went looking for a download that
+does not exist.
+
+The marketplace route is now the only documented path, promoted from "Alternative" to Step 6, and every
+reference to a ZIP or `.plugin` file is gone except one troubleshooting row that exists to say there isn't
+one.
+
+Correcting this exposed a second, worse error in the same section: the README claimed the repository is
+private and that you need repo access to install ("ask Revizto for repository access"). **The repository is
+public** — deliberately, because Cowork's marketplace sync is anonymous and server-side, which is what lets
+the per-user install work with no GitHub account at all. The false claim sat directly on the only install
+route and its failure path terminated in an instruction with no contact address. Corrected, along with the
+org-rollout section, which recommended the opposite of the truth.
+
+### The client-ID remedy was backwards
+
+Not user-reported — found by reconciling the shipped docs against a verification run on 30 July 2026.
+
+1.0.2 told every customer to remove and re-add each Revizto MCP connector. Re-adding mints a **new
+connector id**, and a deployed Blueprint's tool allowlist is bound to the old one — so following the
+instruction breaks a working installation, producing the "tools aren't authorised" failure it appears to
+fix. The verification found connector ids **unchanged** by the client-ID rotation and all three production
+connections still authenticating; only a private stage connector had dropped, for unrelated reasons.
+
+What the client-ID change actually resets is **per-account OAuth authorisation**. The remedy is to
+re-authorise each Revizto organisation account (Revizto Workspace → your profile → **Active sessions →
+API**), and to re-add a connector *only* when Claude reports it as disconnected or the Blueprint lists it
+as "No longer registered". Corrected in the README (the Step 5 callout and two troubleshooting rows), in
+`SKILL.md`, and by this note against the 1.0.2 entry.
+
+### Also in this release
+
+- **Step 2 no longer asks for something you cannot check.** It previously said "confirm all three before
+  starting" while also saying the Blueprint verifies them for you — and condition (c) does not exist until
+  Step 5. It is now framed as the one question you *can* answer in advance ("do I administer at least one
+  Revizto licence?"), with the verification left where it actually happens.
+- **"Needs no Claude admin" is qualified.** True of Steps 4–8; not true of the Team/Enterprise network
+  allowlist or of an organisation-managed connector. Stated plainly instead of in a parenthetical that
+  scoped the exception too narrowly.
+- **Step 3 now names the domains to allowlist** (`api.<region>.revizto.com` + `cdn.jsdelivr.net`) instead
+  of referring to a region list that appeared two steps later, so the request can go to an admin at the
+  point the reader is told to raise it.
+- **Starting a Cowork session is stated.** Step 4 now says to open a Cowork task and that it is the same
+  session used for the confirmation prompts in Steps 5 and 7 — previously assumed.
+- **Cross-references corrected.** The Step 5 callout described itself as "the first two conditions from
+  Step 2" when it covers the first and third; `CONNECTORS.md` pointed at "Install Step 1" and at a heading
+  that no longer exists; `Settings → Connectors` in `CONNECTORS.md` disagreed with `Customize → Connectors`
+  in the README and `SKILL.md`. Verify is now headed "After Step 8" rather than floating unnumbered.
+- **What re-running the install costs you is stated** (Terms acceptance and saved selections reset,
+  nothing in Revizto touched), and there is a row for adding a second region after install.
+- **The Terms are linked** from Step 8 and the trust section — previously the reader was told to accept
+  Terms they had no way to read first.
+- **The README's licence line no longer contradicts `LICENSE.md`.** It read "All rights reserved" while
+  `LICENSE.md` is the MIT Licence and `plugin.json` declares `"license": "MIT"` — three statements, two
+  positions. It now points at `LICENSE.md` as the authority without restating it, so it stays correct
+  under any future licence change. `LICENSE.md` itself is unchanged by this release. A gate check now
+  asserts the three declarations agree, and will flag a licence swap that updates `LICENSE.md` but leaves
+  the machine-readable field on MIT.
+- **`readOnly: false` explained.** In the config table it read as a contradiction of the product's
+  read-only claim; it governs whether the toggle works, not whether writes are on.
+- **`TEST-rc3-first-user.md` removed from the repository.** It was internal release-test material that
+  shipped by accident and carried a second, conflicting install sequence with its own numbering — a
+  documentation defect of precisely the kind this release fixes.
+- **The plugin's Directory blurb no longer says "read-only".** `plugin.json` and `marketplace.json` both
+  described the product as *"Live, read-only project intelligence"* — the first thing a user reads at
+  Step 6, and a contradiction of the opening line of this README since writes shipped.
+- **Support has an address.** Dead ends previously ended in "ask Revizto" with nothing to act on;
+  `support@revizto.com` is now given at each of them. (GitHub issue creation is restricted on this
+  repository, so it is not a support route.)
+- **A documentation gate now runs with the code gates** in the internal QA suite: step numbering continuous
+  and non-repeating, every "Step N" cross-reference resolving, no package-file route, no blanket re-add
+  instruction, the corrective guidance present, versions consistent across five places, and the README's
+  build stamp matching the artifact's. Each check carries a mutation that reintroduces the real defect and
+  is proven to turn that check red.
+
+### One defect this release caused, and caught
+
+The documentation gate above initially banned the string `upload the plugin` outright, to kill the false
+download route. That substring also appears in `upload the plugin ZIP` — the **real** route by which a
+Team/Enterprise Owner publishes this plugin to an organisation marketplace, which is indifferent to
+repository visibility. The gate forced that paragraph's deletion and then reported green, and the
+org-rollout section was rewritten to declare a supported capability "currently unsupported". An
+independent review caught it before release. The route is restored, the check is now scoped to the
+customer install path only, and a second check asserts the org upload route is present so the same
+deletion cannot recur silently. Recorded here because a gate that turns a correct document into an
+incorrect one while showing green is the failure mode these gates exist to prevent.
+
+### Known open items opened by this release
+
+- Organisation-wide rollout works only by **manual ZIP upload** to an org marketplace: org
+  *GitHub-synced* marketplaces require a private repository, and this one is public so that the per-user
+  install needs no GitHub account. An uploaded copy does not auto-update.
+- "Active sessions → API" is the most common fix in the document and the hardest to follow, because the
+  Revizto screen is named for sessions rather than authorisation. Needs a walkthrough in Revizto's help.
+- Step numbers quoted in the historical entries below refer to the numbering in force at the time and no
+  longer map to the current README.
+
 ## 1.0.2 — 2026-07-30 (OAuth client ID change; build `2026-07-30.2`)
 
+> **⚠️ Superseded by 1.0.3 — do not remove and re-add your connectors.** Removing and re-adding a
+> working connector mints a new connector id and breaks the deployed Blueprint's tool allowlist. The
+> correct remedy is to re-authorise the affected Revizto organisation account. See the 1.0.3 entry above.
+>
+> **The correction covers the whole entry**, not just the "Action required" box: the opening paragraph's
+> "must be re-added" is wrong for the same reason. Everything else here — the two-cause analysis of
+> `OAuth2 application is not authorized`, the licence-picker wording, and the install-documentation
+> fixes — stands.
+
 Revizto changed the OAuth client ID for the MCP server to `revizto-mcp`. Connectors created with the
-previous client ID stop authorising and must be re-added. This release makes the consequences of that
+previous client ID stop authorising and must be re-added **[corrected in 1.0.3 — connector ids were
+unchanged; what needs re-authorising is the account, not the connector]**. This release makes the consequences of that
 change legible instead of mysterious, and corrects install documentation that was wrong in ways that
 blocked first-time users.
 
-> **Action required.** Re-add each Revizto MCP connector using client ID `revizto-mcp` with the client
+> **Action required — [corrected in 1.0.3: do NOT do this — re-authorise the account instead].** ~~Re-add
+> each Revizto MCP connector~~ using client ID `revizto-mcp` with the client
 > secret left blank, then **re-run the `project-intelligence-dashboard` skill**. Re-adding a connector mints
 > a new connector id, and an already-deployed Blueprint's tool authorisations are bound to the old one.
 

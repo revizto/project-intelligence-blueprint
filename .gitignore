@@ -5,3 +5,6 @@
 
 # internal build tooling — must never ship in the customer repo (leaks canonical paths)
 derive-release.py
+
+# internal release-test material — must not ship in the customer repo (carries a second, conflicting install sequence)
+TEST-rc3-first-user.md
