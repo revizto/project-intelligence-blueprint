@@ -4,14 +4,21 @@ Live project intelligence over the **Revizto MCP Server**, delivered as a Claude
 
 It follows one explicit path: **MCP Server → Licence → Project.** Each Revizto MCP server you connect is its own connection, listed by the name you gave it in Claude. You choose which server the Blueprint reads from, and every licence and project you see comes from that one server — nothing is merged across servers and nothing is guessed on your behalf. Servers that are connected but unusable are shown greyed with the reason stated. Headline totals are exact (count-first, from Revizto's own counts); detailed panels are drawn from a labelled "N of M" sample. Nothing is cached or hardcoded — every figure is re-derived live on load and on every Refresh.
 
-**Status:** `v1.0.3` (Blueprint build `2026-07-30.2`). A documentation release. The Blueprint itself is unchanged from 1.0.2; what changed is the instructions. Three corrections: installation is now a single continuous eight-step sequence, the plugin is installed by pointing Claude at this GitHub repository (there is no package file), and the OAuth client-ID guidance is corrected from *re-add your connector* to *re-authorise your account*. Full version history in [CHANGELOG.md](CHANGELOG.md).
+**Status:** `v1.1.0` (Blueprint build `2026-07-30.2`). **This release changes the licence.** The repository is now published under the **Revizto Custom Licence** ([LICENSE.md](LICENSE.md)), replacing the MIT Licence — read [Licence](#licence) before you take a copy. No code changed: the Blueprint is unchanged from 1.0.2, and the rest of 1.1.0 and all of 1.0.3 is documentation. The 1.0.3 corrections: installation is now a single continuous eight-step sequence, the plugin is installed by pointing Claude at this GitHub repository (there is no package file), and the OAuth client-ID guidance is corrected from *re-add your connector* to *re-authorise your account*. Full version history in [CHANGELOG.md](CHANGELOG.md).
 
-> ### Upgrading from 1.0.2? Nothing to redeploy.
+> ### ⚠️ Read this before you re-sync — 1.1.0 changes the licence
 >
-> 1.0.3 changes documentation only. The Blueprint you are running is already current (build
-> `2026-07-30.2`). Press **Sync** on the marketplace entry and install again to pick up the new docs —
-> you do **not** need to re-run the install skill, and re-running it would cost you your Terms acceptance
-> and saved selections for no gain.
+> The repository moves from the MIT Licence to the **Revizto Custom Licence**
+> ([LICENSE.md](LICENSE.md)). No code changed with it, but **pressing Sync takes a fresh copy under the
+> new terms**, so this is not routine housekeeping — read them first and decide.
+>
+> Rights granted under MIT for copies obtained under it are not withdrawn by this change; it governs what
+> you take from 1.1.0 onward. Every release before 1.1.0 carries MIT.
+>
+> Nothing needs redeploying for technical reasons. The Blueprint artifact is unchanged (build
+> `2026-07-30.2`), your Terms acceptance still stands, and re-running the install skill would cost you
+> that acceptance and your saved selections for no gain. If you do choose to take 1.1.0, **Sync** on the
+> marketplace entry and install again is all that is needed.
 >
 > **Coming from 1.0.0 or 1.0.1?** You do need to re-run the `project-intelligence-dashboard` skill
 > (Step 8). Updating the plugin never rewrites a Blueprint you have already deployed, so until you re-run
@@ -201,7 +208,7 @@ revizto/project-intelligence-blueprint
 → turn **"Sync automatically" OFF** → **Sync** → install **revizto-project-intelligence**.
 
 Installing from the **Personal** tab installs it for you alone and needs no Claude admin. The install
-detail should list **3 skills**, and the version should read **1.0.3**.
+detail should list **3 skills**, and the version should read **1.1.0**.
 
 **"Sync automatically" must be off.** Turning it on requires the Claude GitHub App to be installed on the
 repository and will fail with `github_repo_not_accessible` — which reads like a permissions problem and
@@ -234,7 +241,7 @@ In your Cowork task (running **on your computer**, plugin installed, skill enabl
 
 > Open the Revizto Project Intelligence Blueprint — follow the `project-intelligence-dashboard` skill.
 
-It copies the bundled dashboard verbatim, calls your Revizto read tools, and registers the artifact with those tools authorised. Then: accept the **Terms** ([TERMS.md](TERMS.md) — name + tick + Agree), choose your **MCP Server**, and pick your **Licence**.
+It copies the bundled dashboard verbatim, calls your Revizto read tools, and registers the artifact with those tools authorised. Then: accept the **Terms** ([LICENSE.md](LICENSE.md) — name + tick + Agree), choose your **MCP Server**, and pick your **Licence**.
 
 If Claude instead starts *designing* a dashboard, the skill is not loaded — go back to Step 7. If the
 skill **is** switched on and Claude still designs rather than copies a file, don't just repeat Step 7:
@@ -323,7 +330,7 @@ work — see "two gates" above.
 | `connectors` | `[]` (skill fills it) | one entry per connected region: `{prefix, env, wsHost, missing}`. |
 | `readOnly` | `false` | **not** "writes are on by default". The Blueprint always *opens* read-only and re-asserts it whenever the artifact is reopened; this constant governs whether the user is allowed to toggle that off. `false` = the toggle works. Set `true` to hard-lock read-only and disable the 06 write surface entirely. |
 | `tcsVersion` | `"1.1"` | Terms version (`1.1` published the canonical Terms link). Bumping it re-prompts acceptance on every connection. |
-| `buildStamp` | `"2026-07-30.2"` | shown in About / Terms footer for support. Unchanged in 1.0.3 — that release altered documentation only. |
+| `buildStamp` | `"2026-07-30.2"` | shown in About / Terms footer for support. Unchanged since 1.0.2 — neither 1.0.3 nor 1.1.0 altered the artifact. |
 
 What the skill writes for a single region:
 ```js
@@ -367,7 +374,7 @@ See Anthropic's [Manage plugins for your organization](https://support.claude.co
 - **Live, never cached** — cache-busted reads, per-call timeouts, honest failure states, full reset on every licence/project/connection switch; sequence-guarded loaders.
 - **Read-only by default; writes behind an explicit toggle + a full approval gate.** Opens read-only every session and re-asserts on re-show. Turning the pill off enables 06 Action; every write then runs count-first targeting → diff + sample preview → name + reason approval → audit note → reversible; staged jobs are connection-stamped. The artifact allowlist declares the nine read tools **plus `update_issues`** (never invoked except by a user-approved action). To ship a hard read-only build: `readOnly:true` + omit `update_issues` at install.
 - **Your session, your permissions** — all calls run through your own authenticated MCP session; `whoami` is never declared.
-- **Consent precedes access** — no live data until the [Terms](TERMS.md) are accepted (recorded on-device, per connection).
+- **Consent precedes access** — no live data until the [Terms](LICENSE.md) are accepted (recorded on-device, per connection).
 - **AI answers (05 Ask)** send only the derived figures needed; project data isn't stored server-side.
 
 Tool allowlist (per connector prefix): `list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates, list_license_members, list_project_members, list_workflows, list_issues` + `update_issues` (approved writes only).
@@ -389,7 +396,8 @@ skills/
   project-intelligence-dashboard/  install action + the dashboard artifact (assets/dashboard.html)
   skill-aeco-innovation-revizto/       Revizto platform knowledge (curated)
   skill-aeco-innovation-revizto-api/   Revizto API / MCP / integration patterns (curated)
-README.md · CONNECTORS.md · SKILLS-MANIFEST.md · CHANGELOG.md · TERMS.md · LICENSE.md
+README.md · CONNECTORS.md · SKILLS-MANIFEST.md · CHANGELOG.md
+LICENSE.md                         the Revizto Custom Licence — also the in-app Terms text
 ```
 
 ## Known open items
@@ -409,5 +417,18 @@ README.md · CONNECTORS.md · SKILLS-MANIFEST.md · CHANGELOG.md · TERMS.md · 
 
 ## Licence
 
-Copyright © 2026 Revizto SA. Licensed under the terms set out in [LICENSE.md](LICENSE.md), which is the
-authority — this line deliberately does not restate them.
+**The Revizto Custom Licence — [LICENSE.md](LICENSE.md).** That file is the single governing document and
+the authority; this line deliberately does not restate it. In short, and without qualifying it: the
+Blueprint is an experimental demonstration made available for your own internal evaluation and
+experimentation, not for production, commercial or third-party-facing use, and not to be redistributed.
+
+**This replaced the MIT Licence at version 1.1.0.** Every release before 1.1.0 carries the MIT Licence,
+and that grant stands for copies obtained under it — the change applies going forward and does not reach
+back and withdraw rights already granted for earlier copies, including existing clones and forks. The
+Terms previously published separately as `TERMS.md` are now this file; there is one licence document, not
+two.
+
+Note that the published tags `v1.0.0`, `v1.0.1` and `v1.0.2` remain exactly as released: MIT-licensed, and
+still carrying both `LICENSE.md` and `TERMS.md`. They are not being rewritten.
+
+Copyright © 2026 Revizto SA.

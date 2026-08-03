@@ -1,6 +1,59 @@
 # Changelog
 
-## 1.0.3 — 2026-08-01 (documentation; Blueprint unchanged at build `2026-07-30.2`)
+## 1.1.0 — 2026-08-03 (licence change: MIT → Revizto Custom Licence; Blueprint unchanged at build `2026-07-30.2`)
+
+**This repository is no longer published under the MIT Licence.** It is now published under the
+**Revizto Custom Licence**, which is [LICENSE.md](LICENSE.md). No code changed in this release.
+
+The minor version is bumped rather than the patch because this changes the terms on which you hold the
+software, which is the most consequential thing we can change without touching a line of it. Every
+release before 1.1.0 carries MIT.
+
+### What changed
+
+- **`LICENSE.md` is now the Revizto Custom Licence.** It previously contained the MIT Licence, which
+  granted rights to *"use, copy, modify, merge, publish, distribute, sublicense, and/or sell"*. The
+  Blueprint is an experimental demonstration and was never intended to be distributed or sublicensed on
+  those terms.
+- **`TERMS.md` has been retired, and its text is now `LICENSE.md`.** The repository was carrying two
+  documents that granted contradictory rights: MIT in `LICENSE.md`, and in `TERMS.md` a limited,
+  non-transferable, non-sublicensable, revocable licence for internal evaluation only (§5) with an
+  express prohibition on sublicensing, distributing or reselling (§18). One document now governs.
+- **The legal text is unchanged.** The body of `LICENSE.md` from §1 onward is byte-identical to the
+  retired `TERMS.md` (sha256 `02f2c278…`), verified by checksum rather than by inspection. The only
+  additions are the title line and a note recording that this file replaces the MIT Licence and that
+  `TERMS.md` has been retired.
+- **`plugin.json`** declares `"license": "SEE LICENSE IN LICENSE.md"` (was `"MIT"`).
+- **README** carries a Licence section naming the Revizto Custom Licence, and the two links that pointed
+  at `TERMS.md` now point at `LICENSE.md`.
+
+### What this does not do
+
+The MIT grant already made for releases up to and including `v1.0.3` **stands for copies obtained under
+it**. A licence change applies to what you take from `v1.1.0` onward; it does not reach back and withdraw
+rights already granted for earlier copies, including existing clones and forks. The README states this
+plainly rather than implying otherwise.
+
+### Unchanged
+
+The Blueprint artifact is byte-identical (build `2026-07-30.2`) and `tcsVersion` stays `1.1`, so the
+in-app Terms text and every user's recorded acceptance are unaffected — **nobody needs to redeploy or
+re-accept anything.** The artifact never linked to `TERMS.md` as a file; it carries the Terms inline and
+links out only to the Revizto MCP Server terms at `revizto.com/legal/revizto-mcp-server`, which is
+untouched.
+
+### What the already-published tags still contain
+
+`v1.0.0`, `v1.0.1` and `v1.0.2` are published and are not being rewritten. Each of them still ships the
+MIT `LICENSE.md` **and** `TERMS.md` — the two-document contradiction this release fixes remains visible at
+those tags, by design, because retagging a published release to change its licence would be worse than
+leaving an accurate historical record. Anyone reading the repository at a tag earlier than 1.1.0 is
+reading an MIT-licensed release.
+
+The documentation gate gained four checks for the single-document model: `LICENSE.md` must not be MIT,
+`plugin.json` must not declare MIT, `TERMS.md` must not be tracked by git, and nothing may link to it.
+
+## 1.0.3 — 2026-08-03 (documentation; Blueprint unchanged at build `2026-07-30.2`)
 
 A documentation-only release. No change to the Blueprint, the plugin's skills logic, or the tool
 allowlist — so there is nothing to redeploy if you are already on 1.0.2. Three defects, all of them the

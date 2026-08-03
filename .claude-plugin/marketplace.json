@@ -11,7 +11,7 @@
       "name": "revizto-project-intelligence",
       "source": "./",
       "description": "Live project intelligence over the Revizto MCP Server — a six-view Cowork dashboard plus the curated Revizto platform skills. Opens read-only every session, with a user-controlled toggle for approved writes. Discovers the installing user's own licences and projects at runtime; headline totals are exact, sampled detail is always labelled.",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "author": {
         "name": "Revizto"
       },
