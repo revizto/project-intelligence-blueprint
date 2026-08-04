@@ -42,13 +42,19 @@ re-accept anything.** The artifact never linked to `TERMS.md` as a file; it carr
 links out only to the Revizto MCP Server terms at `revizto.com/legal/revizto-mcp-server`, which is
 untouched.
 
-### What the already-published tags still contain
+### Repository history consolidated, and what the earlier tags contain
 
-`v1.0.0`, `v1.0.1` and `v1.0.2` are published and are not being rewritten. Each of them still ships the
-MIT `LICENSE.md` **and** `TERMS.md` — the two-document contradiction this release fixes remains visible at
-those tags, by design, because retagging a published release to change its licence would be worse than
-leaving an accurate historical record. Anyone reading the repository at a tag earlier than 1.1.0 is
-reading an MIT-licensed release.
+Separately from the licence change, and before it, the repository history was consolidated: the release
+history was squashed from 63 commits to 4 and `main` was force-updated. That was a deliberate housekeeping
+change to remove redundant development history from the public repository — no file content changed, and
+the pre-consolidation history is archived offline rather than published. If you cloned this repository
+before 5 August 2026, your local history has diverged from `main`; re-clone rather than pull.
+
+`v1.0.0`, `v1.0.1` and `v1.0.2` were re-pointed onto the consolidated history at the same time. **The
+files at those tags are unchanged** — each still ships the MIT `LICENSE.md` **and** `TERMS.md`, so the
+two-document contradiction this release fixes remains visible there, which is an accurate record of what
+was published. Anyone reading the repository at a tag earlier than 1.1.0 is reading an MIT-licensed
+release. Only the commit each tag names moved; the trees are identical.
 
 The documentation gate gained four checks for the single-document model: `LICENSE.md` must not be MIT,
 `plugin.json` must not declare MIT, `TERMS.md` must not be tracked by git, and nothing may link to it.

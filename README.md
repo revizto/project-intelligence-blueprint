@@ -428,7 +428,9 @@ back and withdraw rights already granted for earlier copies, including existing 
 Terms previously published separately as `TERMS.md` are now this file; there is one licence document, not
 two.
 
-Note that the published tags `v1.0.0`, `v1.0.1` and `v1.0.2` remain exactly as released: MIT-licensed, and
-still carrying both `LICENSE.md` and `TERMS.md`. They are not being rewritten.
+The releases `v1.0.0`, `v1.0.1` and `v1.0.2` remain MIT-licensed and still carry both `LICENSE.md` and
+`TERMS.md` — check out any of those tags and you get exactly the files that were published under MIT. The
+*commit* each tag names was re-pointed on 2026-08-05 when the repository history was consolidated (see
+[CHANGELOG.md](CHANGELOG.md)); the files at those tags are unchanged.
 
 Copyright © 2026 Revizto SA.
