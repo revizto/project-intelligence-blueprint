@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.1.0"
+  version: "1.0.3"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -18,7 +18,7 @@ Deploy the **pre-built** Revizto Project Intelligence Blueprint as a live Cowork
 ## 🚫 CRITICAL — deploy the bundled file verbatim. Do NOT build a dashboard.
 
 The Blueprint is a **finished, approved artifact**: a single self-contained HTML file
-(`assets/dashboard.html`, ≈ 968 KB, ≈ 5,000 lines) that ships inside this plugin. Your entire
+(`assets/dashboard.html`, ≈ 987 KB, ≈ 5,300 lines) that ships inside this plugin. Your entire
 job is to **copy that exact file** and **insert the user's connector prefix into one line**, then
 register it as an artifact.
 
@@ -66,22 +66,17 @@ a connection error, so mention them if licences come back blocked:
   the authentication method used at the time; the rest are authorised from Revizto Workspace → profile →
   **Active sessions → API**.
 
-If the user had a connector before 30 July 2026, the OAuth client ID has since changed to `revizto-mcp`.
-What it invalidated is the **per-account authorisation**, not the connector itself — connector ids survived
-the change and existing connections were verified still authenticating on 30 July 2026. So the remedy is
-to re-authorise each Revizto organisation account (Revizto Workspace → profile → **Active sessions →
-API**), then Re-check. **Do not tell the user to remove and re-add a connector that is still connected:**
-re-adding mints a **new connector id**, which orphans a deployed Blueprint's tool allowlist and causes the
-very failure it appears to fix. Only a connector Claude reports as disconnected, or that the Blueprint
-lists as "No longer registered", should be re-added — and after that it does need this skill re-run, so
-the new id is authorised for the artifact.
+If the user had a connector before 30 July 2026, it was created with the previous OAuth client ID and no
+longer authorises — it must be removed and re-added with `revizto-mcp`. Re-adding mints a **new connector
+id**, so a previously-deployed Blueprint's allowlist is bound to an id that no longer exists. That is
+precisely why this skill is being re-run; do not assume the old artifact can be repaired in place.
 
 **2 — Copy the bundled dashboard verbatim into your scratch workspace.** Do not open it to reproduce
 it — just copy it:
 
 ```bash
 cp "$CLAUDE_PLUGIN_ROOT/skills/project-intelligence-dashboard/assets/dashboard.html" ./pi-blueprint.html
-wc -c ./pi-blueprint.html   # sanity check: expect ~968000 bytes. If it's a few KB, you have the wrong file — do not proceed.
+wc -c ./pi-blueprint.html   # sanity check: expect ~987000 bytes. If it's a few KB, you have the wrong file — do not proceed.
 ```
 
 (If `$CLAUDE_PLUGIN_ROOT` isn't set in this environment, locate the plugin's
@@ -96,7 +91,7 @@ of the copied file the connector array ships empty:
 ```js
 const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection ... */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-18.1"};
 ```
 
 Read the installer's actual Revizto MCP tool prefix from the connected tool names in this session —
@@ -106,7 +101,7 @@ the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licen
 ```js
 const CONFIG={connectors:[
   {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-18.1"};
 ```
 
 Use a single targeted find-and-replace on that one region. **Do not touch anything else in the file** —
@@ -114,53 +109,60 @@ no reformatting, no other edits. Read the real prefix; never guess it. (If you g
 a prefix, you may leave `connectors:[]` and deploy anyway — the Blueprint will show the connect CTA —
 but it won't load live data, so prefer inserting the prefix.)
 
-**4 — Call the nine read tools once in this session (mandatory — this is what makes the allowlist bind).**
+**4 — Call the ten read tools once in this session (mandatory — this is what makes the allowlist bind).**
 `create_artifact` will only put a tool on the artifact's `mcp_tools` allowlist if you **actually called
 that tool in this session** — declaring a tool you never called does nothing, and the dashboard then
 shows "The Blueprint's tools aren't authorised for this artifact yet." So, for **each** connected
-connector prefix, call each of the nine read tools at least once before creating the artifact:
+connector prefix, call each of the ten read tools at least once before creating the artifact:
 
-1. `mcp__<prefix>__list_licenses` → confirm your licence is returned (this also proves the licence is
-   MCP-accessible). Take a `licenseId` from the result.
-2. `mcp__<prefix>__list_license_members` (with that `licenseId`), `mcp__<prefix>__list_projects` (with
-   that `licenseId`) → take a `projectId` from the result.
-3. With that `projectId`, call `list_project_members`, `list_workflows`, `list_issues`,
+> **`list_accounts` is new in 1.0.3 and it is not optional.** `list_licenses` now requires an
+> `accountUuid` on every Revizto region, so the Blueprint discovers licences by calling `list_accounts`
+> first and then one scoped `list_licenses` per available account. If `list_accounts` is missing from the
+> allowlist the Blueprint finds **no licences at all** and every server reports as unauthorised. A 1.0.2
+> install skill will produce exactly that failure against a 1.0.3 build.
+
+1. `mcp__<prefix>__list_accounts` → the entry point. Take the `uuid` of an account whose `mcpStatus`
+   is `"available"`.
+2. `mcp__<prefix>__list_licenses` with that `accountUuid` → confirm a licence is returned. Take a
+   `licenseUuid` from the result.
+3. `mcp__<prefix>__list_license_members` and `mcp__<prefix>__list_projects` (both with that
+   `licenseUuid`) → take a `projectUuid` from the result.
+4. With that `projectUuid`, call `list_project_members`, `list_workflows`, `list_issues`,
    `list_sheets`, `list_clash_tests`, `list_stamp_templates`.
 
 If any call returns empty or errors for lack of data, that's fine — it still counts as "called this
-session," which is all the allowlist binding needs. The goal is simply that every one of the nine tools
+session," which is all the allowlist binding needs. The goal is simply that every one of the ten tools
 has been invoked once so it can be declared. (Repeat per connector prefix if the user has more than one region.)
 
 **5 — Register the artifact from the copied file.** Call `create_artifact` with:
 
 - `id`: **`revizto-project-intelligence-blueprint`** (reuse this exact id; never invent a new one).
 - `html_path`: the path to your copied `./pi-blueprint.html` (the file from steps 2–3 — **not** any newly authored file).
-- `mcp_tools`: **REQUIRED — this is the whole point of the install.** List all nine read tools below,
+- `mcp_tools`: **REQUIRED — this is the whole point of the install.** List all ten read tools below,
   each fully-qualified with the connector's `mcp__<connector-id>__` prefix (and repeat the set for every
   connected prefix). If you omit `mcp_tools` or pass an empty list, the artifact's allowlist stays empty
   and the dashboard can never read live data — it will show "tools aren't authorised for this artifact."
   **Also include `update_issues`** (per connector prefix) — this build ships `readOnly:false`, so the
   Read-only pill is a live per-session toggle and, when a user switches it off, the count-first +
   name/reason approval pipeline can execute real writes; `update_issues` must be on the allowlist for those
-  approved writes to go through. So declare **ten** tools per prefix: the nine reads **+ `update_issues`**.
+  approved writes to go through. So declare **eleven** tools per prefix: the ten reads **+ `update_issues`**.
   Do **not** include `whoami` ("me/my" in 06 resolves to an explicitly chosen user).
 
-  > **Never call `update_issues` during install.** It is a write. In step 4 you call only the nine *read*
+  > **Never call `update_issues` during install.** It is a write. In step 4 you call only the ten *read*
   > tools; you *declare* `update_issues` here without ever invoking it. A real write only ever happens later,
   > when a user toggles read-only off and approves it through the 06 gate.
 
 **6 — Verify you deployed the real thing AND the tools bound (mandatory).**
 
-- Content: the deployed HTML is ≈ 968 KB / ≈ 5,000 lines (a dashboard you "built" will be far smaller)
-  and contains `buildStamp:"2026-07-30.2"` and the six-view chrome (panel ids incl. `panel-issues`,
+- Content: the deployed HTML is ≈ 987 KB / ≈ 5,300 lines (a dashboard you "built" will be far smaller)
+  and contains `buildStamp:"2026-08-18.1"` and the six-view chrome (panel ids incl. `panel-issues`,
   `panel-health`, `panel-compare`, `panel-ask`). If size/markers are off, you regenerated it — discard
   and redo from step 2 by copying the file.
 - Tools: after the artifact opens, it must reach the Terms gate → licence picker, **not** the
   "tools aren't authorised for this artifact yet" panel. If it shows that panel, the `mcp_tools` did not
-  bind — confirm you (a) *called* each of the nine read tools in step 4 and (b) *declared* all **ten**
-  in step 5 (the nine reads + `update_issues`), then re-create. If it still fails after both, the
-  artifact-creation path on this build is not binding the allowlist — report that to
-  **support@revizto.com** (capture the desktop version).
+  bind — confirm you (a) *called* each of the ten read tools in step 4 and (b) *declared* all eleven (the ten reads + `update_issues`) in step 5,
+  then re-create. If it still fails after both, the artifact-creation path on this build is not binding
+  the allowlist — report that to Revizto (capture the desktop version).
 
 **7 — Hand off to the user.** Tell them the Blueprint is open; on first live load it shows the Terms
 gate (accept to proceed), then a licence picker; it lands on their most-recently-active project. Point
@@ -168,8 +170,10 @@ them at the in-product **About · Terms · Tour**.
 
 ## Read tools to declare (per connected connector prefix)
 
-list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates,
+list_accounts, list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates,
 list_license_members, list_project_members, list_workflows, list_issues.
+
+`list_accounts` leads the list because licence discovery starts there — see the note in step 4.
 
 Plus **`update_issues`** (the 06 Action write tool) — declared so approved writes can execute when the user
 toggles read-only off. This build ships `readOnly:false` (the pill is a live per-session toggle; the
