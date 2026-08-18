@@ -4,10 +4,4 @@
 .mcp.json
 
 # internal build tooling — must never ship in the customer repo (leaks canonical paths)
-derive-release.py
-
-# internal release-test material — must not ship in the customer repo (carries a second, conflicting install sequence)
-TEST-rc3-first-user.md
-
-# retired at 1.1.0 — its text is now LICENSE.md; must never return as a second licence document
-TERMS.md
+derive_release.py

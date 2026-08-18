@@ -1,209 +1,70 @@
 # Changelog
 
-## 1.1.0 — 2026-08-03 (licence change: MIT → Revizto Custom Licence; Blueprint unchanged at build `2026-07-30.2`)
+## 1.0.3 — 2026-08-18 (accountUuid; no synthetic data; writes on every server; build `2026-08-18.1`)
 
-**This repository is no longer published under the MIT Licence.** It is now published under the
-**Revizto Custom Licence**, which is [LICENSE.md](LICENSE.md). No code changed in this release.
+Revizto made `accountUuid` a required parameter on `list_licenses` across every region. This release
+adapts licence discovery to that, removes the last of the build's synthetic data, and makes the write
+surface available on every connected server rather than some of them.
 
-The minor version is bumped rather than the patch because this changes the terms on which you hold the
-software, which is the most consequential thing we can change without touching a line of it. Every
-release before 1.1.0 carries MIT.
+> **Action required.** Re-run the `project-intelligence-dashboard` skill. This release adds two tool
+> authorisations per server — `list_accounts`, without which no licence can be discovered at all, and
+> `update_issues` for the write surface — so an artifact deployed by 1.0.2 cannot serve this build.
 
-### What changed
+### Licence discovery is account-scoped, and that is now the only path
 
-- **`LICENSE.md` is now the Revizto Custom Licence.** It previously contained the MIT Licence, which
-  granted rights to *"use, copy, modify, merge, publish, distribute, sublicense, and/or sell"*. The
-  Blueprint is an experimental demonstration and was never intended to be distributed or sublicensed on
-  those terms.
-- **`TERMS.md` has been retired, and its text is now `LICENSE.md`.** The repository was carrying two
-  documents that granted contradictory rights: MIT in `LICENSE.md`, and in `TERMS.md` a limited,
-  non-transferable, non-sublicensable, revocable licence for internal evaluation only (§5) with an
-  express prohibition on sublicensing, distributing or reselling (§18). One document now governs.
-- **The legal text is unchanged.** The body of `LICENSE.md` from §1 onward is byte-identical to the
-  retired `TERMS.md` (sha256 `02f2c278…`), verified by checksum rather than by inspection. The only
-  additions are the title line and a note recording that this file replaces the MIT Licence and that
-  `TERMS.md` has been retired.
-- **`plugin.json`** declares `"license": "SEE LICENSE IN LICENSE.md"` (was `"MIT"`).
-- **README** carries a Licence section naming the Revizto Custom Licence, and the two links that pointed
-  at `TERMS.md` now point at `LICENSE.md`.
+- **`accountUuid` is required on `list_licenses` on every region.** Verified against all connected
+  regions on 2026-08-18. Discovery now calls `list_accounts`, keeps the accounts the MCP can serve, and
+  issues one scoped `list_licenses` per account at concurrency 4, merged and deduplicated.
+- **The bare-probe fallback is gone.** 1.0.2 probed without `accountUuid` first and fell back to scoping
+  on rejection, caching the winning mode per connector. With the parameter required everywhere that first
+  call could only ever fail — one wasted round trip per server per session, feeding the rate limiter.
+- **A parameter rejection still names the parameter.** The branch that reports a server-build mismatch is
+  retained, so an older on-prem build is reported accurately instead of being called unreachable.
 
-### What this does not do
+### Accounts the MCP cannot use are now disclosed
 
-The MIT grant already made for releases up to and including `v1.0.3` **stands for copies obtained under
-it**. A licence change applies to what you take from `v1.1.0` onward; it does not reach back and withdraw
-rights already granted for earlier copies, including existing clones and forks. The README states this
-plainly rather than implying otherwise.
+- **Gated accounts were counted and discarded.** On an estate where 14 of 23 accounts are not enabled for
+  MCP, the licence list simply came back short with nothing said. Both halves are now listed against
+  their server: accounts that are not available, and accounts that accepted the request and then refused
+  the read. Revizto's own explanation is quoted verbatim against each.
+- The detail sits behind a collapsed summary line, so the picker stays a picker. The server list scrolls
+  rather than growing past the bottom of the panel.
 
-### Unchanged
+### No synthetic data remains in the build
 
-The Blueprint artifact is byte-identical (build `2026-07-30.2`) and `tcsVersion` stays `1.1`, so the
-in-app Terms text and every user's recorded acceptance are unaffected — **nobody needs to redeploy or
-re-accept anything.** The artifact never linked to `TERMS.md` as a file; it carries the Terms inline and
-links out only to the Revizto MCP Server terms at `revizto.com/legal/revizto-mcp-server`, which is
-untouched.
+- **Earlier builds shipped a fabricated project** — as the initial value of the data object, as a
+  standalone demo mode, and, most seriously, painted behind the Terms gate inside Cowork. A real install
+  therefore showed invented figures before anything had been accepted.
+- All of it is removed. With no connection the Blueprint shows a connect prompt and nothing else. There
+  is no bundled, sample or demonstration data anywhere in the file.
 
-### Repository history consolidated, and what the earlier tags contain
+### Writes on every server
 
-Separately from the licence change, and before it, the repository history was consolidated: the release
-history was squashed from 63 commits to 4 and `main` was force-updated. That was a deliberate housekeeping
-change to remove redundant development history from the public repository — no file content changed, and
-the pre-consolidation history is archived offline rather than published. If you cloned this repository
-before 5 August 2026, your local history has diverged from `main`; re-clone rather than pull.
+- `update_issues` is declared for **every** connected server. Previously some servers carried only the
+  read tools, so a write against them failed with an allowlist error after the user had already approved
+  it. The Blueprint still opens read-only every session; the toggle is what enables writes.
 
-`v1.0.0`, `v1.0.1` and `v1.0.2` were re-pointed onto the consolidated history at the same time. **The
-files at those tags are unchanged** — each still ships the MIT `LICENSE.md` **and** `TERMS.md`, so the
-two-document contradiction this release fixes remains visible there, which is an accurate record of what
-was published. Anyone reading the repository at a tag earlier than 1.1.0 is reading an MIT-licensed
-release. Only the commit each tag names moved; the trees are identical.
+### Diagnosis fixes found in review
 
-The documentation gate gained four checks for the single-document model: `LICENSE.md` must not be MIT,
-`plugin.json` must not declare MIT, `TERMS.md` must not be tracked by git, and nothing may link to it.
+- An all-accounts-refused result reported "connect your MCP server" to a connected, authenticated server.
+  The underlying cause — usually an account authorisation the user can fix themselves — is now reported.
+- The dashboard and the Connections panel could disagree about the same server, with the panel disabling
+  the radio button of the connection being read from. One rule now decides.
+- A failed probe no longer inherits the previous probe's account detail.
+- Where accounts fail for different reasons, the actionable cause is reported rather than whichever
+  account happened to sort first.
+- "Not found on this instance" and "lives on a different region" are reported as connected-but-limited
+  rather than unreachable.
 
-## 1.0.3 — 2026-08-03 (documentation; Blueprint unchanged at build `2026-07-30.2`)
-
-A documentation-only release. No change to the Blueprint, the plugin's skills logic, or the tool
-allowlist — so there is nothing to redeploy if you are already on 1.0.2. Three defects, all of them the
-kind that stops a correct product from working for someone following the instructions.
-
-> **Correction to 1.0.2.** The 1.0.2 notes below instruct you to remove and re-add every Revizto MCP
-> connector after the client-ID change. **That instruction was wrong and should not be followed.** See
-> "The client-ID remedy was backwards" immediately below.
-
-### The install numbering restarted, and users restarted with it
-
-Reported by users. The prerequisites were an unnumbered bullet list, and the install that followed began
-at "Step 1". Anyone who completed the prerequisites and then met a fresh Step 1 reasonably concluded they
-were at the beginning, and worked through the run-location and connector steps a second time.
-
-Installation is now **one continuous sequence of eight numbered steps** — Steps 1–3 prerequisites, Steps
-4–8 install — with an explicit "carry on at Step 4, do not go back to Step 1" and a step index table at
-the top. The section headings now lead with their step range rather than with the words "Prerequisites"
-and "Install", because the old heading tree read as Install ▸ Prerequisites ▸ Install and invited exactly
-the same restart at a different place. Steps 1–3 were also rewritten from noun phrases into imperatives so
-they read as part of the same sequence, and the nested "1. 2. 3." list inside Step 2 became lettered
-conditions (a)/(b)/(c) so that no numbered list restarts anywhere inside a numbered sequence.
-
-### There is no package file, and the README said there was
-
-Reported by users. Step 3 led with "**Recommended:** upload the package … `revizto-project-intelligence-v1.0.2.plugin`",
-and the org-rollout section offered "upload the plugin ZIP". **No such file is distributed.** The plugin
-has only ever been installed by pointing Claude at this GitHub repository as a marketplace; the file-upload
-route was written when one was contemplated and never removed. Readers went looking for a download that
-does not exist.
-
-The marketplace route is now the only documented path, promoted from "Alternative" to Step 6, and every
-reference to a ZIP or `.plugin` file is gone except one troubleshooting row that exists to say there isn't
-one.
-
-Correcting this exposed a second, worse error in the same section: the README claimed the repository is
-private and that you need repo access to install ("ask Revizto for repository access"). **The repository is
-public** — deliberately, because Cowork's marketplace sync is anonymous and server-side, which is what lets
-the per-user install work with no GitHub account at all. The false claim sat directly on the only install
-route and its failure path terminated in an instruction with no contact address. Corrected, along with the
-org-rollout section, which recommended the opposite of the truth.
-
-### The client-ID remedy was backwards
-
-Not user-reported — found by reconciling the shipped docs against a verification run on 30 July 2026.
-
-1.0.2 told every customer to remove and re-add each Revizto MCP connector. Re-adding mints a **new
-connector id**, and a deployed Blueprint's tool allowlist is bound to the old one — so following the
-instruction breaks a working installation, producing the "tools aren't authorised" failure it appears to
-fix. The verification found connector ids **unchanged** by the client-ID rotation and all three production
-connections still authenticating; only a private stage connector had dropped, for unrelated reasons.
-
-What the client-ID change actually resets is **per-account OAuth authorisation**. The remedy is to
-re-authorise each Revizto organisation account (Revizto Workspace → your profile → **Active sessions →
-API**), and to re-add a connector *only* when Claude reports it as disconnected or the Blueprint lists it
-as "No longer registered". Corrected in the README (the Step 5 callout and two troubleshooting rows), in
-`SKILL.md`, and by this note against the 1.0.2 entry.
-
-### Also in this release
-
-- **Step 2 no longer asks for something you cannot check.** It previously said "confirm all three before
-  starting" while also saying the Blueprint verifies them for you — and condition (c) does not exist until
-  Step 5. It is now framed as the one question you *can* answer in advance ("do I administer at least one
-  Revizto licence?"), with the verification left where it actually happens.
-- **"Needs no Claude admin" is qualified.** True of Steps 4–8; not true of the Team/Enterprise network
-  allowlist or of an organisation-managed connector. Stated plainly instead of in a parenthetical that
-  scoped the exception too narrowly.
-- **Step 3 now names the domains to allowlist** (`api.<region>.revizto.com` + `cdn.jsdelivr.net`) instead
-  of referring to a region list that appeared two steps later, so the request can go to an admin at the
-  point the reader is told to raise it.
-- **Starting a Cowork session is stated.** Step 4 now says to open a Cowork task and that it is the same
-  session used for the confirmation prompts in Steps 5 and 7 — previously assumed.
-- **Cross-references corrected.** The Step 5 callout described itself as "the first two conditions from
-  Step 2" when it covers the first and third; `CONNECTORS.md` pointed at "Install Step 1" and at a heading
-  that no longer exists; `Settings → Connectors` in `CONNECTORS.md` disagreed with `Customize → Connectors`
-  in the README and `SKILL.md`. Verify is now headed "After Step 8" rather than floating unnumbered.
-- **What re-running the install costs you is stated** (Terms acceptance and saved selections reset,
-  nothing in Revizto touched), and there is a row for adding a second region after install.
-- **The Terms are linked** from Step 8 and the trust section — previously the reader was told to accept
-  Terms they had no way to read first.
-- **The README's licence line no longer contradicts `LICENSE.md`.** It read "All rights reserved" while
-  `LICENSE.md` is the MIT Licence and `plugin.json` declares `"license": "MIT"` — three statements, two
-  positions. It now points at `LICENSE.md` as the authority without restating it, so it stays correct
-  under any future licence change. `LICENSE.md` itself is unchanged by this release. A gate check now
-  asserts the three declarations agree, and will flag a licence swap that updates `LICENSE.md` but leaves
-  the machine-readable field on MIT.
-- **`readOnly: false` explained.** In the config table it read as a contradiction of the product's
-  read-only claim; it governs whether the toggle works, not whether writes are on.
-- **`TEST-rc3-first-user.md` removed from the repository.** It was internal release-test material that
-  shipped by accident and carried a second, conflicting install sequence with its own numbering — a
-  documentation defect of precisely the kind this release fixes.
-- **The plugin's Directory blurb no longer says "read-only".** `plugin.json` and `marketplace.json` both
-  described the product as *"Live, read-only project intelligence"* — the first thing a user reads at
-  Step 6, and a contradiction of the opening line of this README since writes shipped.
-- **Support has an address.** Dead ends previously ended in "ask Revizto" with nothing to act on;
-  `support@revizto.com` is now given at each of them. (GitHub issue creation is restricted on this
-  repository, so it is not a support route.)
-- **A documentation gate now runs with the code gates** in the internal QA suite: step numbering continuous
-  and non-repeating, every "Step N" cross-reference resolving, no package-file route, no blanket re-add
-  instruction, the corrective guidance present, versions consistent across five places, and the README's
-  build stamp matching the artifact's. Each check carries a mutation that reintroduces the real defect and
-  is proven to turn that check red.
-
-### One defect this release caused, and caught
-
-The documentation gate above initially banned the string `upload the plugin` outright, to kill the false
-download route. That substring also appears in `upload the plugin ZIP` — the **real** route by which a
-Team/Enterprise Owner publishes this plugin to an organisation marketplace, which is indifferent to
-repository visibility. The gate forced that paragraph's deletion and then reported green, and the
-org-rollout section was rewritten to declare a supported capability "currently unsupported". An
-independent review caught it before release. The route is restored, the check is now scoped to the
-customer install path only, and a second check asserts the org upload route is present so the same
-deletion cannot recur silently. Recorded here because a gate that turns a correct document into an
-incorrect one while showing green is the failure mode these gates exist to prevent.
-
-### Known open items opened by this release
-
-- Organisation-wide rollout works only by **manual ZIP upload** to an org marketplace: org
-  *GitHub-synced* marketplaces require a private repository, and this one is public so that the per-user
-  install needs no GitHub account. An uploaded copy does not auto-update.
-- "Active sessions → API" is the most common fix in the document and the hardest to follow, because the
-  Revizto screen is named for sessions rather than authorisation. Needs a walkthrough in Revizto's help.
-- Step numbers quoted in the historical entries below refer to the numbering in force at the time and no
-  longer map to the current README.
 
 ## 1.0.2 — 2026-07-30 (OAuth client ID change; build `2026-07-30.2`)
 
-> **⚠️ Superseded by 1.0.3 — do not remove and re-add your connectors.** Removing and re-adding a
-> working connector mints a new connector id and breaks the deployed Blueprint's tool allowlist. The
-> correct remedy is to re-authorise the affected Revizto organisation account. See the 1.0.3 entry above.
->
-> **The correction covers the whole entry**, not just the "Action required" box: the opening paragraph's
-> "must be re-added" is wrong for the same reason. Everything else here — the two-cause analysis of
-> `OAuth2 application is not authorized`, the licence-picker wording, and the install-documentation
-> fixes — stands.
-
 Revizto changed the OAuth client ID for the MCP server to `revizto-mcp`. Connectors created with the
-previous client ID stop authorising and must be re-added **[corrected in 1.0.3 — connector ids were
-unchanged; what needs re-authorising is the account, not the connector]**. This release makes the consequences of that
+previous client ID stop authorising and must be re-added. This release makes the consequences of that
 change legible instead of mysterious, and corrects install documentation that was wrong in ways that
 blocked first-time users.
 
-> **Action required — [corrected in 1.0.3: do NOT do this — re-authorise the account instead].** ~~Re-add
-> each Revizto MCP connector~~ using client ID `revizto-mcp` with the client
+> **Action required.** Re-add each Revizto MCP connector using client ID `revizto-mcp` with the client
 > secret left blank, then **re-run the `project-intelligence-dashboard` skill**. Re-adding a connector mints
 > a new connector id, and an already-deployed Blueprint's tool authorisations are bound to the old one.
 
@@ -424,7 +285,7 @@ Requested change: the header **Read-only** pill was hard-locked on (`CONFIG.read
 
 ## 1.0.0-rc.8 — 2026-07-20 (confirmed working end-to-end; local-session step made prominent; build `2026-07-20.1`)
 
-**First fully-working install confirmed.** Running the install in a session **on the user's computer** (not the cloud) bound the nine read tools to the artifact, and the Blueprint went live — header "Live", licence "Jason Howden License — North America (USA)", a real project loaded. The whole chain is now proven: marketplace → plugin → verbatim deploy → tool allowlist → licence/region discovery → live data.
+**First fully-working install confirmed.** Running the install in a session **on the user's computer** (not the cloud) bound the nine read tools to the artifact, and the Blueprint went live — header "Live", a real licence on the North America (USA) region, a real project loaded. The whole chain is now proven: marketplace → plugin → verbatim deploy → tool allowlist → licence/region discovery → live data.
 
 - **README:** the local-vs-cloud requirement is promoted to a 🔴 **CRITICAL FIRST STEP** at the top, plus an explicit **Step 0** in the install flow, with the exact control: the **run-location picker at the top-right of the Claude window → "On your computer"** (laptop icon, not cloud), and the default toggle at **Settings → Cowork → "Run new tasks in the cloud" (off)**.
 - **Install `SKILL.md`:** prerequisite updated with the same exact control and a note that a local session is confirmed to bind the allowlist and load live data.
@@ -432,9 +293,9 @@ Requested change: the header **Read-only** pill was hard-locked on (`CONFIG.read
 
 ## 1.0.0-rc.7 — 2026-07-20 (local-session requirement; build `2026-07-20.1`)
 
-rc.6 ran the skill correctly — copied the real Blueprint verbatim, inserted the connector prefix, and called all nine read tools in-session (confirmed: `list_licenses` returned "Jason Howden License", region us-east-1) — yet the dashboard still showed "Licence not accessible via MCP / tools aren't authorised for this artifact / No projects". Runtime logs settled it: the session was a **cloud** Cowork session (`cse_…`, `remote_cowork.sign_for_session_header`, remote `/artifacts/cse_…/versions`). The cloud→desktop artifact bridge **does not bind the `mcp_tools` allowlist**, so the artifact opens empty regardless of everything upstream.
+rc.6 ran the skill correctly — copied the real Blueprint verbatim, inserted the connector prefix, and called all nine read tools in-session (confirmed: `list_licenses` returned a real licence, region us-east-1) — yet the dashboard still showed "Licence not accessible via MCP / tools aren't authorised for this artifact / No projects". Runtime logs settled it: the session was a **cloud** Cowork session (`cse_…`, `remote_cowork.sign_for_session_header`, remote `/artifacts/cse_…/versions`). The cloud→desktop artifact bridge **does not bind the `mcp_tools` allowlist**, so the artifact opens empty regardless of everything upstream.
 
-Not a config bug. The `CONFIG.connectors` prefix (`mcp__Revizto_Virginia_MCP__`), the licence-first model (no region/licence baked in), and the licence/region discovery are all correct and proven — the same connector answers "what is my licence" with full detail (licence 38327, uuid `9b5c3796-…`, Super-administrator, us-east-1) in chat.
+Not a config bug. The `CONFIG.connectors` prefix (`mcp__<connector-id>__`), the licence-first model (no region/licence baked in), and the licence/region discovery are all correct and proven — the same connector answers "what is my licence" with full detail (a real licence.
 
 - **Install `SKILL.md`: local-session prerequisite.** New up-front block — the install must run in a **local (on-your-computer)** Cowork session; the skill checks for a cloud session and stops with guidance rather than producing a dashboard that can't read. call-then-declare (rc.6) and copy-verbatim (rc.5) unchanged.
 - **README:** rc.7 note + rewritten "tools aren't authorised / licence not accessible" troubleshooting row (cloud-session cause + local-session fix), and an explicit statement that the config/prefix/licence are correct.

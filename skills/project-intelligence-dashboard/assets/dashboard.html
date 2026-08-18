@@ -931,13 +931,20 @@ th{white-space:nowrap}
 .connbtn .cbcar{color:#5b6b6b;font-size:9px;flex:0 0 auto}
 .cdot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:#98A2B3;display:inline-block}
 .cdot.ok{background:#067647}.cdot.warn{background:#B54708}.cdot.bad{background:#B42318}
-.connpanel{display:flex;flex-direction:column;gap:0;margin:2px 0 14px}
-.crow{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #E4E7EC;
-  border-top-width:0;background:#fff;text-align:left;min-height:44px;box-sizing:border-box}
-.crow:first-child{border-top-width:1px;border-radius:8px 8px 0 0}
-.crow:last-child{border-radius:0 0 8px 8px}
-.crow.sel{background:#F6FEFF;border-color:#CBDDDD;box-shadow:inset 3px 0 0 #009999}
-.crow.off{background:#FCFCFD;color:#98A2B3}
+.connpanel{display:flex;flex-direction:column;gap:0;margin:2px 0 14px;
+  /* WS36: the list is a bounded, scrollable region. It used to grow without limit inside a modal, so
+     with five servers each disclosing its gated accounts the fifth option was pushed off-screen and
+     could not be reached at all. The frame and radius move from the rows to this container so the
+     scroll edge reads as one clean surface. */
+  max-height:46vh;overflow-y:auto;overscroll-behavior:contain;
+  border:1px solid #E4E7EC;border-radius:8px;background:#fff}
+.cgroup{border-top:1px solid #E4E7EC;background:#fff}
+.cgroup:first-child{border-top:0}
+.crow{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:0;
+  background:transparent;text-align:left;min-height:44px;box-sizing:border-box}
+.cgroup.sel{background:#F6FEFF;box-shadow:inset 3px 0 0 #009999}
+.cgroup.off{background:#FCFCFD}
+.crow.off{color:#98A2B3}
 .crow.pick{cursor:pointer}
 .crow.pick:hover{background:#F6FEFF}
 .crow input[type=radio]{margin:3px 0 0;width:18px;height:18px;flex:0 0 auto;accent-color:#009999}
@@ -948,6 +955,26 @@ th{white-space:nowrap}
 .cmeta{font-size:var(--fs-1,11px);color:#5b6b6b;margin-top:3px;word-break:break-word}
 .crow.off .cmeta{color:#98A2B3}
 .creason{font-size:var(--fs-1,11px);color:#B54708;margin-top:5px;word-break:break-word}
+.cgated{display:block;font-size:var(--fs-1,11px);color:#5b6b6b;word-break:break-word}
+/* WS36 progressive disclosure. Native <details>, so keyboard operation, focus and the expanded state
+   are the platform's job rather than ours. It sits as a SIBLING of the row's <label>, never inside it:
+   inside, eleven account names became part of the radio button's accessible name, and clicking the
+   summary would have toggled the radio. */
+.cdisc{margin:0 14px 10px 44px;font-size:var(--fs-1,11px)}
+.cdisc>summary{cursor:pointer;color:#475467;padding:5px 2px;min-height:24px;border-radius:6px;
+  list-style:none;display:flex;align-items:center;gap:6px}
+.cdisc>summary::-webkit-details-marker{display:none}
+.cdisc>summary::before{content:"";flex:0 0 auto;width:0;height:0;
+  border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;
+  transition:transform .15s ease}
+.cdisc[open]>summary::before{transform:rotate(90deg)}
+.cdisc>summary:hover{color:#1E2E2E;background:#F2F4F7}
+.cdisc>summary:focus-visible{outline:2px solid #009999;outline-offset:1px}
+.cdisc-body{padding:4px 2px 2px 13px;color:#5b6b6b}
+.cdisc-body p{margin:0 0 6px}
+.cdisc-body p:last-child{margin-bottom:0}
+.cdisc-names{color:#1E2E2E}
+@media (prefers-reduced-motion:reduce){.cdisc>summary::before{transition:none}}
 .ccount{flex:0 0 auto;font-size:var(--fs-1,11px);color:#5b6b6b;padding-top:2px;white-space:nowrap}
 .cbadge{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid #CBDDDD;color:#1E2E2E;
   background:#fff;white-space:nowrap;font-weight:400}
@@ -1038,7 +1065,7 @@ th{white-space:nowrap}
     </div>
     <div class="cb-tot"><div class="ctxmeta" id="ctxState" aria-live="polite"></div></div>
     </div>
-    <div class="cb-status"><span class="badge"><span class="dot" id="srcdot"></span><span id="srctext" aria-live="polite">snapshot</span></span></div>
+    <div class="cb-status"><span class="badge"><span class="dot" id="srcdot"></span><span id="srctext" aria-live="polite">Not loaded</span></span></div>
    </div>
   </div>
   <div id="loadbar" class="loadbar" role="status" aria-live="polite" aria-atomic="true" hidden></div>
@@ -1327,7 +1354,7 @@ const CONFIG={connectors:[
     MCP server is its own connection: the Blueprint reads from exactly ONE at a time and you choose
     which in the MCP Server panel. Leaving this empty is valid - the Blueprint shows a connect CTA and
     a connection can be added at runtime from that panel. */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-07-30.2"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-18.1"};
 /* (WS21 licence-first commentary removed 2026-07-29 — it asserted the opposite of the WS28 model above:
    "users pick a LICENCE, never a connector", every connection probed, serving connection auto-resolved.
    WS28 dedicates one connection explicitly. missing:[] still means recon-verified tool gaps. Consent is
@@ -1360,7 +1387,7 @@ function saveConnState(){try{var o={};Object.keys(CONNSTATE||{}).forEach(functio
   o[p]={state:x.state||"",licCount:x.licCount||0,regions:x.regions||[],email:(x.who&&x.who.email)||"",env:x.env||"",t:Date.now(),kt:(x.kind&&x.kind.t)||""};});
   localStorage.setItem("rvz_connstate",JSON.stringify(o));CONN_SEEN=o;}catch(e){}}
 function addUserConn(raw){var p=normPrefix(raw);if(!p)return{err:"That isn't a connector id. Paste the uuid (8-4-4-4-12) or the full mcp__<uuid>__ prefix — a name like “ireland” won't work."};if((CONFIG.connectors||[]).some(function(c){return c.prefix===p;}))return{err:"That connection is already configured"};var a=loadUserConns();if(a.indexOf(p)<0){a.push(p);saveUserConns(a);}CONFIG.connectors.push({prefix:p,env:"prod",wsHost:"ws.revizto.com",missing:[],user:true});return{ok:p};}
-const REGION_NAMES={"ap-southeast-2":"ANZ / APAC (Sydney)","ali-me-central-1":"KSA (Riyadh)","me-central-1":"KSA (Riyadh)","us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland"};
+const REGION_NAMES={"ap-southeast-2":"ANZ / APAC (Sydney)","ali-me-central-1":"KSA (Riyadh)","me-central-1":"KSA (Riyadh)","us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland","eu-south-1-barcelona":"Barcelona (stage)"};
 function regionName(c){return REGION_NAMES[c]||c||"—";}
 /* WS28: the DEDICATED connection is the root of all state. Licence + project selections are scoped to
    it, because a licence uuid means nothing on a different regional instance - the same picker value
@@ -1553,25 +1580,28 @@ function actResolveDate(expr,now){if(expr==null)return null;now=now||new Date();
   const WD={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6,sun:0,mon:1,tue:2,tues:2,wed:3,weds:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
   const isNext=/\bnext\b/.test(s);let wname=null;for(const w in WD){if(new RegExp("\\b"+w+"\\b").test(s)){if(wname==null||w.length>wname.length)wname=w;}}
   if(wname!=null){const tw=WD[wname];let diff=(tw-base.getDay()+7)%7;if(isNext)diff+=7;return add(diff);}
-  return null;}const SNAPDATE="16 Jun 2026";
-/* WS31: SYNTHETIC snapshot. This is what renders before the first live read (and behind the Terms gate),
-   so it ships in every build and must contain no real people or internal identifiers. It previously held
-   18 real Revizto colleague addresses, three real names, internal +tag test accounts, the internal
-   project/sheet/issue ids and an internal stage project. Identities now come from the same fictional
-   cast as DEMO_PEOPLE / DEMO below; every NUMBER is unchanged from the original so the pre-live view
-   renders identically. Nothing here is read from, or written to, any Revizto instance. */
+  return null;}
+/* WS35: DATA starts EMPTY. It used to be initialised to a fabricated snapshot which rendered before
+   the first live read AND behind the Terms gate — so a real install painted invented numbers at the
+   moment of first contact.
+   The shape below carries every key the old literal had, zeroed, so every renderer sees the same
+   well-formed empty object it already handles on the "no projects in this licence" path. It is NOT a
+   full mirror of blankData(): that function also sets verified and detect (which nothing in this file
+   ever reads) and the assigneeExact family plus assigneeOpenSample and assigneeBackfilled (read only through
+   ||{}, ||0 and !!() guards). All are safe to leave undefined at boot. Nothing here is synthetic because
+   nothing here is data. */
 let DATA={
- meta:{name:"Riverside Medical Centre — demo",region:"eu-west-1",created:"2026-05-05",lastActive:"2026-05-20 10:49:19",revNum:1,revBy:"Alex Rivera",revDate:"2026-05-13"},
- status:{Open:1137,"In progress":648,Solved:170,Closed:219},
- priority:{blocker:3,critical:166,major:1431,minor:302,trivial:10,none:262},
- sheets:3,clashTests:0,stamps:30,
- trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[24,34,7,35,21,25,3,62,9,3],resolved:[0,2,0,1,0,0,0,1,0,58]},
+ meta:{name:"",region:"",created:"",lastActive:"",revNum:0,revBy:"",revDate:""},
+ status:{Open:0,"In progress":0,Solved:0,Closed:0},
+ priority:{},
+ sheets:0,sheetsNote:"",clashTests:0,clashRun:0,stamps:0,stampDisc:0,stampLeaf:0,
+ trend:{labels:[],opened:[],resolved:[]},
  delta:{d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}},
+ workflow:null,
  _projectId:0,_sheetUuid:"",_issueUuid:"",tested:{},
- reporters:[["a.rivera@example.com",516,59],["s.okafor@example.com",364,77],["m.lindqvist@example.com",352,97],["j.tanaka@example.com",201,10],["d.walsh@example.com",179,7],["k.novak@example.com",162,76],["p.mercier@example.com",142,25],["l.fernandez@example.com",70,0]],
- assignees:[["a.rivera@example.com",680,623],["p.mercier@example.com",223,207],["s.okafor@example.com",209,116],["k.novak@example.com",155,74],["m.lindqvist@example.com",129,110],["j.tanaka@example.com",120,100],["d.walsh@example.com",112,105],["l.fernandez@example.com",58,50]],
- team:[["Alex Rivera","a.rivera@example.com","Licence administrator","2026-05-20 09:51:30",true],["Sarah Okafor","s.okafor@example.com","Licence admin (not on project)","2026-05-07 10:40:32",false],["Mia Lindqvist","m.lindqvist@example.com","Owner","2026-05-05 21:12:13",true],["Jun Tanaka","j.tanaka@example.com","04_BIM Technician","2026-05-05 16:15:49",true],["Dara Walsh","d.walsh@example.com","Invited — never activated","",false],["(unnamed)","k.novak@example.com","Invited — never activated","",false]],
- reporterCount:28,assigneeCount:32,
+ reporters:[],assignees:[],assigneesFull:[],team:[],teamNote:"",
+ reporterCount:0,assigneeCount:0,
+ tl:[],
  counts:null,sample:null,assigneesExact:null
 };
 const RES=new Set(["solved","closed"]);
@@ -1606,7 +1636,7 @@ function bumpCB(){CB=Date.now().toString(36)+Math.random().toString(36).slice(2,
        multiplied across workers.
    Writes still never auto-retry (a lost response on an applied write must not double-apply). */
 /* deterministic refusals — retrying one of these can only ever produce the same answer, at twice the cost */
-const CALL_NO_RETRY={rights:1,appauth:1,xregion:1,notfound:1,allowlist:1,gone:1};
+const CALL_NO_RETRY={rights:1,appauth:1,xregion:1,notfound:1,allowlist:1,gone:1,drift:1};
 const MCP_MAX_CONC=5;const RL_WAIT_CEIL=12000;const RL_RECOVER_AFTER=12;
 let _mcpInflight=0;const _mcpQ=[];
 let _rlUntil=0,_rlConc=MCP_MAX_CONC,_rlOk=0;
@@ -1698,6 +1728,126 @@ async function call(name,args,opts){
    maximum (minItems 1, no maxItems) and 200/call is the empirically reliable size. Reads and writes
    have different ceilings and must not share a constant. */
 const MCP_PAGE_MAX=100;/* hard ceiling for every paginated READ */
+
+/* ==========================================================================
+   ACCOUNT-SCOPED LICENCE DISCOVERY                              2026-08-18
+   `accountUuid` is REQUIRED on list_licenses. Verified live 2026-08-18 against
+   every connector this build ships: all five declare required:["accountUuid"]
+   in their own tool schema. The rollout flagged on 2026-08-12 has completed.
+
+   WS35: the two-mode arrangement is GONE. The build probed bare first and fell
+   back to account scoping on a rejection naming accountUuid, caching the winning
+   mode per connector. With the parameter required everywhere the bare probe
+   cannot succeed on any region — one guaranteed-failing call per connector per
+   session, feeding the rate limiter, down a branch no live route can now reach.
+   Be honest about the arithmetic: this removes a wasted call, it does not make
+   discovery cheap. Scoped discovery costs 1 + (usable accounts) calls per
+   connector, which on a large estate is more than the old bare path cost when
+   the bare path worked. It is simply the only path the servers still accept.
+
+   Deliberately KEPT: the `drift` branch in mcpFailKind. A parameter rejection is
+   still possible (an older on-prem build, a future parameter change) and it must
+   NAME the missing parameter rather than mislabel a healthy connector as
+   unreachable. It is now a terminal state rather than a recoverable one.
+
+   The path: list_accounts -> keep the MCP-available accounts -> one scoped
+   list_licenses per account at concurrency 4, merged and deduped by uuid.
+
+   Three things verified live that this depends on:
+     1. Cross-region accounts return {entities:[],count:0} - EMPTY, not an
+        error. So empties merge harmlessly; no region filter is needed.
+     2. `mcpStatus` does not exist on builds predating the availability API
+        (APAC, USA and KSA omit it). Filtering strictly on === "available"
+        would return ZERO licences there. Absence must mean "try it", and
+        loose == null also covers an explicit JSON null.
+     3. One refused account must not condemn the connector - Ireland has 16
+        accounts of which 4 are available.
+   ========================================================================== */
+/* WS35: LS_LICMODE, licMode(), setLicMode() and needsAccountScope() are REMOVED — see the note above.
+   Nothing caches a discovery mode any more because there is only one mode to cache. Any rvz_licmode key
+   left in localStorage by an earlier build is inert and never read. */
+/* Bounded fan-out that never cancels and never rethrows: one bad account can
+   neither abort its siblings nor discard licences already merged. */
+/* WS35 QA (#4/#5): which refusal do we report when accounts fail for different reasons? "First by
+   array index" is deterministic but arbitrary — the same estate could report a greyed-out connector or
+   a selectable one depending on account order. Rank instead, most actionable first, so the verdict is a
+   property of the failures rather than of their ordering. Account-level causes the user can fix outrank
+   connector-level ones; anything transient loses to everything.
+   (unreachable is deliberately NOT listed: it is a STATE, never a kind mcpFailKind returns.) */
+const _CAUSE_RANK={appauth:100,rights:90,allowlist:80,drift:70,xregion:60,notfound:50,gone:40,
+                   ratelimit:20,timeout:10,error:0};
+function _causeRank(e){var k=mcpFailKind(e).k;return (_CAUSE_RANK[k]!=null?_CAUSE_RANK[k]:0);}
+async function _licMapLimit(items,limit,fn){
+  var out=[],i=0;var n=Math.max(1,Math.min(limit,items.length));
+  await Promise.all(Array(n).fill(0).map(async function(){
+    while(i<items.length){var idx=i++;
+      try{out[idx]={ok:true,value:await fn(items[idx],idx)};}
+      catch(e){out[idx]={ok:false,error:e};}}
+  }));
+  return out;}
+async function listLicencesScoped(pfx,meta){
+  meta=meta||{};
+  var acc=await call(pfx+"list_accounts",{},{timeout:12000});
+  var rows=(acc&&(acc.entities||acc))||[];if(!Array.isArray(rows))rows=[];
+  var withUuid=rows.filter(function(a){return a&&a.uuid;});
+  var usable=withUuid.filter(function(a){return a.mcpStatus==null||a.mcpStatus==="available";});
+  /* WS35: the gated accounts were counted and thrown away. list_accounts hands us Revizto's own
+     mcpStatus / mcpReason / mcpMessage per account; discarding them left the user with a licence list
+     that was quietly short and no way to tell why. Captured here, rendered in the Connections panel.
+     Verified live 2026-08-18: one connection returns 23 accounts, 9 available, 14 client_id_disabled. */
+  var gatedList=withUuid.filter(function(a){return !(a.mcpStatus==null||a.mcpStatus==="available");})
+    .map(function(a){return {title:String(a.title||a.uuid||"Untitled account"),
+      status:String(a.mcpStatus||""),reason:String(a.mcpReason||""),
+      message:String(a.mcpMessage||""),actionUrl:a.mcpActionUrl||""};});
+  /* WS35 QA (m3): the denominator must be the SAME population as its parts. rows.length counted
+     rows with no uuid, which usable/gated exclude, so "X of Y" could imply available accounts that
+     do not exist. accountsRaw keeps the untouched total for the log. */
+  meta.accounts=withUuid.length;meta.accountsRaw=rows.length;
+  meta.usable=usable.length;meta.gated=gatedList.length;meta.gatedList=gatedList;
+  /* WS35 QA (m2/#2): Revizto ships its own one-line summary and we prefer its wording — but it counts
+     EVERY row, while our own sentence counts only rows with a uuid. If those populations differ the
+     panel would stack two different denominators, which is the exact confusion m3 was written to stop.
+     Show Revizto's line only when the two agree. */
+  meta.availMsg=(withUuid.length===rows.length)
+    ? String((acc&&acc.mcpAvailability&&acc.mcpAvailability.message)||"") : "";
+  meta.licSkipped=[];meta.licDupes=0;meta.licEmpties=0;
+  var out=[],seen={};
+  var res=await _licMapLimit(usable,4,async function(a){
+    var r=await call(pfx+"list_licenses",{accountUuid:a.uuid},{timeout:12000});
+    var ents=(r&&(r.entities||r))||[];if(!Array.isArray(ents))ents=[];
+    return ents;});
+  var firstErr=null;
+  res.forEach(function(rec,idx){
+    if(!rec)return;
+    if(!rec.ok){
+      var k=mcpFailKind(rec.error).k;
+      /* WS35 QA (N4/#4): report the most actionable refusal, not whichever account sorted first. */
+      if(!firstErr||_causeRank(rec.error)>_causeRank(firstErr))firstErr=rec.error;
+      meta.licSkipped.push({title:(usable[idx]&&(usable[idx].title||usable[idx].uuid))||"?",kind:k,
+        cause:mcpFailKind(rec.error).t||""});
+      return;}
+    if(!rec.value.length)meta.licEmpties++;
+    rec.value.forEach(function(l){
+      if(!l||!l.uuid)return;
+      if(seen[l.uuid]){meta.licDupes++;return;}
+      seen[l.uuid]=1;out.push(l);});});
+  /* Only a hard failure if EVERY usable account refused and nothing came back.
+     WS35 QA (B1): this used to throw a SYNTHETIC Error — "every usable account refused (rights)" —
+     which discarded the very classification it had just computed. mcpFailKind cannot re-read its own
+     prose, so the throw fell to the generic branch, stateFromKind mapped it to "unreachable", and
+     discoverLicenses then told a connected, authenticated user to "connect the Revizto MCP Server".
+     That is the worst possible advice for the two commonest causes — appauth and rights — and it is
+     exactly the failure the WS34 note below says every customer will hit after the client-ID change.
+     Re-throwing the ORIGINAL error keeps the kind, so the user gets the actionable message. */
+  if(!out.length&&usable.length&&meta.licSkipped.length>=usable.length){
+    if(firstErr)throw firstErr;
+    var e=new Error("every usable account refused");e.mcpMsg=e.message;throw e;}
+  return {entities:out,count:out.length};}
+async function listLicencesFor(pfx,meta){
+  /* WS35: ONE path. accountUuid is required on every connector this build talks to (all five verified
+     live 2026-08-18), so a bare probe is a guaranteed-failing round trip that also feeds the limiter. */
+  return await listLicencesScoped(pfx,meta);}
+
 const REB_PAGE=MCP_PAGE_MAX,REB_TIMEOUT=35000,WRITE_BATCH=200,WRITE_TIMEOUT=240000;
 /* ===== WS33: list_projects PAGINATION + the count-semantics trap =====
    resolveConn issued ONE unpaginated list_projects call. The tool defaults to limit=100/page=0, so any
@@ -2041,7 +2191,7 @@ async function refresh(){
 }
 function refreshInFlight(){return _refreshBusy;}
 async function _refreshOnce(){
-  if(!(window.cowork&&window.cowork.callMcpTool)){if(window.demoBoot)window.demoBoot(PRJ);return;}/* demo/standalone: re-seed, never attempt a live load */
+  if(!(window.cowork&&window.cowork.callMcpTool)){noBridgeState();return;}/* WS35: no bridge — state it, never fabricate */
   if(typeof tcsAccepted==="function"&&!tcsAccepted())return;/* WS21.1 defence-in-depth: no live MCP call before consent, whatever the caller */
   const my=++reqSeq;bumpCB();
   try{
@@ -2182,6 +2332,22 @@ function mk(id,type,data,opts){if(charts[id])charts[id].destroy();
   charts[id]=new Chart(document.getElementById(id),{type,data,options:Object.assign({responsive:true,maintainAspectRatio:false,font:{family:"Geist"}},opts)});}
 
 function blankData(){DATA.status={Open:0,"In progress":0,Solved:0,Closed:0};DATA.priority={};DATA.trend={labels:[],opened:[],resolved:[]};DATA.reporters=[];DATA.assignees=[];DATA.assigneesFull=[];DATA.team=[];DATA.teamNote="";DATA.sheets=0;DATA.sheetsNote="";DATA.clashTests=0;DATA.clashRun=0;DATA.stamps=0;DATA.stampDisc=0;DATA.stampLeaf=0;DATA.workflow=null;DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};DATA.reporterCount=0;DATA.assigneeCount=0;DATA.meta={name:"",region:"",created:"",lastActive:"",revNum:0,revBy:"",revDate:""};DATA.tested={};DATA.verified=undefined;DATA.detect=undefined;PORTM={};STATUSES=[];TYPES=[];PMEMBERS=[];WORK=[];workSel=new Set();LAST=null;DATA.tl=[];DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;DATA.assigneeExactMode=false;DATA.assigneeOpenSample={};DATA.assigneeExactBasis="";DATA.assigneeExactPartial=false;DATA.assigneeExactComplete=false;DATA.assigneeBackfilled=0;try{Object.keys(charts).forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});}catch(e){}try{if(typeof TL!=="undefined"&&TL){TL.drill=0;if(TL.chart){TL.chart.destroy();TL.chart=null;}}}catch(e){}}
+/* WS35: single source of truth for the not-connected disclosure. It is raised from two places —
+   licence discovery and the no-bridge boot path — and two copies of a 600-character string drift. */
+function noconnErr(){return {k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then open the Connections panel and dedicate it. If the connector is already connected, its tools may not be authorised for THIS artifact yet — re-create the Blueprint through the install skill (install the plugin, then run the dashboard skill). See the README “tools not authorised for this artifact” troubleshooting."};}
+/* WS35: what demoBoot() used to do, told honestly. No bridge means no data — there is nothing to
+   fall back to, and pretending otherwise is the failure mode this workstream exists to remove. */
+function noBridgeState(){
+  LICENSES=[];PROJECTS_ALL=[];PROJECTS=[];LIC="";
+  blankData();setNoProj(true);
+  /* WS35 QA (m4): noconnErr() tells the user to open the Connections panel, but renderConnHealth
+     hides that control when there is no bridge at all — so the generic wording sends them to a button
+     that is not on screen. With no bridge the only real remedy is the install skill. */
+  DISC_ERR=noconnErr();
+  var nb=document.getElementById("noproj");
+  if(nb)nb.innerHTML="<b>"+DISC_ERR.t+"</b><br>This copy of the Blueprint has no connection to Claude's MCP bridge, so it cannot read anything and has no bundled data to show instead. Install the Revizto Project Intelligence plugin and run the <b>project-intelligence-dashboard</b> skill on your own computer — that is what authorises the Revizto MCP tools for the artifact. See the README.";
+  setSrc("Revizto MCP not connected","#0097A7");
+  renderHeader();renderPicker();renderTab(current);}
 function setNoProj(on){NOPROJ=on;const w=document.querySelector(".wrap");if(w)w.classList.toggle("noproj-on",on);const b=document.getElementById("noproj");if(b)b.hidden=!on;}
 function renderHeader(){const m=DATA.meta;
   /* static project facts → ⓘ popover on the project picker */
@@ -2210,27 +2376,47 @@ function renderHeader(){const m=DATA.meta;
    cannot know it is hopeless without trying - and blocking selection would hide a licence that works. */
 const CONN_SELECTABLE={ready:1,empty:1,restricted:1};
 const CONN_STATE_LABEL={ready:"Connected",empty:"Connected - no licences visible",
-  restricted:"Connected - licences not readable",reauth:"Needs sign-in",
+  restricted:"Connected - licences not readable",
+  /* reauth is retained for forward compatibility but no kind maps to it since WS35 QA (N1). */
+  reauth:"Needs sign-in",
   gone:"No longer registered",notauth:"Not authorised for this artifact",unreachable:"Unreachable"};
 let CONNENTS={};/* prefix -> licence entities from the last successful probe (reused by discovery) */
 let CONNPROBED=0;/* ms timestamp of the last full sweep */
 function stateFromKind(k){var x=(k&&k.k)||"";
   if(x==="gone")return "gone";
   if(x==="allowlist")return "notauth";
-  if(x==="appauth")return "reauth";
+  /* WS35 QA (N1): appauth used to map to "reauth" here while discoverLicenses separately overrode it
+     to "restricted". Before WS35 that disagreement was unreachable, because appauth never survived the
+     synthetic throw. Now it does — and the two paths rendered the SAME connector two ways: the dashboard
+     called it connected-but-restricted while opening the Connections panel re-probed it, called it
+     "Needs sign-in" and DISABLED its radio, so the user could not re-select the connection they were
+     already reading from. One rule now, here, and "restricted" is the honest one: appauth is an ACCOUNT
+     -level refusal, not a connector-level one. The connector is registered and authenticated (its
+     list_accounts succeeded), other accounts on it may serve fine, and the remedy is self-service — so
+     the connection must stay selectable for the user to come back to after fixing it. */
+  if(x==="appauth")return "restricted";
   if(x==="rights")return "restricted";
+  if(x==="drift")return "restricted";/* connected + authenticated; this build can't serve it */
+  /* WS35 QA (#3): xregion and notfound are reached only AFTER list_accounts succeeded — the server
+     answered, it simply cannot serve this particular licence from this instance. Calling that
+     "Unreachable" and disabling the radio told the user to fix a connection that is working. Both are
+     per-entity facts with precise messages of their own, so they belong with the other connected-but-
+     limited states. */
+  if(x==="xregion"||x==="notfound")return "restricted";
   if(x==="timeout"||x==="noconn")return "unreachable";
   return "unreachable";}
-/* WS30: whoami REMOVED from the probe path (Jason, 2026-07-29). Health is now derived from
-   list_licenses alone, which keeps the allowlist to exactly the 10 tools the install skill already
-   declares - so no customer re-authorisation is needed and no extra personal data is handled.
+/* WS30: whoami REMOVED from the probe path (product decision, 2026-07-29). Health is now derived from
+   list_licenses alone, which adds no tool the install skill does not already declare. (Exact counts
+   differ per connector and are NOT stated here, because they drift: this staging build's own allowlist
+   carries 11 entries for three connectors and 10 for the two that omit update_issues.) No customer
+   re-authorisation is needed and no extra personal data is handled.
    The state machine survives because the failure strings are distinguishable and a SUCCESSFUL call
    proves the connector is live and authenticated, even when it returns zero licences:
      success n>0                  -> ready
      success n=0                  -> empty        (authenticated, nothing visible to this account)
      "Failed to parse SSE"        -> gone         (de-registered; history-guarded, see CONN_PROVEN)
      "not in ... allowlist"       -> notauth
-     OAuth2 not authorized        -> reauth
+     OAuth2 not authorized        -> restricted   (account-level, self-serviceable; WS35 QA N1)
      enough/insufficient rights   -> restricted
      timeout / transport          -> unreachable
    What is genuinely lost versus whoami: the signed-in email on the row (so a connection authenticated
@@ -2241,12 +2427,22 @@ async function probeConn(pfx){
   var out={prefix:pfx,state:"unreachable",env:(cfg.env==="stage"?"stage":"production"),
            licCount:0,regions:[],kind:null};
   try{
-    var l=await call(pfx+"list_licenses",{},{timeout:12000});
+    var l=await listLicencesFor(pfx,out);
     var ents=(l&&(l.entities||l))||[];if(!Array.isArray(ents))ents=[];
     CONNENTS[pfx]=ents;out.licCount=ents.length;
     var seen={},order=[];ents.forEach(function(x){var r=x&&x.region;if(r&&!seen[r]){seen[r]=1;order.push(r);}});
     out.regions=order;out.state=ents.length?"ready":"empty";
   }catch(e){out.kind=mcpFailKind(e);out.state=stateFromKind(out.kind);}
+  /* WS35: one line per connector per sweep, in the [WS29] house style. Discovery is now a fan-out over
+     accounts, so "it didn't work" has several distinguishable causes (no accounts, all accounts gated,
+     accounts refused, zero licences) that were previously indistinguishable from the outside. */
+  try{console.log("[WS35] "+pfx+" state="+out.state+" licences="+out.licCount+
+    " accounts="+(out.accounts==null?"n/a":out.accounts)+
+    ((out.accountsRaw!=null&&out.accountsRaw!==out.accounts)?("(+"+(out.accountsRaw-out.accounts)+" with no uuid)"):"")+
+    " usable="+(out.usable==null?"n/a":out.usable)+
+    " gated="+(out.gated==null?"n/a":out.gated)+" refused="+((out.licSkipped&&out.licSkipped.length)||0)+
+    " empties="+(out.licEmpties||0)+" dupes="+(out.licDupes||0)+
+    (out.kind?(" cause="+out.kind.k):""));}catch(_e){}
   return out;}
 let _connGen=0;
 async function probeConnections(){
@@ -2303,6 +2499,14 @@ function connHostNames(){
       }
     }
   }catch(e){}
+  /* WS29 diagnostic: the meta block is injected by the host, so whether getElementById finds it can
+     only be proven in-app. Log the resolution once so it is visible in the artifact debug log.
+     If this reports source=fallback, labels degrade to region-derived names - still one row per
+     server, still never unioned, just less recognisable. */
+  try{var _n=Object.keys(_connNames).length;
+    console.log("[WS29] connector names resolved: source="+(_n?"host-meta":"fallback")+
+      " count="+_n+" "+JSON.stringify(Object.keys(_connNames).map(function(k){
+        return String(k).slice(5,13)+"="+_connNames[k];})));}catch(e){}
   return _connNames;}
 /* licence regions for a connection, as counts - descending. Reported honestly as data residency, never
    as the connection's identity. */
@@ -2346,16 +2550,34 @@ async function discoverLicenses(seq){
   var pfx=DEDCONN;
   if(!pfx){LICENSES=[];CONNSTATE=CONNSTATE||{};DISC_ERR={k:"noconn",t:"No Revizto MCP connection selected",d:"Open the Connections panel and dedicate a connection."};return;}
   var ents=null,err=null;
-  try{var l=await call(pfx+"list_licenses",{},{timeout:12000});
+  /* WS35 QA (M2): this called listLicencesFor with NO meta, so the primary load discarded the gated
+     and refused account detail it had just paid for — and the Connections panel could only recover it
+     by re-running the whole fan-out. Capture it here and merge it into CONNSTATE below. */
+  /* WS35 QA (N3): initialised CLEARED, not empty. CONNSTATE is built as Object.assign({},prev,dmeta,…),
+     so an empty dmeta lets the PREVIOUS probe's account detail survive a failure — a de-registered
+     connector would keep showing "1 of 3 accounts are available" from when it worked. Seeding every
+     disclosure key here means a throw wipes them rather than inheriting them. */
+  var dmeta={accounts:0,accountsRaw:0,usable:0,gated:0,gatedList:null,licSkipped:null,
+             availMsg:"",licDupes:0,licEmpties:0};
+  try{var l=await listLicencesFor(pfx,dmeta);
     ents=(l&&(l.entities||l))||[];if(!Array.isArray(ents))ents=[];CONNENTS[pfx]=ents;}
   catch(e){err=mcpFailKind(e);}
   if(seq!=null&&seq!==reqSeq)return;
   /* keep the panel honest about the dedicated connection without re-sweeping the others */
   var prev=CONNSTATE[pfx]||{prefix:pfx};
-  if(err){CONNSTATE[pfx]=Object.assign({},prev,{_t:Date.now(),state:(err.k==="appauth"||err.k==="rights")?"restricted":stateFromKind(err),kind:err,licCount:0});DISC_ERR=err;}
+  if(err){CONNSTATE[pfx]=Object.assign({},prev,dmeta,{_t:Date.now(),state:stateFromKind(err),kind:err,licCount:0});DISC_ERR=err;}
   else{var seen={},order=[];ents.forEach(function(x){var r=x&&x.region;if(r&&!seen[r]){seen[r]=1;order.push(r);}});
-    CONNSTATE[pfx]=Object.assign({},prev,{_t:Date.now(),state:ents.length?"ready":"empty",kind:null,licCount:ents.length,regions:order});}
+    CONNSTATE[pfx]=Object.assign({},prev,dmeta,{_t:Date.now(),state:ents.length?"ready":"empty",kind:null,licCount:ents.length,regions:order});}
   try{saveConnState();}catch(e){}
+  /* WS35 QA: probeConn logged its sweep but discoverLicenses — the PRIMARY load path, the one that runs
+     on every open and every Refresh — logged nothing. Most sessions never open the Connections panel, so
+     the diagnostic that exists to explain a short licence list was absent exactly when it was needed. */
+  try{var _st=CONNSTATE[pfx]||{};console.log("[WS35] "+pfx+" (load) state="+_st.state+
+    " licences="+((ents&&ents.length)||0)+" accounts="+(dmeta.accounts==null?"n/a":dmeta.accounts)+
+    " usable="+(dmeta.usable==null?"n/a":dmeta.usable)+" gated="+(dmeta.gated||0)+
+    " refused="+((dmeta.licSkipped&&dmeta.licSkipped.length)||0)+
+    " empties="+(dmeta.licEmpties||0)+" dupes="+(dmeta.licDupes||0)+
+    (err?(" cause="+err.k):""));}catch(_e){}
   var list=(ents||[]).filter(function(l){return l&&l.uuid;});
   list.forEach(function(l){l._conns=[pfx];l._ids={};l._ids[pfx]=l.id;});
   LICENSES=list.sort(function(a,b){return String(a.name||"").localeCompare(String(b.name||""));});
@@ -2375,11 +2597,15 @@ async function discoverLicenses(seq){
     var _cfgN=(CONFIG.connectors||[]).length;
     var _dst=CONNSTATE[DEDCONN]||null;
     var _dkind=(_dst&&_dst.kind)||DISC_ERR||null;
-    var _generic=!_dkind||!_dkind.k||_dkind.k==="error"||_dkind.k==="notfound";
+    /* WS35 QA (#3): notfound was pooled with the generic errors, so a connector that answered and then
+       reported "entity not found" fell through to the connect-your-MCP CTA. It has its own accurate
+       message; keep it. */
+    var _generic=!_dkind||!_dkind.k||_dkind.k==="error";
     var _connected=!!(_dst&&(_dst.state==="ready"||_dst.state==="empty"));
     if(!_cfgN||!DEDCONN||(!_connected&&_generic)){
-      DISC_ERR={k:"noconn",t:"Connect the Revizto MCP Server to enable live project intelligence",d:"This Blueprint reads everything live from your Revizto projects through the Revizto MCP Server — nothing is cached or bundled, so there's nothing to show until a connection exists. Add the Revizto MCP Server connector to Claude (Settings → Connectors), then open the Connections panel and dedicate it. If the connector is already connected, its tools may not be authorised for THIS artifact yet — re-create the Blueprint through the install skill (install the plugin, then run the dashboard skill). See the README “tools not authorised for this artifact” troubleshooting."};}
+      DISC_ERR=noconnErr();}
     else if(!_generic)DISC_ERR=_dkind;
+    else if(_dst&&_dst.gated&&!_dst.usable)DISC_ERR={k:"nolic",t:"Every account on this server is unavailable through the MCP",d:"The connection answered and your Revizto user belongs to "+_dst.gated+" account"+(_dst.gated===1?"":"s")+" on it, but none of them is currently available through the MCP server, so no licence can be read. Open the Connections panel — each account is listed there with Revizto's own explanation of what to change."};
     else DISC_ERR={k:"nolic",t:"No licences visible on this connection",d:"The dedicated connection answered, but your Revizto user sees no licences on it. Check you signed in with the right Revizto account, that your organisation has enabled the Revizto MCP server (Manage account info → Developer portal), and that this is the right regional connection — open the Connections panel to switch."};}
   /* WS33 (QA): verification results are kept for the SESSION, not rebuilt on every refresh.
      The first cut cleared LICSTATE here — and discoverLicenses runs inside every _refreshOnce cycle, so
@@ -2571,9 +2797,22 @@ function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
   if(/timeout/i.test(m))return{k:"timeout",t:"The Revizto MCP didn’t answer in time",d:"The call timed out — the connection may be broken or the region unreachable. Reload to retry, or check the connector under Settings → Connectors."};
   if(/rate limit/i.test(m))return{k:"ratelimit",t:"The Revizto MCP is rate-limiting this artifact",d:"Too many calls in a short window. The Blueprint now paces requests and retries automatically — wait a moment and press Refresh. If it persists, narrow the issue sample or reduce the number of projects compared at once."};
   if(/not in this artifact'?s? mcp_tools allowlist/i.test(m))return{k:"allowlist",t:"The Blueprint’s tools aren’t authorised for this artifact yet",d:"The Revizto MCP is connected, but this artifact’s own tool allowlist is empty — connecting the connector and authorising its tools for this artifact are two separate steps. Re-create the Blueprint through the install skill (install the plugin, then run the project-intelligence-dashboard skill), which declares the read tools into the artifact. See the README “tools not authorised for this artifact” troubleshooting row."};
+  /* SERVER BUILD DRIFT - same tool, different required parameters per instance.
+     Ported from the Matrix build (2026-08-01), which observed this live. WS35 removed the bare-probe
+     fallback, so this is no longer a recoverable state on the way to account scoping — it is terminal,
+     and it now fires only for a server whose build wants a parameter this one does not send. Without this
+     branch the rejection fell through to the generic error, which stateFromKind
+     mapped to "unreachable" - telling the user to reconnect a healthy connector. */
+  if(/Invalid parameters for tool|Missing required propert/i.test(m)){
+    var _dp=(m.match(/`([A-Za-z_][\w]*)`/)||[])[1]||"";
+    return{k:"drift",t:"This server\u2019s MCP build expects different parameters",
+      d:"The Revizto MCP on this connection rejected a read the other connections accept"+
+        (_dp?" \u2014 it requires \u2018"+_dp+"\u2019, which this build does not send":"")+
+        ". This is a difference between server builds, not a problem with your account or licence."};}
   return{k:"error",t:"The Revizto MCP couldn’t serve the request",d:"The call failed"+(m?" — “"+m.slice(0,160)+"”":"")+". Reload to retry, or check the connector connection."};}
 let CONNSTATE={};/* prefix → {prefix,state,who,env,licCount,regions,kind,_t} — see the WS28 state machine */
-function connTier(st){/* 3 visual tiers from the 7 states */
+function connTier(st){/* 3 visual tiers from the states stateFromKind can produce: ready, empty,
+   restricted, notauth, gone, unreachable. (reauth is defined but no longer reachable — WS35 QA N1.) */
   var k=(st&&st.state)||"";
   if(k==="ready")return "ok";
   if(k==="empty"||k==="restricted")return "warn";
@@ -2582,7 +2821,7 @@ function connTier(st){/* 3 visual tiers from the 7 states */
 function renderConnHealth(){
   var w=document.getElementById("connWrap");
   /* QA: in demo/standalone there is no bridge, so dedicating a connection cannot do anything useful
-     (refresh() short-circuits to demoBoot and the picker would empty). Hide the control entirely. */
+     (refresh() short-circuits to noBridgeState and the picker would empty). Hide the control entirely. */
   var _live=!!(window.cowork&&window.cowork.callMcpTool);
   if(w)w.hidden=!_live;
   if(!_live)return;
@@ -2657,15 +2896,74 @@ function connPanelHtml(){
       reason=(CONN_STATE_LABEL[state]||state);
       if(st&&st.kind&&st.kind.d)reason+=" \u2014 "+st.kind.d;
       else if(state==="empty")reason+=" \u2014 you are signed in, but this instance shows no licences for your account.";}
-    return '<label class="'+cls+'">'+
+    /* WS35 GATED ACCOUNTS. listLicencesScoped skips accounts whose mcpStatus is not available, which is
+       correct — they cannot serve a licence — but the build used to skip them SILENTLY. The licence list
+       was quietly short and the user had nothing to act on. Revizto returns its own mcpMessage per
+       account, so the honest thing is to name the accounts and quote its wording verbatim rather than
+       invent our own. Grouped by message because 14 of 23 accounts on one connection share one cause,
+       and 14 identical sentences is noise, not disclosure. mcpActionUrl is captured but deliberately
+       NOT rendered as a link: it was null on every account observed live 2026-08-18, and a dead button
+       is worse than no button. */
+    /* WS35 QA (M1): gating is only half the story. An account can pass the mcpStatus gate and then
+       REFUSE the read — insufficient rights, or the account not covered by this connector's
+       authorisation. Those were captured in licSkipped and rendered nowhere, so the licence list came
+       back short and serene. Both halves are disclosed now, and the refused half is listed first
+       because it is the one the user can usually fix themselves.
+       (m1) grammar is agreement-correct at n=1. (m2) Revizto's own summary sentence is preferred over
+       wording of ours wherever the server supplies one. */
+    function _grp(list,fallbackMsg){
+      var by={},order=[];
+      list.forEach(function(g){
+        var m=g.message||g.cause||fallbackMsg;
+        if(!by[m]){by[m]=[];order.push(m);}
+        by[m].push(g.title);});
+      return order.map(function(m){return '<br>'+tcsEsc(by[m].join(", "))+' \u2014 '+tcsEsc(m);}).join("");}
+    /* WS36 PROGRESSIVE DISCLOSURE. WS35 was right that gated and refused accounts must be disclosed and
+       wrong about where. Rendered inline and always, Sydney alone emitted eleven account names and a
+       34-word remedy; five servers put roughly 1,100 words into a control whose entire job is "choose one
+       of five". The exception crowded out the decision — a Hierarchy of Deference failure.
+       The facts are unchanged and nothing is hidden: the summary line always states the counts, and the
+       detail (which accounts, and Revizto's own wording for why) is one keystroke away. */
+    var gated="";
+    var _nref=(st&&st.licSkipped&&st.licSkipped.length)||0;
+    var _ngat=(st&&st.gatedList&&st.gatedList.length)||0;
+    if(_nref||_ngat){
+      var _tot=(st.accounts||(_nref+_ngat));
+      var _sum=[];
+      if(_ngat)_sum.push(_ngat+' of '+_tot+' account'+(_tot===1?'':'s')+' unavailable');
+      if(_nref)_sum.push(_nref+' refused the read');
+      var _body=[];
+      if(_nref)_body.push('<p><b>'+_nref+' account'+(_nref===1?'':'s')+' refused the licence read.</b>'+
+        _grp(st.licSkipped,"The Revizto MCP refused this account.")+'</p>');
+      if(_ngat)_body.push('<p><b>'+_ngat+' of '+_tot+' account'+(_tot===1?'':'s')+' on this server '+
+        (_ngat===1?'is':'are')+' not available through the MCP.</b>'+
+        _grp(st.gatedList,"This account is not available through the MCP server.")+'</p>');
+      _body.push('<p>Licences held by '+
+        ((_nref&&_ngat)?'these accounts'
+          :((_nref||_ngat)===1
+             ?(_nref?'this refused account':'this gated account')
+             :(_nref?'these refused accounts':'these gated accounts')))+
+        ' are not shown for this server.'+(st.availMsg?' '+tcsEsc(st.availMsg):'')+'</p>');
+      /* open state survives a repaint — Re-check all re-renders the whole panel, and collapsing the
+         section the user just opened underneath them is the kind of small betrayal that stops people
+         trusting a control. */
+      var _op=(typeof _connDiscOpen!=="undefined"&&_connDiscOpen.has&&_connDiscOpen.has(c.prefix));
+      gated='<details class="cdisc" data-pfx="'+tcsEsc(c.prefix)+'"'+(_op?' open':'')+'>'+
+        '<summary>'+tcsEsc(_sum.join(' \u00b7 '))+'</summary>'+
+        '<div class="cdisc-body">'+_body.join('')+'</div></details>';}
+    /* WS36: the group wraps a label and its disclosure so the two are siblings. The divider, selected
+       state and hover move to the group; the label keeps only the row's own padding. */
+    return '<div class="cgroup'+(sel?" sel":"")+(can?"":" off")+'" data-pfx="'+tcsEsc(c.prefix)+'">'+
+      '<label class="'+cls+'">'+
       '<input type="radio" name="cpick" value="'+tcsEsc(c.prefix)+'"'+(sel?" checked":"")+(can?"":" disabled")+'>'+
       '<span class="cmain"><span class="cttl">'+tcsEsc(connLabel(c.prefix))+
         (c.env==="stage"?' <span class="cbadge stage">private stage</span>':"")+
         (sel?' <span class="cdedi">Dedicated</span>':"")+'</span>'+
       '<span class="cmeta">'+meta+'</span>'+
-      (reason?'<span class="creason">'+tcsEsc(reason)+'</span>':"")+'</span>'+
+      (reason?'<span class="creason">'+tcsEsc(reason)+'</span>':"")+
+      '</span>'+
       (cnt?'<span class="ccount">'+cnt+'</span>':"")+
-      '</label>';}).join("");
+      '</label>'+gated+'</div>';}).join("");
   return '<div class="confirm-h">Revizto MCP servers</div>'+
     '<div class="confirm-sum">Each Revizto MCP server is its own connection. The Blueprint reads from <b>one server at a time</b> — every licence and project you see comes from it, and nothing is merged across servers. Names are the ones you gave the connectors in Claude. The Blueprint starts on your first configured server; change it here and it is remembered. Greyed servers cannot be selected; the reason is shown against each.</div>'+
     '<div class="connpanel" id="connPanel">'+rows+'</div>'+
@@ -2678,6 +2976,17 @@ function connAddHtml(){
     'aria-label="Add a Revizto MCP connection by connector id" style="font:inherit;font-size:12px;flex:1 1 220px;min-width:0;padding:6px 8px;border:1px solid #d0d5dd;border-radius:6px">'+
     '<button class="btn" id="connAddBtn" type="button">Add</button>'+
     '<span id="connAddMsg" style="font-size:11px"></span></div>';}
+/* WS36: which server disclosures the user has expanded, for the life of the panel. */
+var _connDiscOpen=new Set();
+function _connDiscWire(){
+  Array.prototype.forEach.call(document.querySelectorAll('#connPanel details.cdisc'),function(d){
+    d.addEventListener('toggle',function(){
+      var p=d.getAttribute('data-pfx')||"";
+      if(d.open)_connDiscOpen.add(p);else _connDiscOpen.delete(p);});});
+  /* WS36: with the list now bounded, the dedicated server can start below the fold. Bring it into view
+     so the panel always opens showing the connection it is actually reading from. */
+  try{var g=document.querySelector('#connPanel .cgroup.sel');
+    if(g&&g.scrollIntoView)g.scrollIntoView({block:"nearest"});}catch(e){}}
 var _connPanelOpen=false;/* var, not let: closeConfirm() is defined earlier in the file and assigns it */
 async function openConnPanel(){
   var m=modalOpen(connPanelHtml());if(!m)return;_connPanelOpen=true;
@@ -2706,7 +3015,10 @@ async function openConnPanel(){
            reason shown. A refusal now owns the modal; we do not touch it. */
         var res=setDedicated(p);
         if(res===true){_connPanelOpen=false;closeConfirm();}
-        else{_connPanelOpen=false;}};});}
+        else{_connPanelOpen=false;}};});
+    /* WS36: runs on open AND after every repaint, so the disclosures the user expanded survive a
+       Re-check all and the dedicated row is scrolled into view in the now-bounded list. */
+    _connDiscWire();}
   /* M8 (QA): _connPanelOpen alone was not enough. Escape closes the modal through the global keydown
      handler, which never cleared the flag, so a slow in-flight sweep could later repaint OVER whatever
      modal was open by then — including a staged write-approval dialog, whose PENDING then sat orphaned
@@ -4955,45 +5267,21 @@ function tcsAccept(){var nmEl=document.getElementById("tcsName"),chk=document.ge
 try{if(DEDCONN)localStorage.setItem(TCS_KEYF(DEDCONN),JSON.stringify(rec));}catch(e){}try{if(typeof ME!=="undefined"&&ME){ME.name=rec.name;}localStorage.setItem("rvz_actor",rec.name);}catch(e){}TCS_GATE=false;var sc=document.getElementById("tcsScrim");if(sc)sc.hidden=true;document.body.style.overflow="";tcsInert(false);if(typeof renderHeader==="function"){try{renderHeader();}catch(e){}}if(typeof tcsPostAccept==="function")tcsPostAccept();}
 document.addEventListener("keydown",function(e){var sc=document.getElementById("tcsScrim");if(!sc||sc.hidden)return;if(e.key==="Escape"){e.preventDefault();if(!TCS_GATE)closeTcs();return;}if(e.key==="Tab"){var f=tcsFocusable();if(!f.length)return;var first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();try{last.focus();}catch(err){}}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();try{first.focus();}catch(err){}}}},true);
 
-/* demo dataset — defined unconditionally so it can paint behind the T&Cs gate (Cowork) and drive standalone mode */
-/* ---- demo/standalone mode (no window.cowork) ----
-   Synthetic, clearly-labelled dataset so every view demonstrates honestly offline.
-   In-memory only — nothing written to localStorage; live discovery replaces all of it inside Cowork. */
-const DEMO_PEOPLE=[["Alex Rivera","a.rivera@example.com","BIM Manager","Riverside Health Trust","Digital Delivery"],["Sarah Okafor","s.okafor@example.com","MEP Coordinator","Okafor Building Services","MEP"],["Mia Lindqvist","m.lindqvist@example.com","Structural Lead","Lindqvist Structural",""],["Jun Tanaka","j.tanaka@example.com","Architectural Coordinator","Atelier Tanaka","Architecture"],["Dara Walsh","d.walsh@example.com","Site Engineer","Walsh Construct","Site"],["Kris Novak","k.novak@example.com","Quantity Surveyor","Novak QS",""],["Priya Mercier","p.mercier@example.com","Services Engineer","Okafor Building Services","MEP"],["Luis Fernandez","l.fernandez@example.com","Document Controller","Riverside Health Trust","Information Management"]];
-const DEMO={
- "demo-prj":{title:"Riverside Medical Centre — demo",created:"2026-03-02",lastActive:"2026-05-18 09:12:44",revNum:4,revBy:"Alex Rivera",revDate:"2026-05-15",
-  status:{Open:412,"In progress":186,Solved:97,Closed:143},priority:{blocker:2,critical:41,major:388,minor:167,trivial:8,none:232},
-  sheets:12,clashTests:6,clashRun:0,stamps:24,stampDisc:5,stampLeaf:19,has3d:true,deptFull:false,
-  trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[18,26,11,29,17,22,9,31,14,7],resolved:[2,5,3,8,6,9,11,14,17,21]}},
- "demo-prj2":{title:"Hillcrest Aquatic Centre — demo",created:"2026-02-09",lastActive:"2026-05-17 15:40:10",revNum:7,revBy:"Sarah Okafor",revDate:"2026-05-14",
-  status:{Open:118,"In progress":54,Solved:203,Closed:167},priority:{blocker:0,critical:12,major:210,minor:196,trivial:14,none:110},
-  sheets:9,clashTests:11,clashRun:9,stamps:31,stampDisc:6,stampLeaf:25,has3d:true,deptFull:true,
-  trend:{labels:["Mar 16","Mar 23","Mar 30","Apr 6","Apr 13","Apr 20","Apr 27","May 4","May 11","May 18"],opened:[21,17,14,12,15,9,11,8,7,5],resolved:[6,9,14,17,19,21,18,22,20,17]}}};
-function demoTl(u,st){const rows=[];const day=864e5;const t0=+new Date("2026-03-02T08:00:00");
- const em=DEMO_PEOPLE.map(x=>x[1]);const sk=["CLH","ARC","STR","MEP","RFI","QAQ"];const ty=["Clash","Design review","RFI","Site query"];const pr=["major","minor","critical","major","none"];
- const mk=(n,stt,cl,rs)=>{for(let i=0;i<n;i++){const o=t0+((i*37)%77)*day+((i*13)%9)*36e5;const c=rs?o+(3+((i*17)%28))*day:0;rows.push({u:u+"-"+stt+"-"+i,o:o,c:c,cl:cl,rs:rs,pr:pr[i%5],au:em[i%8],sk:sk[i%6],sc:"",st:stt,ty:ty[i%4]});}};
- mk(st.Open,"open",false,false);mk(st["In progress"],"in_progress",false,false);mk(st.Solved,"solved",false,true);mk(st.Closed,"closed",true,true);return rows;}
-window.demoBoot=function(u){const d=DEMO[u]||DEMO["demo-prj"];PRJ=DEMO[u]?u:"demo-prj";
- const tot=Object.values(d.status).reduce((a,b)=>a+b,0);const f=n=>Math.max(1,Math.round(n));
- DATA.meta={name:d.title,region:"demo",created:d.created,lastActive:d.lastActive,revNum:d.revNum,revBy:d.revBy,revDate:d.revDate,has3d:d.has3d};
- DATA.status=Object.assign({},d.status);DATA.priority=Object.assign({},d.priority);DATA.trend={labels:d.trend.labels.slice(),opened:d.trend.opened.slice(),resolved:d.trend.resolved.slice()};
- DATA.sheets=d.sheets;DATA.clashTests=d.clashTests;DATA.clashRun=d.clashRun;DATA.stamps=d.stamps;DATA.stampDisc=d.stampDisc;DATA.stampLeaf=d.stampLeaf;
- DATA.workflow={name:"Standard issue workflow",std:true,statuses:4,cats:["To do","Tracking","Completed"],wfCount:1};
- DATA.delta={d1:{opened:0,resolved:0,net:0,crit:0},d7:{opened:0,resolved:0,net:0,crit:0}};
- DATA.reporters=DEMO_PEOPLE.map((x,i)=>[x[1],f(tot*(0.22-i*0.024)),f(tot*0.03)]);
- DATA.assignees=DEMO_PEOPLE.map((x,i)=>[x[1],f((d.status.Open+d.status["In progress"])*(0.24-i*0.026)),f((d.status.Open+d.status["In progress"])*(0.18-i*0.02))]);
- DATA.team=DEMO_PEOPLE.map((x,i)=>[x[0],x[1],x[2],i===5?"":d.lastActive,i!==5]);
- DATA.reporterCount=8;DATA.assigneeCount=8;DATA.counts=null;DATA.sample=null;DATA.assigneesExact=null;
- PMEMBERS=DEMO_PEOPLE.map((x,i)=>({email:x[1],name:x[0],company:x[3],department:(d.deptFull&&!x[4])?"General":x[4],active:i!==5}));
- DATA.tl=demoTl(PRJ,d.status);DATA.tl_anomalies=0;DATA._projectId=0;DATA._sheetUuid="";DATA._issueUuid="";
- snapshotStore();setSrc("Snapshot · "+SNAPDATE,"#0097A7");renderHeader();renderPicker();renderTab(current);};
-function demoSeed(){LICENSES=[{uuid:"demo-lic",name:"Demo licence"}];LIC="demo-lic";
-PROJECTS_ALL=[{uuid:"demo-prj",id:0,title:DEMO["demo-prj"].title,lastActive:DEMO["demo-prj"].lastActive,archived:false,frozen:false},{uuid:"demo-prj2",id:0,title:DEMO["demo-prj2"].title,lastActive:DEMO["demo-prj2"].lastActive,archived:false,frozen:false}];
-PROJECTS=projVisible();PRJ_TRUNCATED=false;/* WS33: demo goes through the same active/archived path as live — a demo that bypasses the real code path proves nothing about the real code path */
-Object.keys(DEMO).forEach(k=>{const st=DEMO[k].status;const t=Object.values(st).reduce((a,b)=>a+b,0);PORTM[k]={active:st.Open+st["In progress"],rate:t?Math.round(100*(st.Solved+st.Closed)/t):0,tot:t};});
-window.demoBoot("demo-prj");}
-if(!(window.cowork&&window.cowork.callMcpTool)){demoSeed();}            /* standalone: demo IS the app */
-else if(typeof tcsAccepted==="function"&&!tcsAccepted()){demoSeed();}   /* Cowork + gate ahead: paint demo behind the gate; refresh() replaces it on accept */
+/* WS35 (2026-08-18): the synthetic dataset is GONE.
+   Earlier builds carried a fabricated project in three places: as the initial value of DATA, as a
+   standalone demo mode, and — the serious one — painted behind the Terms gate inside Cowork, so a real
+   install showed invented numbers before anything had been accepted. A tool whose entire claim is that
+   every figure is read live cannot open on a fake dashboard.
+   Both entry points now state the truth and render an empty dashboard behind it. */
+if(!(window.cowork&&window.cowork.callMcpTool)){noBridgeState();}
+else if(typeof tcsAccepted==="function"&&!tcsAccepted()){
+  /* Cowork, consent still ahead: DATA is already empty, so nothing paints. Say why rather than
+     leaving a silent zeroed dashboard that reads as "your project has no issues". */
+  blankData();setNoProj(true);
+  var _pg=document.getElementById("noproj");
+  if(_pg)_pg.innerHTML="<b>Accept the terms to load your live project data.</b><br>Nothing is shown until then \u2014 this Blueprint has no bundled or sample data to fall back on.";
+  setSrc("Awaiting terms acceptance","#0097A7");
+  renderHeader();renderPicker();renderTab(current);}
 function tcsPostAccept(){if(tcsPostAccept._d){if(window.cowork&&window.cowork.callMcpTool)refresh();return;}/* WS20: a later acceptance (new region) re-loads live — tour/resume stay once-only */tcsPostAccept._d=true;if(window.cowork&&window.cowork.callMcpTool){refresh();}offerResume();Tour.maybeAutoStart();}
 /* mandatory T&Cs gate: block the dashboard until accepted for the current version; deferred first-run tour follows acceptance */
 renderConnHealth();refreshAboutBuild();
