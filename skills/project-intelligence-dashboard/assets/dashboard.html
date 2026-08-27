@@ -1354,7 +1354,7 @@ const CONFIG={connectors:[
     MCP server is its own connection: the Blueprint reads from exactly ONE at a time and you choose
     which in the MCP Server panel. Leaving this empty is valid - the Blueprint shows a connect CTA and
     a connection can be added at runtime from that panel. */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-18.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-28.1"};
 /* (WS21 licence-first commentary removed 2026-07-29 — it asserted the opposite of the WS28 model above:
    "users pick a LICENCE, never a connector", every connection probed, serving connection auto-resolved.
    WS28 dedicates one connection explicitly. missing:[] still means recon-verified tool gaps. Consent is
@@ -1635,8 +1635,106 @@ function bumpCB(){CB=Date.now().toString(36)+Math.random().toString(36).slice(2,
      - a higher backoff ceiling, which is safe precisely because the wait is shared rather than
        multiplied across workers.
    Writes still never auto-retry (a lost response on an applied write must not double-apply). */
+/* ==== WS37 (2026-08-28) OUTBOUND ARGUMENT CONTRACT ===================================
+   WHY THIS EXISTS. Three separate outages have now had the same shape: this build sent an
+   argument the server would not accept.
+     WS28d  list_issues limit:200/500  - a real field, value out of range
+     WS35   list_licenses              - a required field (accountUuid) not sent
+     WS36   every read, `_cb`          - a field the tool does not declare at all
+   WS36 was the worst of the three because Revizto's schemas declare additionalProperties:false,
+   so ONE undeclared property killed EVERY read on EVERY production region, and the failure was
+   then misreported as a broken connector. Every call in this build funnels through `call()`, so
+   this is the one place that can catch the whole class. Check at the door.
+
+   WHAT THIS IS - and what it deliberately is NOT. It is NOT a mirror of Revizto's JSON Schema.
+   The Cowork bridge exposes tool NAMES to an artifact but not their schemas (verified 2026-08-28
+   via cowork-artifact-meta, which carries mcpTools and mcpServerNames only), so a faithful schema
+   copy is not obtainable from inside the artifact and a hand-copied one would rot silently.
+   It is instead the list of arguments THIS BUILD is known to send, derived from its own call
+   sites and confirmed against successful live calls. That inversion is the point: we cannot send
+   a field that is not in this list without someone adding it here first, which is exactly the
+   review checkpoint the three outages above never had.
+
+   FAIL-OPEN ON UNKNOWN TOOLS. A tool absent from the table passes through untouched. A future
+   tool must never be blocked by a table nobody remembered to update - the contract exists to stop
+   OUR mistakes reaching the wire, not to stop the product growing.
+
+   THE ONE RISK, STATED PLAINLY. If someone adds a legitimately-new argument and forgets to
+   declare it here, this strips it and the feature quietly does nothing. Two guards: the strip is
+   loud (console.error plus a visible in-product banner naming the field and the build), and
+   tests/contract-test.mjs fails the build if any argument key present in the source is missing
+   from this table. The silent-strip failure therefore cannot be committed, only hand-edited in.
+   ==================================================================================== */
+const CONTRACT_CAPTURED="2026-08-28";/* date this table was last reconciled against the source */
+const ARG_CONTRACT={
+  /* reads */
+  list_accounts:         [],/* declares properties:{} - takes NO arguments. This is the tool WS36 died on. */
+  list_licenses:         ["accountUuid"],
+  list_projects:         ["licenseUuid","limit","page","include"],
+  list_license_members:  ["licenseUuid"],
+  list_project_members:  ["projectUuid"],
+  list_workflows:        ["projectUuid"],
+  list_sheets:           ["projectUuid"],
+  list_clash_tests:      ["projectUuid"],
+  list_stamp_templates:  ["projectUuid"],
+  list_issues:           ["projectUuid","limit","page","include","statuses","assigneeEmail"],
+  /* write - `deadlineExpr` is deliberately ABSENT. The planner accepts it from the user, resolves
+     it to a concrete `deadline` in actNormalizeIntent, and never copies it onto the change object.
+     Verified 2026-08-28: the only keys ever assigned are assignee, customStatus, customType,
+     priority, deadline, tags. If a future edit lets deadlineExpr through, this table rejects it. */
+  update_issues:         ["projectUuid","issueUuids","comment","assignee","customStatus",
+                          "customType","priority","deadline","tags"]
+};
+let CONTRACT_HITS=[];/* [{tool,keys}] - rendered by the banner; also read by QA */
+function contractBanner(){
+  if(!CONTRACT_HITS.length)return;
+  var id="ws37-banner",el=document.getElementById(id);
+  if(!el){el=document.createElement("div");el.id=id;
+    el.setAttribute("role","alert");
+    el.style.cssText="position:fixed;left:0;right:0;top:0;z-index:99999;background:#7f1d1d;color:#fff;"+
+      "font:500 12px/1.5 ui-sans-serif,system-ui,sans-serif;padding:8px 40px 8px 14px;"+
+      "box-shadow:0 1px 6px rgba(0,0,0,.35)";
+    var x=document.createElement("button");x.textContent="\u00d7";
+    x.setAttribute("aria-label","Dismiss");
+    x.style.cssText="position:absolute;right:8px;top:4px;background:none;border:0;color:#fff;"+
+      "font-size:18px;line-height:1;cursor:pointer";
+    x.onclick=function(){el.remove();};
+    el.appendChild(document.createElement("span")).id=id+"-t";
+    el.appendChild(x);
+    (document.body||document.documentElement).appendChild(el);}
+  var t=document.getElementById(id+"-t");
+  var parts=CONTRACT_HITS.map(function(h){return h.tool+" \u2192 "+h.keys.join(", ");});
+  if(t)t.textContent="This build sent "+(CONTRACT_HITS.length===1?"an argument":"arguments")+
+    " the Revizto MCP does not accept, and removed "+(CONTRACT_HITS.length===1?"it":"them")+
+    " before sending: "+parts.join(" \u00b7 ")+
+    ". Your connection, account and licence are fine \u2014 this is a fault in build "+
+    ((typeof CONFIG!=="undefined"&&CONFIG&&CONFIG.buildStamp)||"?")+
+    ". Please report it to Revizto with that build stamp.";
+}
+function contractCheck(name,args){
+  var bare=String(name||"").replace(/^mcp__.+?__/,"");
+  var allow=ARG_CONTRACT[bare];
+  if(!allow||!args)return args;/* fail-open: unknown tool passes through untouched */
+  var out={},bad=[],k;
+  for(k in args){ if(!Object.prototype.hasOwnProperty.call(args,k))continue;
+    if(allow.indexOf(k)>=0)out[k]=args[k]; else bad.push(k); }
+  if(!bad.length)return args;
+  try{console.error("[WS37] "+bare+": stripped undeclared argument(s) "+JSON.stringify(bad)+
+    " before sending. This is a fault in this build, NOT a connection, account or licence problem. "+
+    "Contract captured "+CONTRACT_CAPTURED+"; build "+
+    ((typeof CONFIG!=="undefined"&&CONFIG&&CONFIG.buildStamp)||"?")+".");}catch(_){}
+  var seen=CONTRACT_HITS.filter(function(h){return h.tool===bare;})[0];
+  if(seen){bad.forEach(function(b){if(seen.keys.indexOf(b)<0)seen.keys.push(b);});}
+  else CONTRACT_HITS.push({tool:bare,keys:bad.slice()});
+  try{contractBanner();}catch(_){}
+  return out;
+}
 /* deterministic refusals — retrying one of these can only ever produce the same answer, at twice the cost */
-const CALL_NO_RETRY={rights:1,appauth:1,xregion:1,notfound:1,allowlist:1,gone:1,drift:1};
+/* WS36: NO LONGER CONSULTED by the call wrapper. Its only reader was the bare cache-bust retry,
+   which is gone with the cache-bust itself - there is no duplicate second call left to suppress.
+   Kept, unread, because the sibling build carries the same table and a silent divergence between
+   the two is worse than one documented dead constant. Remove it from both builds or from neither. */
+const CALL_NO_RETRY={rights:1,appauth:1,xregion:1,notfound:1,allowlist:1,gone:1,drift:1,clientargs:1};
 const MCP_MAX_CONC=5;const RL_WAIT_CEIL=12000;const RL_RECOVER_AFTER=12;
 let _mcpInflight=0;const _mcpQ=[];
 let _rlUntil=0,_rlConc=MCP_MAX_CONC,_rlOk=0;
@@ -1695,15 +1793,34 @@ async function bridgeCall(name,a,isWrite){
 }
 async function call(name,args,opts){
   const isWrite=/(update|create|delete|change|add|remove|invite|set|restore|reorder)_/.test(name);
-  const base=Object.assign({},args||{});
-  const busted=Object.assign({},base);if(!isWrite)busted._cb=CB+"|"+name+"|"+JSON.stringify(base);
+  /* WS37: the contract runs HERE and nowhere else. Every read and every write in this build
+     reaches the bridge through this function, so one check covers the entire surface. It runs
+     before the timeout race and before any retry, so a stripped argument can never be smuggled
+     back in by a later code path. */
+  const base=contractCheck(name,Object.assign({},args||{}));
+  /* ==== WS36 (2026-08-27) - the `_cb` CACHE-BUST PROPERTY IS REMOVED ==================
+     It was a synthetic property added to the arguments of every read to defeat the host's read
+     cache. Revizto's MCP tool schemas now declare `additionalProperties:false`, and `list_accounts`
+     declares `properties:{}` - it takes no arguments at all - so the bridge refused every read
+     before it ever reached Revizto:
+       Invalid parameters for tool 'list_accounts': Additional object properties are not allowed: ["_cb"]
+     Licence discovery starts with list_accounts, so the artifact died on its FIRST call, on every
+     load, on every region. The refusal matched the `drift` branch of mcpFailKind; drift is in
+     CALL_NO_RETRY so the bare retry below was skipped; and stateFromKind mapped drift to
+     "restricted" - so a healthy, authenticated connector reported "licences not readable" and sent
+     the user to reconnect something that was never broken. Reported by a customer 2026-08-27 and
+     reproduced against the live tool schemas of every connector this build ships.
+     Argument-side cache-busting is now structurally IMPOSSIBLE: any undeclared property is refused
+     on every read tool. The view header's Reload is the way to force a fresh read. Do NOT
+     re-introduce a synthetic argument on any tool - it breaks the whole artifact, not one call.
+     ==================================================================================== */
   const TMO=(opts&&opts.timeout)||20000;/* large fetches/writes pass a longer budget */
   async function once(a){
     const r=await Promise.race([bridgeCall(name,a,isWrite),new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout:"+name)),TMO))]);
     if(r.isError){const _m=(r.content&&r.content[0]&&r.content[0].text)||"";const _e=new Error(name+(_m?": "+_m:""));_e.mcpMsg=_m;throw _e;}
     let p=r.structuredContent;if(p==null)p=JSON.parse(r.content[0].text);if(p&&p.structuredContent)p=p.structuredContent;return p;
   }
-  try{return await once(isWrite?base:busted);}
+  try{return await once(base);}
   /* WS27: the cache-bust retry exists for a stale-response race. A de-registered connector is not a
      race — retrying doubles the waste, so let it through untouched. */
   /* WS33 (QA round 4): the cache-bust retry exists for a stale-response RACE. A permanent, deterministic
@@ -1713,9 +1830,24 @@ async function call(name,args,opts){
      rate limiter this workstream exists to stay under. Skip the retry for causes that cannot change
      between two calls a second apart: a de-registered connector, a role that lacks rights, an account
      without the MCP app enabled, and a cross-region or not-found entity. */
-  catch(e){const _k=mcpFailKind(e).k;
-    if(!isWrite&&!/^timeout:/.test(e.message||"")&&_rlKind(e.mcpMsg||"")!=="gone"
-       &&!CALL_NO_RETRY[_k]){return await once(base);}
+  /* WS36 SUPERSEDES the two notes above. They describe a bare retry whose only purpose was to
+     re-issue the call WITHOUT `_cb` after a suspected stale-response race. With no cache-bust
+     there is nothing to re-issue: an identical second call is pure waste against the very rate
+     limiter WS33 was written to protect. The retry is gone.
+     What replaces it is deliberately narrow. If a call is ever refused for carrying a property
+     the tool does not declare, strip exactly the properties the SERVER named and retry once.
+     A future accidental injection then costs one extra call instead of silently killing licence
+     discovery for every user on every region - which is precisely what WS36 was. It retries only
+     when stripping actually changed the arguments, so it can neither loop nor double a call it
+     cannot fix, and it never runs for writes. */
+  catch(e){
+    if(!isWrite){
+      const _bad=unknownPropsIn(e.mcpMsg||e.message||"");
+      if(_bad.length){const _clean=Object.assign({},base);
+        _bad.forEach(function(p){delete _clean[p];});
+        if(Object.keys(_clean).length!==Object.keys(base).length){
+          try{console.warn("[WS36] "+name+": stripped undeclared "+JSON.stringify(_bad)+" and retried");}catch(_){}
+          return await once(_clean);}}}
     throw e;}
 }
 /* large-rebalance tuning: page the move-set in bounded pulls, write in chunks that fit the timeout budget */
@@ -1774,7 +1906,9 @@ const MCP_PAGE_MAX=100;/* hard ceiling for every paginated READ */
    property of the failures rather than of their ordering. Account-level causes the user can fix outrank
    connector-level ones; anything transient loses to everything.
    (unreachable is deliberately NOT listed: it is a STATE, never a kind mcpFailKind returns.) */
-const _CAUSE_RANK={appauth:100,rights:90,allowlist:80,drift:70,xregion:60,notfound:50,gone:40,
+/* WS36: clientargs outranks everything. It is the one cause that is certainly not the user's, so if
+   it is present among a set of failures it is the one worth reporting. */
+const _CAUSE_RANK={clientargs:110,appauth:100,rights:90,allowlist:80,drift:70,xregion:60,notfound:50,gone:40,
                    ratelimit:20,timeout:10,error:0};
 function _causeRank(e){var k=mcpFailKind(e).k;return (_CAUSE_RANK[k]!=null?_CAUSE_RANK[k]:0);}
 async function _licMapLimit(items,limit,fn){
@@ -2193,6 +2327,10 @@ function refreshInFlight(){return _refreshBusy;}
 async function _refreshOnce(){
   if(!(window.cowork&&window.cowork.callMcpTool)){noBridgeState();return;}/* WS35: no bridge — state it, never fabricate */
   if(typeof tcsAccepted==="function"&&!tcsAccepted())return;/* WS21.1 defence-in-depth: no live MCP call before consent, whatever the caller */
+  /* WS36: bumpCB() no longer influences any request - the cache-bust property it fed is gone
+     (see the call wrapper). It is kept only because CB is still cheap and other builds read it.
+     Be honest about what this means: in-app Refresh re-issues the reads but the HOST may serve
+     them from its own read cache. The view header's Reload is the guaranteed-fresh path. */
   const my=++reqSeq;bumpCB();
   try{
     await discoverLicenses(my);if(my!==reqSeq)return;const lic=LIC;
@@ -2397,6 +2535,11 @@ function stateFromKind(k){var x=(k&&k.k)||"";
   if(x==="appauth")return "restricted";
   if(x==="rights")return "restricted";
   if(x==="drift")return "restricted";/* connected + authenticated; this build can't serve it */
+  /* WS36: a refusal caused by OUR OWN arguments is not a connector state at all - the connector is
+     registered, authenticated and healthy. There is no "the artifact is at fault" state, so map it
+     to the least wrong one: "restricted" keeps the connection SELECTABLE and, unlike "unreachable",
+     never tells the user to reconnect. The clientargs message says whose fault it actually is. */
+  if(x==="clientargs")return "restricted";
   /* WS35 QA (#3): xregion and notfound are reached only AFTER list_accounts succeeded — the server
      answered, it simply cannot serve this particular licence from this instance. Calling that
      "Unreachable" and disabling the radio told the user to fix a connection that is working. Both are
@@ -2776,6 +2919,18 @@ function connCfg(p){var pf=p||CONN;var a=CONFIG.connectors||[];for(var i=0;i<a.l
 function connHas(tool){var c=connCfg();return !(c.missing&&c.missing.indexOf(tool)>=0);}
 function lsKey(base){return base+"@"+(typeof CONN!=="undefined"&&CONN?CONN:"default");}
 function dispRegion(){var l=(LICENSES||[]).find(function(x){return x.uuid===LIC;});return regionName(l&&l.region);}
+/* WS36: read the property names out of a schema rejection, so both the classifier and the
+   self-healing retry in the call wrapper work from the server's own words rather than a guess.
+   Observed live 2026-08-27:
+     Invalid parameters for tool 'list_accounts': Additional object properties are not allowed: ["_cb"]
+   Only the tail AFTER "not allowed" is scanned, so the quoted TOOL name earlier in the message can
+   never be mistaken for a property name. */
+function unknownPropsIn(m){m=String(m||"");
+  if(!/Additional object propert|additionalProperties/i.test(m))return[];
+  var i=m.search(/not allowed/i);if(i<0)return[];
+  var tail=m.slice(i),out=[],re=/["'`]([A-Za-z_$][\w$]*)["'`]/g,x;
+  while((x=re.exec(tail))){if(out.indexOf(x[1])<0)out.push(x[1]);}
+  return out;}
 function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
   /* WS34: this message has TWO causes and the build only ever named one — the admin-side one, which most
      users cannot action. Per Revizto's help centre (Connecting AI tools to Revizto MCP server, updated
@@ -2803,6 +2958,24 @@ function mcpFailKind(e){var m=String((e&&(e.mcpMsg||e.message))||"");
      and it now fires only for a server whose build wants a parameter this one does not send. Without this
      branch the rejection fell through to the generic error, which stateFromKind
      mapped to "unreachable" - telling the user to reconnect a healthy connector. */
+  /* ==== WS36 (2026-08-27) CLIENT-SIDE CONTRACT ERROR - NOT server drift ================
+     Revizto's tool schemas declare `additionalProperties:false`. If this artifact sends a property
+     a tool does not declare, the bridge refuses the call with "Additional object properties are not
+     allowed" - wrapped in the very same "Invalid parameters for tool" prose the drift branch below
+     matches. That is how WS36 hid: a synthetic `_cb` property on every read made every read fail,
+     the drift branch blamed the SERVER ("this server's MCP build expects different parameters"),
+     and stateFromKind marked a perfectly healthy connection "restricted". The customer was told to
+     reconnect a connector that was working.
+     The injection is gone. This branch exists so that if it ever recurs the artifact names the real
+     culprit - itself - instead of the user's connector, account or licence.
+     It MUST stay above the drift branch: both match the same prose, and the specific reading wins.
+     ==================================================================================== */
+  if(/Additional object propert|additionalProperties/i.test(m)){
+    var _up=unknownPropsIn(m);
+    return{k:"clientargs",t:"The Blueprint sent a parameter this server doesn\u2019t accept",
+      d:"The Revizto MCP refused this call because it carried "+
+        (_up.length?("a property the tool does not declare (\u2018"+_up.join("\u2019, \u2018")+"\u2019)"):"a property the tool does not declare")+
+        ". Revizto\u2019s tool schemas reject any argument they do not declare, so the call never reached Revizto. This is a fault in this build \u2014 not in your connector, your account or your licence. The connection itself is healthy. Press Reload; if it persists, send Revizto the build stamp shown under About."};}
   if(/Invalid parameters for tool|Missing required propert/i.test(m)){
     var _dp=(m.match(/`([A-Za-z_][\w]*)`/)||[])[1]||"";
     return{k:"drift",t:"This server\u2019s MCP build expects different parameters",

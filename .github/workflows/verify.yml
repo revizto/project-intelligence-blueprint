@@ -1,0 +1,20 @@
+# The Blueprint ships as a single self-contained HTML file with no build pipeline, which is why
+# three defects of the same shape (WS28d, WS35, WS36) each reached production. These gates are the
+# pipeline. They are cheap, they run on every push, and they are the reason a hand-edit can no
+# longer quietly reintroduce a defect we have already paid for once.
+name: verify
+on:
+  push:
+    branches: [main, 'release/**']
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: manifest describes the asset beside it
+        run: node tools/build.mjs --check
+      - name: regression gates (syntax, contract, taxonomy, hygiene, manifest)
+        run: node tests/run.mjs

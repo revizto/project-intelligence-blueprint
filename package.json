@@ -1,0 +1,10 @@
+{
+  "name": "project-intelligence-blueprint",
+  "private": true,
+  "description": "Revizto Project Intelligence Blueprint - Claude plugin. The dashboard ships as a single self-contained HTML asset; these scripts are its build and verification gates.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "verify": "node tools/build.mjs --check && node tests/run.mjs",
+    "test": "node tests/run.mjs"
+  }
+}

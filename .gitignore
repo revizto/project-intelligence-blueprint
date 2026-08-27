@@ -5,3 +5,7 @@
 
 # internal build tooling — must never ship in the customer repo (leaks canonical paths)
 derive_release.py
+
+# build output - release assets are attached to the GitHub release, not committed
+dist/
+node_modules/

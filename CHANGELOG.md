@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.0.4 — 2026-08-28 (the `_cb` outage; an argument contract; guards that cannot go stale; build `2026-08-28.1`)
+
+A customer reported every connection showing *"Connected · licences not readable."* The connections were
+fine. This build was sending an argument Revizto refuses, so every read was rejected before it reached
+Revizto — and the Blueprint then blamed the customer's connector for it.
+
+> **Action required.** Re-run the `project-intelligence-dashboard` skill. 1.0.3 artifacts carry the
+> defect and cannot be repaired in place.
+
+### The outage
+
+- **A synthetic `_cb` property was added to the arguments of every read**, to defeat the host's read
+  cache. Revizto's tool schemas declare `additionalProperties: false`, and `list_accounts` declares
+  `properties: {}` — it takes no arguments at all — so the bridge refused every read with
+  `Additional object properties are not allowed: ["_cb"]`. Licence discovery opens with `list_accounts`,
+  so the artifact died on its first call, on every load, on every production region.
+- **Three faults compounded.** The refusal matched the `drift` branch, `drift` is in `CALL_NO_RETRY`, so
+  the retry that would have re-sent without `_cb` and succeeded was suppressed; and `drift` maps to
+  `restricted`, so a healthy, authenticated connector was reported as unreadable and the user was sent
+  to reconnect something that was never broken.
+- **One connector appeared to work.** The Barcelona stage instance does not yet enforce
+  `additionalProperties: false`. That asymmetry is why the failure read as a difference between server
+  builds rather than as a fault in this one.
+- **Argument-side cache-busting is now structurally impossible.** There is no schema-legal substitute.
+  In-app Refresh re-issues reads but the host may serve them cached; the view header's **Reload** is the
+  guaranteed-fresh path.
+
+### `clientargs` — a build that is wrong now says so
+
+- A rejection caused by our own arguments is no longer reported as server drift. It is classified
+  separately, names the offending property, states that the connector, account and licence are fine, and
+  never tells the user to reconnect. It ranks above every user-actionable cause, because it is the one
+  cause that is certainly not theirs.
+
+### An outbound argument contract
+
+- **Three outages have now had the same shape** — `limit:200/500` out of range (1.0.1), `accountUuid`
+  missing (1.0.3), `_cb` undeclared (this one). Every call funnels through one function, so that is where
+  the class is closed. `ARG_CONTRACT` declares the arguments each tool may receive; anything else is
+  stripped before sending, logged, and surfaced in-product against the build stamp.
+- **It is not a copy of Revizto's schema.** The bridge exposes tool *names* to an artifact but not their
+  schemas, so a faithful copy is not obtainable from inside the artifact and a hand-copied one would rot
+  silently. The contract is instead the list of arguments this build is known to send. Unknown tools pass
+  through untouched — the contract exists to stop our mistakes, not to stop the product growing.
+- **A self-healing retry** backs it up: any rejection naming an undeclared property strips exactly what
+  the server named and retries once.
+
+### Guards that describe the file rather than remembering it
+
+- **`assets/manifest.json` is generated from the asset** — bytes, lines, sha256, build stamp, and the
+  read/write tool lists derived from `ARG_CONTRACT` itself. `SKILL.md` verifies against it and no longer
+  states a size, a line count, a build stamp or a tool list anywhere.
+- **This mattered.** 1.0.3's install guard asserted a size, a line count, a build stamp *and* a tool list
+  that were all wrong by the time it shipped — a guard that fails on a correct file teaches installers to
+  ignore it. A transcribed tool list is also how a nine-tool skill came to be run against a ten-tool
+  build, producing *"no licences at all."*
+- **`tests/run.mjs`** enforces five gates on every push (`.github/workflows/verify.yml`): the script
+  parses; no argument reaches the wire undeclared; failures are classified correctly and blame the right
+  party; defects already shipped once cannot return; and the manifest and SKILL.md cannot go stale. Each
+  gate was verified by mutation — deliberately reintroducing the defect and confirming the gate fails.
+
 ## 1.0.3 — 2026-08-18 (accountUuid; no synthetic data; writes on every server; build `2026-08-18.1`)
 
 Revizto made `accountUuid` a required parameter on `list_licenses` across every region. This release

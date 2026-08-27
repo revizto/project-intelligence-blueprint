@@ -8,7 +8,7 @@ description: >
   Intelligence Blueprint (a fixed, self-contained HTML file bundled with this plugin)
   as a Cowork artifact, pointed at the installing user's own Revizto licences.
 metadata:
-  version: "1.0.3"
+  version: "1.0.4"
 ---
 
 # Project Intelligence Blueprint — install action
@@ -18,9 +18,13 @@ Deploy the **pre-built** Revizto Project Intelligence Blueprint as a live Cowork
 ## 🚫 CRITICAL — deploy the bundled file verbatim. Do NOT build a dashboard.
 
 The Blueprint is a **finished, approved artifact**: a single self-contained HTML file
-(`assets/dashboard.html`, ≈ 987 KB, ≈ 5,300 lines) that ships inside this plugin. Your entire
-job is to **copy that exact file** and **insert the user's connector prefix into one line**, then
-register it as an artifact.
+(`assets/dashboard.html`) that ships inside this plugin. Your entire job is to **copy that exact
+file** and **insert the user's connector prefix into one line**, then register it as an artifact.
+
+Its size, line count, checksum, build stamp and tool list all live in `assets/manifest.json`,
+generated from the file itself. **Never type any of those numbers into this document.** Earlier
+versions did, the numbers went stale at every release, and the guard ended up failing on a
+*correct* file — which taught installers to ignore it. Read the manifest instead.
 
 You must **NOT**, under any circumstances:
 
@@ -75,9 +79,16 @@ precisely why this skill is being re-run; do not assume the old artifact can be 
 it — just copy it:
 
 ```bash
-cp "$CLAUDE_PLUGIN_ROOT/skills/project-intelligence-dashboard/assets/dashboard.html" ./pi-blueprint.html
-wc -c ./pi-blueprint.html   # sanity check: expect ~987000 bytes. If it's a few KB, you have the wrong file — do not proceed.
+A="$CLAUDE_PLUGIN_ROOT/skills/project-intelligence-dashboard/assets"
+cp "$A/dashboard.html" ./pi-blueprint.html
+cat "$A/manifest.json"                        # the expected bytes / lines / sha256 / tools
+wc -c < ./pi-blueprint.html                   # must equal .asset.bytes
+shasum -a 256 ./pi-blueprint.html | cut -d" " -f1   # must equal .asset.sha256
 ```
+
+Compare both against `manifest.json`. If either differs you have the wrong file, a truncated copy,
+or a file you generated yourself — **do not proceed**. If the copy is only a few KB you have
+definitely got the wrong file.
 
 (If `$CLAUDE_PLUGIN_ROOT` isn't set in this environment, locate the plugin's
 `skills/project-intelligence-dashboard/assets/dashboard.html` on disk and copy that. Never substitute
@@ -91,8 +102,11 @@ of the copied file the connector array ships empty:
 ```js
 const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection ... */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-18.1"};
+],readOnly:false,tcsVersion:"…",buildStamp:"…"};
 ```
+
+(The `tcsVersion` and `buildStamp` values are whatever the shipped file says. Leave them exactly as
+found — they are not yours to set, and `manifest.json` records what they should be.)
 
 Read the installer's actual Revizto MCP tool prefix from the connected tool names in this session —
 the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licenses` → prefix
@@ -101,7 +115,7 @@ the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licen
 ```js
 const CONFIG={connectors:[
   {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-18.1"};
+],readOnly:false,tcsVersion:"…",buildStamp:"…"};   // ← both left exactly as they were
 ```
 
 Use a single targeted find-and-replace on that one region. **Do not touch anything else in the file** —
@@ -109,7 +123,13 @@ no reformatting, no other edits. Read the real prefix; never guess it. (If you g
 a prefix, you may leave `connectors:[]` and deploy anyway — the Blueprint will show the connect CTA —
 but it won't load live data, so prefer inserting the prefix.)
 
-**4 — Call the ten read tools once in this session (mandatory — this is what makes the allowlist bind).**
+**4 — Call every read tool in `manifest.json` once in this session (mandatory — this is what makes the allowlist bind).**
+
+`manifest.json` → `.tools.read` is the authoritative list, generated from the build's own argument
+contract. Use it rather than any list written out in prose, here or anywhere else. A previous
+release shipped a skill that named nine tools against a build that needed ten, and the missing one
+was `list_accounts` — the entry point for licence discovery — so every install produced *"no
+licences at all"* and every server looked unauthorised.
 `create_artifact` will only put a tool on the artifact's `mcp_tools` allowlist if you **actually called
 that tool in this session** — declaring a tool you never called does nothing, and the dashboard then
 shows "The Blueprint's tools aren't authorised for this artifact yet." So, for **each** connected
@@ -154,13 +174,16 @@ has been invoked once so it can be declared. (Repeat per connector prefix if the
 
 **6 — Verify you deployed the real thing AND the tools bound (mandatory).**
 
-- Content: the deployed HTML is ≈ 987 KB / ≈ 5,300 lines (a dashboard you "built" will be far smaller)
-  and contains `buildStamp:"2026-08-18.1"` and the six-view chrome (panel ids incl. `panel-issues`,
-  `panel-health`, `panel-compare`, `panel-ask`). If size/markers are off, you regenerated it — discard
-  and redo from step 2 by copying the file.
+- Content: the deployed HTML must match `manifest.json` on **bytes** and **sha256** (recheck as in
+  step 2 — the only permitted difference from the shipped file is the `CONFIG.connectors` line you
+  edited, so recompute the hash on the *pristine* copy, not the edited one). It must also contain the
+  six-view chrome (panel ids incl. `panel-issues`, `panel-health`, `panel-compare`, `panel-ask`). A
+  dashboard you "built" yourself will be far smaller and will match nothing. If it does not match,
+  you regenerated it — discard and redo from step 2 by copying the file.
 - Tools: after the artifact opens, it must reach the Terms gate → licence picker, **not** the
   "tools aren't authorised for this artifact yet" panel. If it shows that panel, the `mcp_tools` did not
-  bind — confirm you (a) *called* each of the ten read tools in step 4 and (b) *declared* all eleven (the ten reads + `update_issues`) in step 5,
+  bind — confirm you (a) *called* every tool in `manifest.json` → `.tools.read` in step 4 and
+  (b) *declared* all of those **plus** `.tools.write` in step 5,
   then re-create. If it still fails after both, the artifact-creation path on this build is not binding
   the allowlist — report that to Revizto (capture the desktop version).
 
@@ -168,12 +191,14 @@ has been invoked once so it can be declared. (Repeat per connector prefix if the
 gate (accept to proceed), then a licence picker; it lands on their most-recently-active project. Point
 them at the in-product **About · Terms · Tour**.
 
-## Read tools to declare (per connected connector prefix)
+## Tools to declare (per connected connector prefix)
 
-list_accounts, list_licenses, list_projects, list_sheets, list_clash_tests, list_stamp_templates,
-list_license_members, list_project_members, list_workflows, list_issues.
+**Read `assets/manifest.json` and use `.tools.read` and `.tools.write`.** They are generated from the
+build's own `ARG_CONTRACT`, so they cannot drift from what the dashboard actually calls. This section
+deliberately does not repeat the list: a transcribed list is exactly how the nine-vs-ten failure
+happened, and `tests/run.mjs` fails the build if the manifest and the contract ever disagree.
 
-`list_accounts` leads the list because licence discovery starts there — see the note in step 4.
+`list_accounts` is the entry point — licence discovery starts there. See the note in step 4.
 
 Plus **`update_issues`** (the 06 Action write tool) — declared so approved writes can execute when the user
 toggles read-only off. This build ships `readOnly:false` (the pill is a live per-session toggle; the

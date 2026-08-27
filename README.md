@@ -22,9 +22,13 @@ Revizto project. Every write runs count-first targeting, a diff preview, and an 
 > Updating the plugin does **not** update a Blueprint you have already deployed — the artifact still
 > contains the code it was built from. Re-run the `project-intelligence-dashboard` skill (Step 5).
 >
-> **1.0.3 adds two tool authorisations per server**, so you will be asked to approve them:
-> `list_accounts`, without which no licence can be discovered at all, and `update_issues` for the write
-> surface.
+> **1.0.4 is a required upgrade.** 1.0.3 sends an argument the Revizto MCP refuses, so every read
+> fails and every connection reports *"Connected · licences not readable"* — a healthy connector
+> described as broken. A 1.0.3 artifact carries that defect and cannot be repaired in place; it must be
+> redeployed by re-running the skill.
+>
+> The tool authorisations are unchanged from 1.0.3 (`list_accounts` for licence discovery and
+> `update_issues` for the write surface), so you will be asked to approve the same set.
 
 ---
 
@@ -86,11 +90,11 @@ region can you access?"*
 **Add the marketplace by URL.** **+** → `revizto/project-intelligence-blueprint` → turn **"Sync
 automatically" off** → **Sync** → install **revizto-project-intelligence**.
 
-**Or upload the package.** If you were supplied `revizto-project-intelligence-v1.0.3.plugin` (also
+**Or upload the package.** If you were supplied `revizto-project-intelligence-v1.0.4.plugin` (also
 attached to the GitHub release), use **Directory → Plugins → Personal → Local uploads**. No repository
 access needed.
 
-Either way the install detail should list **3 skills** at version **1.0.3**.
+Either way the install detail should list **3 skills** at version **1.0.4**.
 
 > **Upgrading?** Remove the old entry before installing the new one, or Claude keeps serving the cached
 > version.
