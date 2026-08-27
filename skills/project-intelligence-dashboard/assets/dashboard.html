@@ -978,7 +978,6 @@ th{white-space:nowrap}
 .ccount{flex:0 0 auto;font-size:var(--fs-1,11px);color:#5b6b6b;padding-top:2px;white-space:nowrap}
 .cbadge{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid #CBDDDD;color:#1E2E2E;
   background:#fff;white-space:nowrap;font-weight:400}
-.cbadge.stage{border-color:#F5C6C6;color:#B42318}
 .cdedi{font-size:10px;padding:1px 7px;border-radius:999px;background:#009999;color:#fff;white-space:nowrap;font-weight:500}
 .cpanel-add{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
 @media(max-width:640px){.crow{flex-wrap:wrap}.ccount{width:100%;padding-top:0}.connbtn{max-width:60vw}}
@@ -1349,12 +1348,12 @@ th{white-space:nowrap}
 <script>
 const CONFIG={connectors:[
  /* Add ONE entry per Revizto MCP connection, e.g.
-      {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
+      {prefix:"mcp__<connector-id>__",wsHost:"ws.revizto.com",missing:[]},
     The connector id is the leading mcp__<id>__ segment of your Revizto MCP tool names. Each Revizto
     MCP server is its own connection: the Blueprint reads from exactly ONE at a time and you choose
     which in the MCP Server panel. Leaving this empty is valid - the Blueprint shows a connect CTA and
     a connection can be added at runtime from that panel. */
-],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-28.1"};
+],readOnly:false,tcsVersion:"1.1",buildStamp:"2026-08-28.2"};
 /* (WS21 licence-first commentary removed 2026-07-29 — it asserted the opposite of the WS28 model above:
    "users pick a LICENCE, never a connector", every connection probed, serving connection auto-resolved.
    WS28 dedicates one connection explicitly. missing:[] still means recon-verified tool gaps. Consent is
@@ -1378,16 +1377,16 @@ function loadUserConns(){try{var a=JSON.parse(localStorage.getItem("rvz_userconn
 function saveUserConns(a){try{localStorage.setItem("rvz_userconns",JSON.stringify(a));}catch(e){}}
 function normPrefix(s){s=String(s||"").trim();if(!s)return"";var m=s.match(/mcp__(.+?)__/);var id=m?m[1]:s;
   return CONN_UUID_RE.test(id)?"mcp__"+id+"__":"";}
-(function(){loadUserConns().forEach(function(p){if(!CONFIG.connectors.some(function(c){return c.prefix===p;}))CONFIG.connectors.push({prefix:p,env:"prod",wsHost:"ws.revizto.com",missing:[],user:true});});})();
+(function(){loadUserConns().forEach(function(p){if(!CONFIG.connectors.some(function(c){return c.prefix===p;}))CONFIG.connectors.push({prefix:p,wsHost:"ws.revizto.com",missing:[],user:true});});})();
 let CONN_SEEN=(function(){try{return JSON.parse(localStorage.getItem("rvz_connstate")||"{}")||{};}catch(e){return {};}})();/* last-seen per-connection health, restored so the panel shows continuity instead of a blank start */
 /* QA: persisted the RETIRED {ok,count} shape, so every entry serialised as {ok:false,count:0} and
    CONN_SEEN was silently worthless. Now stores the WS28 shape so an unprobed row can show real
    last-seen continuity instead of "not checked yet". */
 function saveConnState(){try{var o={};Object.keys(CONNSTATE||{}).forEach(function(p){var x=CONNSTATE[p];if(!x)return;
-  o[p]={state:x.state||"",licCount:x.licCount||0,regions:x.regions||[],email:(x.who&&x.who.email)||"",env:x.env||"",t:Date.now(),kt:(x.kind&&x.kind.t)||""};});
+  o[p]={state:x.state||"",licCount:x.licCount||0,regions:x.regions||[],email:(x.who&&x.who.email)||"",t:Date.now(),kt:(x.kind&&x.kind.t)||""};});
   localStorage.setItem("rvz_connstate",JSON.stringify(o));CONN_SEEN=o;}catch(e){}}
-function addUserConn(raw){var p=normPrefix(raw);if(!p)return{err:"That isn't a connector id. Paste the uuid (8-4-4-4-12) or the full mcp__<uuid>__ prefix — a name like “ireland” won't work."};if((CONFIG.connectors||[]).some(function(c){return c.prefix===p;}))return{err:"That connection is already configured"};var a=loadUserConns();if(a.indexOf(p)<0){a.push(p);saveUserConns(a);}CONFIG.connectors.push({prefix:p,env:"prod",wsHost:"ws.revizto.com",missing:[],user:true});return{ok:p};}
-const REGION_NAMES={"ap-southeast-2":"ANZ / APAC (Sydney)","ali-me-central-1":"KSA (Riyadh)","me-central-1":"KSA (Riyadh)","us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland","eu-south-1-barcelona":"Barcelona (stage)"};
+function addUserConn(raw){var p=normPrefix(raw);if(!p)return{err:"That isn't a connector id. Paste the uuid (8-4-4-4-12) or the full mcp__<uuid>__ prefix — a name like “ireland” won't work."};if((CONFIG.connectors||[]).some(function(c){return c.prefix===p;}))return{err:"That connection is already configured"};var a=loadUserConns();if(a.indexOf(p)<0){a.push(p);saveUserConns(a);}CONFIG.connectors.push({prefix:p,wsHost:"ws.revizto.com",missing:[],user:true});return{ok:p};}
+const REGION_NAMES={"ap-southeast-2":"ANZ / APAC (Sydney)","ali-me-central-1":"KSA (Riyadh)","me-central-1":"KSA (Riyadh)","us-east-1":"North America (USA)","virginia":"North America (USA)","canada":"Canada","eu-west-1":"Europe (Ireland)","ireland":"Europe (Ireland)","london":"United Kingdom","frankfurt":"UAE (Frankfurt)","saopaulo":"South America (Brazil)","singapore":"Southeast Asia (Singapore)","sydney":"ANZ (Australia)","tokyo":"Japan","ksa":"KSA","zurich":"Switzerland"};
 function regionName(c){return REGION_NAMES[c]||c||"—";}
 /* WS28: the DEDICATED connection is the root of all state. Licence + project selections are scoped to
    it, because a licence uuid means nothing on a different regional instance - the same picker value
@@ -2550,7 +2549,7 @@ function stateFromKind(k){var x=(k&&k.k)||"";
   return "unreachable";}
 /* WS30: whoami REMOVED from the probe path (product decision, 2026-07-29). Health is now derived from
    list_licenses alone, which adds no tool the install skill does not already declare. (Exact counts
-   differ per connector and are NOT stated here, because they drift: this staging build's own allowlist
+   differ per connector and are NOT stated here, because they drift: one development build's allowlist
    carries 11 entries for three connectors and 10 for the two that omit update_issues.) No customer
    re-authorisation is needed and no extra personal data is handled.
    The state machine survives because the failure strings are distinguishable and a SUCCESSFUL call
@@ -2564,11 +2563,10 @@ function stateFromKind(k){var x=(k&&k.k)||"";
      timeout / transport          -> unreachable
    What is genuinely lost versus whoami: the signed-in email on the row (so a connection authenticated
    as the WRONG Revizto account can no longer be spotted from the panel), and the stage/production tell
-   that came from the avatar hostname - environment now comes from the connector's own env setting. */
+   that came from the avatar hostname. WS37 retires the environment concept outright: the shipping
+   Blueprint carries no private/stage notion, so a connection is described by region and health. */
 async function probeConn(pfx){
-  var cfg=connCfg(pfx);
-  var out={prefix:pfx,state:"unreachable",env:(cfg.env==="stage"?"stage":"production"),
-           licCount:0,regions:[],kind:null};
+  var out={prefix:pfx,state:"unreachable",licCount:0,regions:[],kind:null};
   try{
     var l=await listLicencesFor(pfx,out);
     var ents=(l&&(l.entities||l))||[];if(!Array.isArray(ents))ents=[];
@@ -2613,7 +2611,7 @@ async function probeConnections(){
    WS28 built a connection's label by JOINING the distinct regions of the licences it returned. That
    breached the Blueprint's founding principle - one MCP server is one connection - and produced labels
    that read as two servers fused together - a single production connector rendered as "<region A> +
-   <region B>", and a single private stage connector fused its stage marker into a compound name.
+   <region B>", and a single private connector fused its environment marker into a compound name.
    (Concrete examples deliberately omitted: internal server names must not appear in shipped source.)
    Root cause: a licence's `region` is a property of the LICENCE (where its data is hosted), not of the
    connection serving it. The Sydney connector returns 21 licences of which 3 report us-east-1 - the
@@ -2666,7 +2664,6 @@ function connHomeRegion(pfx){
   return (mix[0].n/tot)>=0.6?mix[0].region:"";}
 function connLabel(pfx){
   var i=(CONFIG.connectors||[]).findIndex(function(c){return c.prefix===pfx;});
-  var cfg=connCfg(pfx);
   var host=connHostNames()[pfx];
   if(host){
     /* two connectors can carry the same host name; disambiguate rather than show duplicate rows */
@@ -2675,15 +2672,12 @@ function connLabel(pfx){
     var hr=connHomeRegion(pfx);
     return host+" ("+(hr?regionName(hr):String(pfx).slice(5,13))+")";}
   var hr2=connHomeRegion(pfx);
-  if(hr2)return regionName(hr2)+(cfg.env==="stage"?" (stage)":"");
-  return "Connection "+(i>=0?i+1:"?")+(cfg.env==="stage"?" (stage)":"");}
-/* production first, private stage last - a private connection should never head the list */
+  if(hr2)return regionName(hr2);
+  return "Connection "+(i>=0?i+1:"?");}
+/* WS37: connections list in configured order. There is no environment concept to sort by - the
+   private/stage notion this ordering existed to demote no longer ships. */
 function connOrder(){
-  return (CONFIG.connectors||[]).slice().map(function(c,i){return {c:c,i:i};})
-    .sort(function(a,b){
-      var sa=(a.c.env==="stage")?1:0,sb=(b.c.env==="stage")?1:0;
-      return sa!==sb?sa-sb:a.i-b.i;})
-    .map(function(x){return x.c;});}
+  return (CONFIG.connectors||[]).slice();}
 let DISC_ERR=null;/* WS20: last licence-discovery failure (mcpFailKind) — cleared on success */
 async function discoverLicenses(seq){
   /* WS28: probe the DEDICATED connection ONLY. Previously this fanned out over every configured
@@ -3052,8 +3046,8 @@ function connPanelHtml(){
     var can=!state||!!CONN_SELECTABLE[state];
     var tier=connTier(st);
     var cls="crow"+(sel?" sel":"")+(can?" pick":" off");
-    var env=(st&&st.env)?tcsEsc(st.env):(c.env==="stage"?"stage":"");
-    var bits=[];if(env)bits.push(env);/* WS30: no signed-in email - whoami is no longer declared */
+    var bits=[];/* WS30: no signed-in email - whoami is no longer declared.
+       WS37: and no environment chip - the shipping build has no private/stage concept. */
     /* WS29: region is DATA RESIDENCY of the licences, not the connection's identity. Show the home
        region, and where licences are split across regions state the split as counts - neutral fact,
        no verdict, because whether that split is legitimate or a database glitch is still open with
@@ -3130,7 +3124,6 @@ function connPanelHtml(){
       '<label class="'+cls+'">'+
       '<input type="radio" name="cpick" value="'+tcsEsc(c.prefix)+'"'+(sel?" checked":"")+(can?"":" disabled")+'>'+
       '<span class="cmain"><span class="cttl">'+tcsEsc(connLabel(c.prefix))+
-        (c.env==="stage"?' <span class="cbadge stage">private stage</span>':"")+
         (sel?' <span class="cdedi">Dedicated</span>':"")+'</span>'+
       '<span class="cmeta">'+meta+'</span>'+
       (reason?'<span class="creason">'+tcsEsc(reason)+'</span>':"")+
@@ -3286,7 +3279,7 @@ async function resolveConn(licUuid,seq){/* resolve + PIN the connection that ser
     lastKind=rr.kind;
   }
   return {fail:lastKind};}
-function refreshAboutBuild(){var b=document.getElementById("aboutBuild");if(b&&typeof CONFIG!=="undefined"&&CONFIG){var c=connCfg();b.textContent="Build "+(CONFIG.buildStamp||"—")+" · Terms v"+(CONFIG.tcsVersion||"1.0")+" · read live from the Revizto MCP Server ("+dispRegion()+(c.env==="prod"?" · production":" · staging")+")";}}
+function refreshAboutBuild(){var b=document.getElementById("aboutBuild");if(b&&typeof CONFIG!=="undefined"&&CONFIG){b.textContent="Build "+(CONFIG.buildStamp||"—")+" · Terms v"+(CONFIG.tcsVersion||"1.0")+" · read live from the Revizto MCP Server ("+dispRegion()+")";}}
 async function loadWorkflows(p,seq){try{const w=await call(RB+"list_workflows",{projectUuid:p||PRJ});if(seq!=null&&seq!==reqSeq)return;
   STATUSES=(w.statuses||[]).filter(s=>!s.deletedAt).map(s=>({uuid:s.uuid,name:s.name}));
   TYPES=(w.types||[]).filter(t=>!t.deletedAt&&t.isActive!==false).map(t=>({uuid:t.uuid,name:t.name}));
@@ -4352,7 +4345,7 @@ function buildLibrary(){const lib=document.getElementById("library");
   lib.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{const p=PERSONAS.find(x=>x.key===b.dataset.p);ask(p,p.prompts[+b.dataset.q],b);});}
 const DOCTRINE="You are a senior BIM manager accountable for the whole project outcome — on time, on budget, minimal rework and RFIs. Reason like an owner, not a reporter. RULES: (1) Size every recommendation to the SCALE of the problem — use proportions, percentages and fair-share targets, never arbitrary fixed counts; fixing 10 of 10,000 is noise. (2) Prefer root-cause fixes that stop the inflow (clash automation, workflow/stamp discipline, fix-once-close-many on shared objects) over symptom triage, and rank root cause first. (3) When triaging, order by severity x buildability impact x age, not raw count. (4) Quantify BOTH the expected dent AND the residual that remains. (5) Be capacity-honest — never propose more than the team or tools can absorb; if work must be batched, say the batch size and cycles. (6) If load is concentrated but no teammate sits below the fair-share line, say plainly it is a capacity/scope problem, not a reassignment one. Keep it specific and numeric. ";
 function context(){const C=DATA.counts;const tot=C?C.total:Object.values(DATA.status).reduce((a,b)=>a+b,0);
-  return {project:DATA.meta.name,region:(typeof dispRegion==="function"?(dispRegion()+(connCfg().env==="prod"?" (production)":" (stage)")):(DATA.meta.region||"")),lastActivity:DATA.meta.lastActive,modelRevision:DATA.meta.revNum,totalIssues:tot,countsReconciled:(C?C.reconciled:true),detailComplete:(DATA.sample?DATA.sample.complete:false),detailSampleN:(DATA.sample?DATA.sample.n:0),statusCounts:DATA.status,priorityCounts:DATA.priority,
+  return {project:DATA.meta.name,region:(typeof dispRegion==="function"?dispRegion():(DATA.meta.region||"")),lastActivity:DATA.meta.lastActive,modelRevision:DATA.meta.revNum,totalIssues:tot,countsReconciled:(C?C.reconciled:true),detailComplete:(DATA.sample?DATA.sample.complete:false),detailSampleN:(DATA.sample?DATA.sample.n:0),statusCounts:DATA.status,priorityCounts:DATA.priority,
     resolutionRatePct:tot>0?Math.round(100*(DATA.status.Solved+DATA.status.Closed)/tot):null,/* WS33 (QA round 3): was NaN on an empty project, and NaN was being emitted into the LLM payload */last90d:{opened:DATA.trend.opened.reduce((a,b)=>a+b,0),resolved:DATA.trend.resolved.reduce((a,b)=>a+b,0),weekly:DATA.trend},
     drawingSheets:(DATA.sheetsNote?("unavailable — "+DATA.sheetsNote):DATA.sheets),clashTestsConfigured:DATA.clashTests,stampTemplates:DATA.stamps,
     topAuthors:DATA.reporters.map(r=>({email:r[0],issues:r[1],resolvedPct:Math.round(100*r[2]/r[1])})),/* WS33 (QA round 3): this is the payload every LLM answer reasons over, and it labelled slot [2] as

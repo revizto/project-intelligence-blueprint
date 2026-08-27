@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.4 — 2026-08-28 (the `_cb` outage; an argument contract; guards that cannot go stale; build `2026-08-28.1`)
+## 1.0.4 — 2026-08-28 (the `_cb` outage; an argument contract; no environment concept; guards that cannot go stale; build `2026-08-28.2`)
 
 A customer reported every connection showing *"Connected · licences not readable."* The connections were
 fine. This build was sending an argument Revizto refuses, so every read was rejected before it reached
@@ -60,6 +60,29 @@ Revizto — and the Blueprint then blamed the customer's connector for it.
   parses; no argument reaches the wire undeclared; failures are classified correctly and blame the right
   party; defects already shipped once cannot return; and the manifest and SKILL.md cannot go stale. Each
   gate was verified by mutation — deliberately reintroducing the defect and confirming the gate fails.
+
+
+### No environment concept, and no internal region, in shipped source
+
+- **`REGION_NAMES` named an internal pre-production region.** The table carried
+  `"eu-south-1-barcelona":"Barcelona (stage)"` — a display label only, never a connector, and no
+  staging connector id has ever shipped. But it named internal Revizto infrastructure in a public
+  artifact, which this build already forbids itself elsewhere: the connection-identity notes carry the
+  rule *"internal server names must not appear in shipped source"* and then omit their own examples.
+  The region table did not honour it. `regionName()` already passes unmapped codes through verbatim, so
+  an internal region now renders as its bare code.
+- **The private/stage environment concept is removed outright.** A connection could be declared
+  `env:"stage"`, which sorted it last, rendered a *private stage* badge, and appended *(stage)* or
+  *staging* to the connection label, the About footer and the report metadata. None of it named
+  anything internal, but the concept only exists to describe a build that is not the shipping one, and
+  it has no place in the shipping one. Gone: the `env` key from the configured and runtime-added
+  connector shapes and from persisted connection state, the `.cbadge.stage` style, the badge, the
+  ordering rule, and every environment suffix. Connections now list in configured order and are
+  described by region and health alone. An artifact deployed by an earlier build that still carries
+  `env:"prod"` is unaffected — the key is simply ignored.
+- **Two hygiene guards enforce both.** `REGION_NAMES` is asserted to name no pre-production or internal
+  region, and the asset is asserted to carry no environment concept at all. Both were negative-tested:
+  each fails when its defect is reinstated, and fails rather than passing vacuously.
 
 ## 1.0.3 — 2026-08-18 (accountUuid; no synthetic data; writes on every server; build `2026-08-18.1`)
 

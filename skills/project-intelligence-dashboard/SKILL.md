@@ -114,7 +114,7 @@ the leading `mcp__<connector-id>__` segment (e.g. `mcp__1a2b3c4d-…__list_licen
 
 ```js
 const CONFIG={connectors:[
-  {prefix:"mcp__<connector-id>__",env:"prod",wsHost:"ws.revizto.com",missing:[]},
+  {prefix:"mcp__<connector-id>__",wsHost:"ws.revizto.com",missing:[]},
 ],readOnly:false,tcsVersion:"…",buildStamp:"…"};   // ← both left exactly as they were
 ```
 

@@ -289,6 +289,14 @@ section('4  HYGIENE  (shipped defects cannot return)');
   }
   ok('bundled asset ships NO baked connectors (never leak an installer\'s ids)',
      /connectors:\[\s*(?:\/\*)/.test(SRC) && !/prefix:"mcp__[0-9a-f]{8}-/.test(SRC));
+  {
+    const rn = (/const REGION_NAMES=\{([^}]*)\}/.exec(SRC) || [])[1] || '';
+    ok('REGION_NAMES names no internal or pre-production region',
+       rn.length > 0 && !/stage|barcelona/i.test(rn),
+       rn.length ? 'offending label present' : 'REGION_NAMES not found - gate would pass vacuously');
+  }
+  ok('no private/stage environment concept ships',
+     !/env\s*:\s*["'](?:stage|prod)["']|\.env\s*===|cbadge stage|private stage/i.test(SRC));
   ok('bundled asset carries no cowork-artifact-meta header',
      !/^<!doctype html><script type="application\/json" id="cowork-artifact-meta"/i.test(SRC));
   ok('build stamp present and well-formed',
